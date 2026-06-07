@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RoomCover } from "@/components/RoomCover";
 import {
   Dialog,
   DialogContent,
@@ -140,20 +141,12 @@ export function RoomIdInputWithConfirmDialog({
 
           {confirmRoomInfo && (
             <div className='space-y-3'>
-              {confirmRoomInfo.cover ? (
-                <div className='overflow-hidden rounded-md bg-muted'>
-                  <img
-                    src={confirmRoomInfo.cover}
-                    alt={confirmRoomInfo.uname || t('recordCard.roomFallback', { roomId: confirmRoomInfo.room_id })}
-                    referrerPolicy='no-referrer'
-                    className='h-auto w-full'
-                  />
-                </div>
-              ) : (
-                <div className='flex h-28 items-center justify-center rounded-md bg-muted'>
-                  <UserIcon size={24} />
-                </div>
-              )}
+              <RoomCover
+                src={confirmRoomInfo.cover}
+                alt={confirmRoomInfo.uname || t('recordCard.roomFallback', { roomId: confirmRoomInfo.room_id })}
+                className='w-full'
+                fallbackIconSize={24}
+              />
 
               <div className='space-y-1 text-sm'>
                 <p>

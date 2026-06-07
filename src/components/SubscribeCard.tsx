@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { RoomCover } from '@/components/RoomCover'
 import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, CopySimpleIcon, GearSixIcon } from '@phosphor-icons/react'
 import type { RoomInfo } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
@@ -25,6 +26,12 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
   const [isUnsubDialogOpen, setIsUnsubDialogOpen] = useState(false)
   const [isStartRecordDialogOpen, setIsStartRecordDialogOpen] = useState(false)
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
+  const [isImageLoaded, setIsImageLoaded] = useState(false)
+
+  useEffect(() => {
+    setIsImageLoaded(false)
+  }, [roomInfo.cover])
+
   const cleanTitle = normalizeText(roomInfo.title) || t('subscribeCard.loadingTitle')
   const cleanDescription = normalizeText(roomInfo.description)
   const liveTimeMeta = getLiveTimeMeta(roomInfo.live_time)
@@ -90,14 +97,11 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
         <div className="relative grow">
           <div className="flex flex-col sm:flex-row items-start gap-3">
             {roomInfo.cover ? (
-              <div className="w-full sm:w-40 shrink-0 overflow-hidden rounded-md bg-muted">
-                <img
-                  src={roomInfo.cover}
-                  alt={cleanTitle || roomInfo.uid.toString()}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-auto"
-                />
-              </div>
+              <RoomCover
+                src={roomInfo.cover}
+                alt={cleanTitle || roomInfo.uid.toString()}
+                className="w-full sm:w-40 shrink-0"
+              />
             ) : (
               <div className="w-full h-24 sm:w-40 sm:h-24 shrink-0 bg-muted rounded-md flex items-center justify-center p-4">
                 <UserIcon size={20} />

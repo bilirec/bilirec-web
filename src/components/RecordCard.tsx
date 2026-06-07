@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { RoomCover } from '@/components/RoomCover'
 import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
 import type { RecordTask } from '@/lib/types'
@@ -80,14 +81,12 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
         <div className="relative grow">
           <div className="flex flex-col sm:flex-row items-start gap-3">
             {task.roomInfo?.cover ? (
-              <div className="w-full sm:w-40 shrink-0 overflow-hidden rounded-md bg-muted">
-                <img
-                  src={task.roomInfo.cover}
-                  alt={task.roomInfo.title ?? task.roomInfo.uid.toString()}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-auto"
-                />
-              </div>
+              <RoomCover
+                src={task.roomInfo.cover}
+                alt={task.roomInfo.title ?? task.roomInfo.uid.toString()}
+                className="w-full sm:w-40 shrink-0"
+                fallbackIconSize={20}
+              />
             ) : (
               <div className="w-full h-24 sm:w-40 sm:h-24 shrink-0 bg-muted rounded-md flex items-center justify-center p-4">
                 <UserIcon size={20} />
