@@ -32,11 +32,13 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
     }
   }
 
+  const canControlRecording = task.status === 'recording' || task.status === 'recovering'
+
   const confirmStop = async () => {
     setIsStopDialogOpen(false)
     setIsLoading(true)
     try {
-      if (task.status === 'recording') {
+      if (canControlRecording) {
         onStop(task.roomId)
       }
     } finally {
@@ -179,7 +181,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
           </p>
         )}
 
-        {task.status === 'recording' ? (
+        {canControlRecording ? (
           <div className="flex flex-col sm:flex-row gap-2 mt-auto">
             <Button
               asChild
