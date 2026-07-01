@@ -134,9 +134,15 @@ class ApiClient {
 
   async startRecord(data: StartRecordRequest): Promise<void> {
     const roomId = data.roomId;
-    const params: Record<string, number> = {}
+    const params: Record<string, number | boolean | string> = {};
     if (data.durationMinutes !== undefined) {
-      params.duration_minutes = data.durationMinutes
+      params.duration_minutes = data.durationMinutes;
+    }
+    if (data.qn !== undefined) {
+      params.qn = data.qn;
+    }
+    if (data.onlyAudio) {
+      params.only_audio = true;
     }
     await this.client.post(`/record/${roomId}/start`, {}, { params });
   }

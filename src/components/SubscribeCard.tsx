@@ -9,6 +9,8 @@ import type { RoomInfo } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
 import { getLiveTimeMeta, normalizeText } from '@/lib/utils'
 import { RoomConfigDialog } from '@/components/RoomConfigDialog'
+import { RecordStartOptions } from '@/components/RecordStartOptions'
+import { defaultRecordStartPrefs, type RecordStartPrefs } from '@/lib/record-prefs'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 
@@ -16,7 +18,7 @@ interface SubscribeCardProps {
   roomInfo: RoomInfo
   isRecording?: boolean
   onUnsubscribe: (roomId: number) => Promise<void>
-  onStartRecord: (roomId: number) => Promise<void>
+  onStartRecord: (roomId: number, sessionPrefs: RecordStartPrefs) => Promise<void>
 }
 
 export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, onStartRecord }: SubscribeCardProps) {
@@ -26,6 +28,7 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
   const [isUnsubDialogOpen, setIsUnsubDialogOpen] = useState(false)
   const [isStartRecordDialogOpen, setIsStartRecordDialogOpen] = useState(false)
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
+  const [recordStartPrefs, setRecordStartPrefs] = useState<RecordStartPrefs>(defaultRecordStartPrefs)
   const [isImageLoaded, setIsImageLoaded] = useState(false)
 
   useEffect(() => {
@@ -59,13 +62,14 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
     setIsStartRecordDialogOpen(false)
     setIsLoading(true)
     try {
-      await onStartRecord(roomInfo.room_id)
+      await onStartRecord(roomInfo.room_id, recordStartPrefs)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleStartRecord = () => {
+    setRecordStartPrefs(defaultRecordStartPrefs())
     setIsStartRecordDialogOpen(true)
   }
 
@@ -284,23 +288,37 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
         </Dialog>
 
         <Dialog open={isStartRecordDialogOpen} onOpenChange={setIsStartRecordDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('subscribeCard.startTitle')}</DialogTitle>
-              <DialogDescription>
-                {t('subscribeCard.startDescription', {
-                  name: roomInfo.uname ?? t('subscribeCard.roomFallback', { roomId: roomInfo.room_id })
-                })}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsStartRecordDialogOpen(false)} disabled={isLoading}>
-                {t('fileCard.cancel')}
-              </Button>
-              <Button onClick={confirmStartRecord} disabled={isLoading}>
-                {isLoading ? t('subscribeCard.processing') : t('subscribeCard.confirmStart')}
-              </Button>
-            </DialogFooter>
+          <DialogContent className="flex max-h-[min(90dvh,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-lg">
+            <div className="shrink-0 px-6 pt-6">
+              <DialogHeader>
+                <DialogTitle>{t('subscribeCard.startTitle')}</DialogTitle>
+                <DialogDescription>
+                  {t('subscribeCard.startDescription', {
+                    name: roomInfo.uname ?? t('subscribeCard.roomFallback', { roomId: roomInfo.room_id })
+                  })}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="px-6 py-4">
+                {/* TRANSITION: remove RecordStartOptions when RoomConfig stores qn/only_audio */}
+                <RecordStartOptions
+                  value={recordStartPrefs}
+                  onChange={setRecordStartPrefs}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+            <div className="shrink-0 border-t border-border px-6 py-4">
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsStartRecordDialogOpen(false)} disabled={isLoading}>
+                  {t('fileCard.cancel')}
+                </Button>
+                <Button onClick={confirmStartRecord} disabled={isLoading}>
+                  {isLoading ? t('subscribeCard.processing') : t('subscribeCard.confirmStart')}
+                </Button>
+              </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
 

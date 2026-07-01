@@ -12,6 +12,9 @@ import useSWR from 'swr'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { RecordStartOptions } from './RecordStartOptions'
+import { defaultRecordStartPrefs, type RecordStartPrefs } from '@/lib/record-prefs'
+
 interface RecordsViewProps {
   onRefresh?: () => void
 }
@@ -23,6 +26,12 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
   const scrollPositionRef = useRef(0)
   const isVisible = usePageVisibility()
   const [recordDuration, setRecordDuration] = useState(0)
+  const [recordStartPrefs, setRecordStartPrefs] = useState<RecordStartPrefs>(defaultRecordStartPrefs)
+
+  const resetRecordStartForm = () => {
+    setRecordDuration(0)
+    setRecordStartPrefs(defaultRecordStartPrefs())
+  }
 
   const {
     data: tasks = [],
@@ -68,7 +77,12 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
 
   const handleConfirmRecord = async (roomInfo: RoomInfo) => {
     try {
-      await apiClient.startRecord({ roomId: roomInfo.room_id, durationMinutes: recordDuration || undefined })
+      await apiClient.startRecord({
+        roomId: roomInfo.room_id,
+        durationMinutes: recordDuration || undefined,
+        qn: recordStartPrefs.qn,
+        onlyAudio: recordStartPrefs.onlyAudio,
+      })
     } catch (error: any) {
       console.error('Failed to start record:', error)
       toast.error(error.response?.data || t('recordsView.startFailed'))
@@ -104,7 +118,9 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
               confirmDialogDescription={t('recordsView.confirmTargetDescription')}
               confirmLabel={t('recordsView.confirmRecord')}
               confirmLoadingLabel={t('recordsView.adding')}
+              onConfirmDialogOpen={resetRecordStartForm}
               confirmExtraContent={
+                <>
                 <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
                   <div className="space-y-1">
                     <Label>{t('roomConfig.recordDuration')}</Label>
@@ -142,6 +158,11 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
                     ))}
                   </div>
                 </div>
+                <RecordStartOptions
+                  value={recordStartPrefs}
+                  onChange={setRecordStartPrefs}
+                />
+                </>
               }
               onConfirm={handleConfirmRecord}
             />

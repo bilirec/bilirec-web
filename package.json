@@ -11,7 +11,8 @@
         "build": "tsc && vite build",
         "lint": "eslint .",
         "check:sw": "node --check public/sw.js && tsc --noEmit --allowJs --checkJs --lib ES2022,WebWorker public/sw.js",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "deploy": "wrangler deploy"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",

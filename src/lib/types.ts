@@ -82,6 +82,8 @@ export interface ShareFileInfo {
 export interface StartRecordRequest {
   roomId: number
   durationMinutes?: number
+  qn?: number
+  onlyAudio?: boolean
 }
 
 export interface ConvertQueue {

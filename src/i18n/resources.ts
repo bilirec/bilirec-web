@@ -152,7 +152,22 @@ export const resources = {
         startSuccess: "已開始錄製",
         stopSuccess: "已停止錄製",
         stopFailed: "停止錄製失敗",
-        durationHint: "可選擇本次錄製的時長限制，默認使用房間設定。"
+        durationHint: "可選擇本次錄製的時長限制；不選則使用後端預設。"
+      },
+      recordStartOptions: {
+        quality: "優先畫質",
+        qualityHint:
+          "默認為原畫。所選檔位為請求偏好，不可用時會默認選用該直播支持的最高畫質。實際畫質受直播源與連線方式影響，不保證與所選一致。",
+        qualityOriginal: "原畫",
+        qualitySmooth: "流暢",
+        qualityHigh: "高清",
+        qualitySuper: "超清",
+        qualityBluRay: "藍光",
+        quality4k: "4K",
+        qualityDolby: "杜比",
+        qualityHighBitrateHint: "4K/杜比佔用更多記憶體，低配設備請謹慎選擇",
+        onlyAudio: "僅錄音",
+        onlyAudioHint: "只保存音頻流，不錄製畫面。"
       },
       recordCard: {
         roomFallback: "直播間 {{roomId}}",
@@ -467,7 +482,22 @@ export const resources = {
         startSuccess: "已开始录制",
         stopSuccess: "已停止录制",
         stopFailed: "停止录制失败",
-        durationHint: "可选择本次录制的时长限制，默认使用房间设定。"
+        durationHint: "可选择本次录制的时长限制；不选则使用后端预设。"
+      },
+      recordStartOptions: {
+        quality: "优先画质",
+        qualityHint:
+          "默认为原画。所选档位为请求偏好，不可用时会默认选用该直播支持的最高画质。实际画质受直播源与连接方式影响，不保证与所选一致。",
+        qualityOriginal: "原画",
+        qualitySmooth: "流畅",
+        qualityHigh: "高清",
+        qualitySuper: "超清",
+        qualityBluRay: "蓝光",
+        quality4k: "4K",
+        qualityDolby: "杜比",
+        qualityHighBitrateHint: "4K/杜比占用更多内存，低配设备请谨慎选择",
+        onlyAudio: "仅录音",
+        onlyAudioHint: "只保存音频流，不录制画面。"
       },
       recordCard: {
         roomFallback: "直播间 {{roomId}}",

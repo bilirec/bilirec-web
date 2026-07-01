@@ -7,7 +7,8 @@ import { EmptyState } from './EmptyState'
 import { RoomIdInputWithConfirmDialog } from './RoomIdInputWithConfirmDialog'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
-import type { RecordInfo, RecordStatus, RoomInfo } from '@/lib/types'
+import type { RecordInfo, RecordStatus, RoomConfig, RoomInfo } from '@/lib/types'
+import { buildStartRecordParams, type RecordStartPrefs } from '@/lib/record-prefs'
 import { LoadingScreen } from './LoadingScreen'
 import { usePageVisibility } from '@/hooks/use-visibility'
 import { useScoredSearch } from '@/hooks/use-scored-search'
@@ -217,16 +218,15 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     }
   }
 
-  const handleStartRecord = async (roomId: number) => {
+  const handleStartRecord = async (roomId: number, sessionPrefs?: RecordStartPrefs) => {
     try {
-      let durationMinutes: number | undefined
+      let config: RoomConfig | null = null
       try {
-        const config = await apiClient.getRoomConfig(roomId)
-        durationMinutes = config.record_duration_minutes
+        config = await apiClient.getRoomConfig(roomId)
       } catch {
         // If config fetch fails, fall back to backend default (no param)
       }
-      await apiClient.startRecord({ roomId, durationMinutes })
+      await apiClient.startRecord(buildStartRecordParams(roomId, config, sessionPrefs))
       await mutateDetails()
       toast.success(t('subscribesView.startSuccess'))
       onRefresh?.()
