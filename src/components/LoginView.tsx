@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +10,7 @@ import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon } from '@phosphor-icons/react'
 import type { LoginResponse } from '@/lib/types'
-import { useTranslation } from 'react-i18next'
+import { isValidServerUrl } from '@/lib/utils'
 
 interface LoginViewProps {
   onLoginSuccess: (response: LoginResponse) => void
@@ -25,7 +26,7 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
   useEffect(() => {
     const loadServerUrl = async () => {
       const saved = await storage.get<string>('server-url')
-      if (saved) setServerUrl(saved)
+      if (saved) setServerUrl(saved.trim())
     }
     loadServerUrl()
   }, [])
@@ -33,10 +34,16 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const url = serverUrl || 'http://localhost:8080'
-    
-    if (!url.trim()) {
+    const url = (serverUrl || 'http://localhost:8080').trim()
+    if (url !== serverUrl) setServerUrl(url)
+
+    if (!url) {
       toast.error(t('login.errorNeedServer'))
+      return
+    }
+
+    if (!isValidServerUrl(url)) {
+      toast.error(t('login.errorInvalidServerUrl'))
       return
     }
 
@@ -128,6 +135,7 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
               placeholder="http://localhost:8080"
               value={serverUrl || ''}
               onChange={(e) => setServerUrl(e.target.value)}
+              onBlur={() => setServerUrl((value) => value.trim())}
               disabled={isLoading}
             />
           </div>

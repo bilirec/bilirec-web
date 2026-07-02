@@ -32,6 +32,11 @@ export function formatDateTime(dateString: string): string {
   return formatRelativeTimeLabel(date)
 }
 
+export function isValidServerUrl(url: string): boolean {
+  const trimmed = url.trim().toLowerCase()
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+}
+
 export function normalizeText(value?: string): string {
   if (!value) return ''
 

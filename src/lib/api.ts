@@ -50,10 +50,11 @@ class ApiClient {
   }
 
   setBaseURL(url: string) {
-    this.baseURL = url;
-    this.client.defaults.baseURL = url;
+    const trimmed = url.trim();
+    this.baseURL = trimmed;
+    this.client.defaults.baseURL = trimmed;
     // Persist to IndexedDB so the service worker can use the correct origin for push endpoints
-    sharedStore.set("server-url", url).catch(() => {});
+    sharedStore.set("server-url", trimmed).catch(() => {});
   }
 
   getBaseURL(): string {
