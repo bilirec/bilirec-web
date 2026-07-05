@@ -115,12 +115,16 @@ export interface RoomConfig {
   auto_record: boolean
   notify: boolean
   record_duration_minutes?: number
+  qn?: number
+  only_audio?: boolean
 }
 
 export interface UpdateRoomConfigRequest {
   auto_record: boolean
   notify: boolean
   record_duration_minutes?: number
+  qn?: number
+  only_audio?: boolean
 }
 
 export interface DiskUsage {

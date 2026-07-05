@@ -263,7 +263,7 @@ export const resources = {
       },
       roomConfig: {
         title: "房間配置",
-        description: "管理「{{name}}」的自動錄製與開播通知設定。",
+        description: "管理「{{name}}」的自動錄製、開播通知與錄製偏好設定。",
         loadFailed: "載入房間配置失敗",
         updateSuccess: "房間配置已更新",
         updateFailed: "更新房間配置失敗",
@@ -273,10 +273,9 @@ export const resources = {
         notify: "開播通知",
         notifyHint: "收到直播檢測或自動錄製啓動通知。",
         recordDuration: "錄製時長",
-        recordDurationHint: "從訂閱管理啓動錄製時使用的時長。",
+        recordDurationHint: "手動或自動啓動錄製時使用的時長。",
         recordDurationDefault: "默認",
         recordDurationUnlimited: "不限",
-        recordDurationMinutes: "{{n}} 分鐘",
         recordDurationHours: "{{n}} 小時",
         cancel: "取消",
         saving: "儲存中…",
@@ -494,7 +493,7 @@ export const resources = {
         durationHint: "可选择本次录制的时长限制；不选则使用后端预设。"
       },
       recordStartOptions: {
-        quality: "优先画质",
+        quality: "画质偏好",
         qualityHint:
           "默认为原画。所选档位为请求偏好，不可用时会默认选用该直播支持的最高画质。实际画质受直播源与连接方式影响，不保证与所选一致。",
         qualityOriginal: "原画",
@@ -601,7 +600,7 @@ export const resources = {
       },
       roomConfig: {
         title: "房间配置",
-        description: "管理“{{name}}”的自动录制与开播通知设置。",
+        description: "管理“{{name}}”的自动录制、开播通知与录制偏好设置。",
         loadFailed: "加载房间配置失败",
         updateSuccess: "房间配置已更新",
         updateFailed: "更新房间配置失败",
@@ -611,10 +610,9 @@ export const resources = {
         notify: "开播通知",
         notifyHint: "收到直播检测或自动录制启动通知。",        
         recordDuration: "录制时长",
-        recordDurationHint: "从订阅管理启动录制时使用的时长。",
+        recordDurationHint: "手动或自动启动录制时使用的时长。",
         recordDurationDefault: "默认",
         recordDurationUnlimited: "不限",
-        recordDurationMinutes: "{{n}} 分钟",
         recordDurationHours: "{{n}} 小时",        
         cancel: "取消",
         saving: "保存中…",

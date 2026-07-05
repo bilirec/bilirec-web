@@ -1,22 +1,86 @@
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { QUALITY_OPTIONS, type RecordStartPrefs } from '@/lib/record-prefs'
+import type { RecordStartConfig } from '@/lib/room-config'
 import { useTranslation } from 'react-i18next'
 
-interface RecordStartOptionsProps {
-  value: RecordStartPrefs
-  onChange: (value: RecordStartPrefs) => void
-  disabled?: boolean
+interface QualityOption {
+  qn?: number
+  labelKey: string
 }
 
-export function RecordStartOptions({ value, onChange, disabled = false }: RecordStartOptionsProps) {
+const QUALITY_OPTIONS: QualityOption[] = [
+  { labelKey: 'qualityOriginal' },
+  { qn: 80, labelKey: 'qualitySmooth' },
+  { qn: 150, labelKey: 'qualityHigh' },
+  { qn: 250, labelKey: 'qualitySuper' },
+  { qn: 400, labelKey: 'qualityBluRay' },
+  { qn: 20000, labelKey: 'quality4k' },
+  { qn: 30000, labelKey: 'qualityDolby' },
+]
+
+interface RecordStartOptionsProps {
+  value: RecordStartConfig
+  onChange: (value: RecordStartConfig) => void
+  disabled?: boolean
+  durationHintKey?: string
+}
+
+export function RecordStartOptions({
+  value,
+  onChange,
+  disabled = false,
+  durationHintKey = 'recordsView.durationHint',
+}: RecordStartOptionsProps) {
   const { t } = useTranslation()
 
-  const selectedQn = value.qn
+  const recordDuration = value.record_duration_minutes ?? 0
+  const selectedQn = value.qn === 0 ? undefined : value.qn
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+        <div className="space-y-1">
+          <Label>{t('roomConfig.recordDuration')}</Label>
+          <p className="text-sm text-muted-foreground">{t(durationHintKey)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={recordDuration === 0 ? 'default' : 'outline'}
+            size="sm"
+            className="flex-1 sm:flex-none border"
+            disabled={disabled}
+            onClick={() => onChange({ ...value, record_duration_minutes: 0 })}
+          >
+            {t('roomConfig.recordDurationDefault')}
+          </Button>
+          <Button
+            type="button"
+            variant={recordDuration === -1 ? 'default' : 'outline'}
+            size="sm"
+            className="flex-1 sm:flex-none border"
+            disabled={disabled}
+            onClick={() => onChange({ ...value, record_duration_minutes: -1 })}
+          >
+            {t('roomConfig.recordDurationUnlimited')}
+          </Button>
+          {[60, 180, 300, 600].map((n) => (
+            <Button
+              key={n}
+              type="button"
+              variant={recordDuration === n ? 'default' : 'outline'}
+              size="sm"
+              className="flex-1 sm:flex-none border"
+              disabled={disabled}
+              onClick={() => onChange({ ...value, record_duration_minutes: n })}
+            >
+              {t('roomConfig.recordDurationHours', { n: n / 60 })}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
         <div className="space-y-1">
           <Label>{t('recordStartOptions.quality')}</Label>
@@ -36,7 +100,7 @@ export function RecordStartOptions({ value, onChange, disabled = false }: Record
                 size="sm"
                 className="flex-1 sm:flex-none border"
                 disabled={disabled}
-                onClick={() => onChange({ ...value, qn: option.qn })}
+                onClick={() => onChange({ ...value, qn: option.qn ?? 0 })}
               >
                 {t(`recordStartOptions.${option.labelKey}`)}
               </Button>
@@ -57,8 +121,8 @@ export function RecordStartOptions({ value, onChange, disabled = false }: Record
         </div>
         <Switch
           id="record-only-audio"
-          checked={value.onlyAudio ?? false}
-          onCheckedChange={(checked) => onChange({ ...value, onlyAudio: checked })}
+          checked={value.only_audio ?? false}
+          onCheckedChange={(checked) => onChange({ ...value, only_audio: checked })}
           disabled={disabled}
         />
       </div>

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 import type { RecordInfo, RecordStatus, RoomConfig, RoomInfo } from '@/lib/types'
-import { buildStartRecordParams, type RecordStartPrefs } from '@/lib/record-prefs'
+import { buildStartRecordParams } from '@/lib/room-config'
 import { LoadingScreen } from './LoadingScreen'
 import { usePageVisibility } from '@/hooks/use-visibility'
 import { useScoredSearch } from '@/hooks/use-scored-search'
@@ -293,7 +293,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     }
   }
 
-  const handleStartRecord = async (roomId: number, sessionPrefs?: RecordStartPrefs) => {
+  const handleStartRecord = async (roomId: number) => {
     try {
       let config: RoomConfig | null = null
       try {
@@ -301,7 +301,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
       } catch {
         // If config fetch fails, fall back to backend default (no param)
       }
-      await apiClient.startRecord(buildStartRecordParams(roomId, config, sessionPrefs))
+      await apiClient.startRecord(buildStartRecordParams(roomId, config))
       await mutateDetails()
       toast.success(t('subscribesView.startSuccess'))
       onRefresh?.()

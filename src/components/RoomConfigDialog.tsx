@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { RecordStartOptions } from '@/components/RecordStartOptions'
 import { apiClient } from '@/lib/api'
 import type { RoomConfig, RoomInfo } from '@/lib/types'
 import { toast } from 'sonner'
@@ -71,16 +72,6 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
     })
   }
 
-  const handleDurationChange = (value: string) => {
-    setRoomConfig((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        record_duration_minutes: Number(value),
-      }
-    })
-  }
-
   const handleSaveConfig = async () => {
     if (!roomConfig) {
       return
@@ -92,6 +83,8 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
         auto_record: roomConfig.auto_record,
         notify: roomConfig.notify,
         record_duration_minutes: roomConfig.record_duration_minutes,
+        qn: roomConfig.qn ?? 0,
+        only_audio: roomConfig.only_audio ?? false,
       })
       setRoomConfig(updatedConfig)
       onOpenChange(false)
@@ -149,47 +142,16 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
                 />
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
-                <div className="space-y-1">
-                  <Label>{t('roomConfig.recordDuration')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('roomConfig.recordDurationHint')}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={roomConfig.record_duration_minutes === 0 || roomConfig.record_duration_minutes === undefined || roomConfig.record_duration_minutes === null ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1 sm:flex-none border"
-                    onClick={() => handleDurationChange('0')}
-                    disabled={isSaving}
-                  >
-                    {t('roomConfig.recordDurationDefault')}
-                  </Button>
-                  <Button
-                    variant={roomConfig.record_duration_minutes === -1 ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1 sm:flex-none border"
-                    onClick={() => handleDurationChange('-1')}
-                    disabled={isSaving}
-                  >
-                    {t('roomConfig.recordDurationUnlimited')}
-                  </Button>
-                  {[60, 180, 300, 600].map((n) => (
-                    <Button
-                      key={n}
-                      variant={roomConfig.record_duration_minutes === n ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex-1 sm:flex-none border"
-                      onClick={() => handleDurationChange(String(n))}
-                      disabled={isSaving}
-                    >
-                      {t('roomConfig.recordDurationHours', { n: n / 60 })}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              <RecordStartOptions
+                value={{
+                  record_duration_minutes: roomConfig.record_duration_minutes,
+                  qn: roomConfig.qn,
+                  only_audio: roomConfig.only_audio,
+                }}
+                onChange={(opts) => setRoomConfig((current) => (current ? { ...current, ...opts } : current))}
+                disabled={isSaving}
+                durationHintKey="roomConfig.recordDurationHint"
+              />
             </>
           )}
         </div>
