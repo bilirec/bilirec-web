@@ -42,6 +42,8 @@ export interface RecordTask {
   fileSize?: number
   recordedTime?: number
   startTime?: string | number
+  actualQn?: number
+  isAudioOnly?: boolean
   error?: string
   roomInfo?: RoomInfo
 }
@@ -52,6 +54,8 @@ export interface RecorderStats {
   start_time: number
   status: string
   output_path: string
+  actual_qn?: number
+  is_audio_only?: boolean
 }
 
 export type RecordStatus = 'recording' | 'recovering' | 'idle'

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RoomCover } from '@/components/RoomCover'
 import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
+import { getRecordQualityLabelKey } from '@/lib/record-quality'
 import type { RecordTask } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
 import { toast } from 'sonner'
@@ -33,6 +34,13 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   }
 
   const canControlRecording = task.status === 'recording' || task.status === 'recovering'
+  const qualityLabelKey = getRecordQualityLabelKey(task.actualQn)
+  const qualityLabel = qualityLabelKey
+    ? t(`recordStartOptions.${qualityLabelKey}`)
+    : task.actualQn && task.actualQn > 0
+      ? `QN ${task.actualQn}`
+      : undefined
+  const showStreamBadge = canControlRecording && (task.isAudioOnly || qualityLabel !== undefined)
 
   const confirmStop = async () => {
     setIsStopDialogOpen(false)
@@ -117,6 +125,19 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                   <p className="text-sm text-muted-foreground truncate">
                     {task.roomInfo?.title || t('recordCard.loadingTitle')}
                   </p>
+                  {showStreamBadge && (
+                    <div className="mt-1.5">
+                      {task.isAudioOnly ? (
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {t('recordCard.audioOnlyBadge')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs font-normal" title={t('recordCard.actualQuality')}>
+                          {qualityLabel}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-end gap-2 ml-2 shrink-0">

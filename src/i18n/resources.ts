@@ -186,7 +186,9 @@ export const resources = {
         processing: "處理中…",
         confirmStop: "確認停止",
         copyRoomIdTitle: "複製 直播間 ID: {{roomId}}",
-        copyRoomIdAria: "複製 直播間 ID {{roomId}}"
+        copyRoomIdAria: "複製 直播間 ID {{roomId}}",
+        actualQuality: "實際畫質",
+        audioOnlyBadge: "僅音頻"
       },
       convertsView: {
         title: "轉換任務",
@@ -523,7 +525,9 @@ export const resources = {
         processing: "处理中…",
         confirmStop: "确认停止",
         copyRoomIdTitle: "复制 直播间 ID: {{roomId}}",
-        copyRoomIdAria: "复制 直播间 ID {{roomId}}"
+        copyRoomIdAria: "复制 直播间 ID {{roomId}}",
+        actualQuality: "实际画质",
+        audioOnlyBadge: "仅音频"
       },
       convertsView: {
         title: "转换任务",

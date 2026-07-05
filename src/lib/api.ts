@@ -126,7 +126,9 @@ class ApiClient {
         status,
         fileSize: roomStats?.bytes_written,
         recordedTime: roomStats?.elapsed_seconds,
-        startTime: roomStats?.start_time
+        startTime: roomStats?.start_time,
+        actualQn: roomStats?.actual_qn,
+        isAudioOnly: roomStats?.is_audio_only,
       } as RecordTask;
     });
 
