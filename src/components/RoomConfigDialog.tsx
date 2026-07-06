@@ -99,78 +99,84 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('roomConfig.title')}</DialogTitle>
-          <DialogDescription>
-            {t('roomConfig.description', { name: roomInfo.uname ?? t('subscribeCard.roomFallback', { roomId: roomInfo.room_id }) })}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          {isLoading || !roomConfig ? (
-            <p className="text-sm text-muted-foreground">{t('roomConfig.loading')}</p>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
-                <div className="space-y-1">
-                  <Label htmlFor={`auto-record-${roomInfo.room_id}`}>{t('roomConfig.autoRecord')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('roomConfig.autoRecordHint')}
-                  </p>
-                </div>
-                <Switch
-                  id={`auto-record-${roomInfo.room_id}`}
-                  checked={roomConfig.auto_record}
-                  onCheckedChange={(checked) => handleConfigToggle('auto_record', checked)}
-                  disabled={isSaving}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
-                <div className="space-y-1">
-                  <Label htmlFor={`notify-${roomInfo.room_id}`}>{t('roomConfig.notify')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t('roomConfig.notifyHint')}
-                  </p>
-                </div>
-                <Switch
-                  id={`notify-${roomInfo.room_id}`}
-                  checked={roomConfig.notify}
-                  onCheckedChange={(checked) => handleConfigToggle('notify', checked)}
-                  disabled={isSaving}
-                />
-              </div>
-
-              <RecordStartOptions
-                value={{
-                  record_duration_minutes: roomConfig.record_duration_minutes,
-                  qn: roomConfig.qn,
-                  only_audio: roomConfig.only_audio,
-                }}
-                onChange={(opts) => setRoomConfig((current) => (current ? { ...current, ...opts } : current))}
-                disabled={isSaving}
-                durationHintKey="roomConfig.recordDurationHint"
-              />
-            </>
-          )}
+      <DialogContent className="flex max-h-[min(90dvh,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-lg">
+        <div className="shrink-0 px-6 pt-6 pb-2">
+          <DialogHeader>
+            <DialogTitle>{t('roomConfig.title')}</DialogTitle>
+            <DialogDescription>
+              {t('roomConfig.description', { name: roomInfo.uname ?? t('subscribeCard.roomFallback', { roomId: roomInfo.room_id }) })}
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading || isSaving}
-          >
-            {t('roomConfig.cancel')}
-          </Button>
-          <Button
-            onClick={handleSaveConfig}
-            disabled={isLoading || isSaving || !roomConfig}
-          >
-            {isSaving ? t('roomConfig.saving') : t('roomConfig.save')}
-          </Button>
-        </DialogFooter>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="space-y-4 px-6 py-4">
+            {isLoading || !roomConfig ? (
+              <p className="text-sm text-muted-foreground">{t('roomConfig.loading')}</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`auto-record-${roomInfo.room_id}`}>{t('roomConfig.autoRecord')}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t('roomConfig.autoRecordHint')}
+                    </p>
+                  </div>
+                  <Switch
+                    id={`auto-record-${roomInfo.room_id}`}
+                    checked={roomConfig.auto_record}
+                    onCheckedChange={(checked) => handleConfigToggle('auto_record', checked)}
+                    disabled={isSaving}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`notify-${roomInfo.room_id}`}>{t('roomConfig.notify')}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t('roomConfig.notifyHint')}
+                    </p>
+                  </div>
+                  <Switch
+                    id={`notify-${roomInfo.room_id}`}
+                    checked={roomConfig.notify}
+                    onCheckedChange={(checked) => handleConfigToggle('notify', checked)}
+                    disabled={isSaving}
+                  />
+                </div>
+
+                <RecordStartOptions
+                  value={{
+                    record_duration_minutes: roomConfig.record_duration_minutes,
+                    qn: roomConfig.qn,
+                    only_audio: roomConfig.only_audio,
+                  }}
+                  onChange={(opts) => setRoomConfig((current) => (current ? { ...current, ...opts } : current))}
+                  disabled={isSaving}
+                  durationHintKey="roomConfig.recordDurationHint"
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-border px-6 py-4">
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading || isSaving}
+            >
+              {t('roomConfig.cancel')}
+            </Button>
+            <Button
+              onClick={handleSaveConfig}
+              disabled={isLoading || isSaving || !roomConfig}
+            >
+              {isSaving ? t('roomConfig.saving') : t('roomConfig.save')}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )
