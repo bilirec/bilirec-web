@@ -73,7 +73,7 @@ export const resources = {
       about: {
         title: "關於 Bilirec",
         section: "關於",
-        menuItem: "Bilirec",
+        menuItem: "版本資訊",
         desc: "如果你透過官方網址連線，請將 bilirec 後端更新至最新版本以正確對接官方 Web 界面。",
         currentVersion: "當前版本",
         latestVersion: "最新版本",
@@ -444,7 +444,7 @@ export const resources = {
       about: {
         title: "关于 Bilirec",
         section: "关于",
-        menuItem: "Bilirec",
+        menuItem: "版本信息",
         desc: "如果你通过官方网址连接，请将 bilirec 后端更新至最新版本以正确对接官方 Web 界面。",
         currentVersion: "当前版本",
         latestVersion: "最新版本",

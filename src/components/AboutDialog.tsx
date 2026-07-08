@@ -58,7 +58,7 @@ function QuickLink({
       className={cn(
         "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-xs transition-colors",
         "border-border/60 bg-card/60 text-foreground hover:bg-accent/40",
-        "dark:border-white/[0.08] dark:bg-[#0C151C] dark:text-[#D8E6EF] dark:hover:border-sky-400/20 dark:hover:bg-[#101D27]"
+        "dark:border-white/8 dark:bg-[#0C151C] dark:text-[#D8E6EF] dark:hover:border-sky-400/20 dark:hover:bg-[#101D27]"
       )}
     >
       <LinkIcon
@@ -142,7 +142,7 @@ export function AboutDialog({
       <DialogContent
         className={cn(
           "gap-4 overflow-hidden border-border/70 bg-card sm:max-w-sm",
-          "dark:border-white/[0.08] dark:bg-[#09131A] dark:shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+          "dark:border-white/8 dark:bg-[#09131A] dark:shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
         )}
       >
         <div className="flex flex-col items-center gap-3 pt-1 text-center">
@@ -150,7 +150,7 @@ export function AboutDialog({
             className={cn(
               "flex h-[72px] w-[72px] items-center justify-center rounded-full",
               "bg-[#26A9F1]/12 text-[#26A9F1] ring-1 ring-[#26A9F1]/20",
-              "dark:bg-gradient-to-br dark:from-sky-400/20 dark:to-cyan-500/10",
+              "dark:bg-linear-to-br dark:from-sky-400/20 dark:to-cyan-500/10",
               "dark:text-sky-300 dark:ring-sky-400/25"
             )}
           >
@@ -170,7 +170,7 @@ export function AboutDialog({
           className={cn(
             "grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl border px-4 py-3 text-sm",
             "border-border/60 bg-muted/30",
-            "dark:border-white/[0.08] dark:bg-[#0E1A22]"
+            "dark:border-white/8 dark:bg-[#0E1A22]"
           )}
         >
           <InfoGridRow
@@ -179,7 +179,7 @@ export function AboutDialog({
           />
           <InfoGridRow label={t("about.latestVersion")} value={latestValue} />
           {showStatus ? (
-            <div className="col-span-2 flex items-center justify-between gap-3 border-t border-border/50 pt-2 dark:border-white/[0.06]">
+            <div className="col-span-2 flex items-center justify-between gap-3 border-t border-border/50 pt-2 dark:border-white/6">
               <span className="text-muted-foreground dark:text-[#8FA3B0]">
                 {t("about.status")}
               </span>
