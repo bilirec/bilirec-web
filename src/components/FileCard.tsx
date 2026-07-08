@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox'
 import { DownloadSimpleIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon } from '@phosphor-icons/react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
-import { formatFileSize } from '@/lib/utils'
+import { formatFileSize, isConvertibleVideoFile } from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
@@ -37,6 +37,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
   const sizeVal = typeof file.size === 'number' ? file.size : Number((file as any).size) || 0
   const extension = file.name.split('.').pop()?.toUpperCase()
   const isMp4 = extension?.toLowerCase() === 'mp4'
+  const canConvert = isConvertibleVideoFile(name)
 
   const isRecording = 'is_recording' in file ? !!(file as any).is_recording : false
 
@@ -133,7 +134,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
   const [shareTtl, setShareTtl] = useState<string>('3600')
 
   const openConvertDialog = () => {
-    if (isDir) {
+    if (isDir || !canConvert) {
       toast.error(t('fileCard.convertNotSupported'))
       return
     }
@@ -340,7 +341,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                 </span>
               </Button>
 
-              {/* Desktop actions: show preview (mp4), share, convert & delete on sm+ */}
+              {/* Desktop actions: show preview (mp4), share, convert (ts/fmp4/flv) & delete on sm+ */}
               <div className="hidden sm:flex items-center gap-2">
                 {isMp4 && (
                   <Button
@@ -355,7 +356,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                     <EyeIcon size={16} />
                   </Button>
                 )}
-                {!isMp4 && !isReadOnly && (
+                {canConvert && !isReadOnly && (
                   <Button
                     size="icon"
                     variant="outline"
@@ -429,7 +430,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                         {isSharing ? t('fileCard.shareGeneratingLong') : t('fileCard.share')}
                       </DropdownMenuItem>
                     )}
-                    {!isMp4 && !isReadOnly && (
+                    {canConvert && !isReadOnly && (
                       <DropdownMenuItem onSelect={() => { openConvertDialog(); }} disabled={isConverting || isDownloading || isDeleting || isRecording}>
                         {isConverting ? t('fileCard.converting') : t('fileCard.convert')}
                       </DropdownMenuItem>

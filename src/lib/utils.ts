@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Video container extensions that bilirec can convert to MP4 (excludes mp4 itself). */
+const CONVERTIBLE_VIDEO_EXTENSIONS = new Set(['ts', 'fmp4', 'flv'])
+
+export function isConvertibleVideoFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return ext ? CONVERTIBLE_VIDEO_EXTENSIONS.has(ext) : false
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
