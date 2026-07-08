@@ -7,6 +7,7 @@ import { FilesView } from "@/components/FilesView";
 import { ConvertsView } from "@/components/ConvertsView";
 import { SubscribesView } from "@/components/SubscribesView";
 import { BilibiliAuthDialog } from "@/components/BilibiliAuthDialog";
+import { AboutDialog } from "@/components/AboutDialog";
 import { BottomNav } from "@/components/BottomNav";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { DiskUsageDisplay } from "@/components/DiskUsageDisplay";
@@ -29,7 +30,8 @@ import {
   TranslateIcon,
   GearIcon,
   CheckIcon,
-  UserIcon
+  UserIcon,
+  InfoIcon
 } from "@phosphor-icons/react";
 import { apiClient } from "@/lib/api";
 import {
@@ -41,8 +43,12 @@ import { registerServiceWorker } from "@/lib/service-worker";
 import { storage } from "@/lib/storage";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import type { DiskUsage, LoginResponse } from "@/lib/types";
+import type { DiskUsage, LoginResponse, ServerVersionResult } from "@/lib/types";
 import type { BilibiliAuthStatus } from "@/lib/types";
+import {
+  clearVersionAutoCheckGate,
+  maybeAutoCheckVersion
+} from "@/lib/server-version";
 import { RoleContext } from "@/lib/role-context";
 
 type AppTab = "records" | "files" | "converts" | "subscribe";
@@ -92,8 +98,16 @@ function App() {
   const [bilibiliButtonVisible, setBilibiliButtonVisible] = useState(false);
   const [bilibiliAuthStatus, setBilibiliAuthStatus] = useState<BilibiliAuthStatus | null>(null);
   const [isBilibiliDialogOpen, setIsBilibiliDialogOpen] = useState(false);
+  const [serverVersion, setServerVersion] = useState<ServerVersionResult | null>(null);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const isReadOnly = userRole === "viewer";
+  const showServerOutdatedBadge =
+    Boolean(serverVersion?.outdated && serverVersion?.checked);
+
+  const handleServerVersionResult = (result: ServerVersionResult) => {
+    setServerVersion(result);
+  };
 
   const isUnsupportedStatus = (statusCode: number | undefined) => statusCode === 400 || statusCode === 404 || statusCode === 403
 
@@ -118,6 +132,7 @@ function App() {
           apiClient.setBaseURL(serverUrl);
           await apiClient.getRecords();
           setIsAuthenticated(true);
+          maybeAutoCheckVersion(handleServerVersionResult, t);
           // Restore role from localStorage (already initialised in useState)
           // Fetch initial disk usage
           try {
@@ -431,6 +446,7 @@ function App() {
     setUserRole(role);
     setUserName(user);
     setIsAuthenticated(true);
+    maybeAutoCheckVersion(handleServerVersionResult, t);
     if (user) {
       toast.success(t("toast.welcomeBack", { user }));
     } else {
@@ -443,7 +459,9 @@ function App() {
       // Notify server to clear HttpOnly cookie
       await apiClient.logout();
       await stopLiveNotifications();
+      clearVersionAutoCheckGate();
       setIsAuthenticated(false);
+      setServerVersion(null);
       localStorage.removeItem("user-role");
       localStorage.removeItem("user-name");
       setUserRole("admin");
@@ -502,7 +520,7 @@ function App() {
               </div>
               <div>
                 <h1 className="font-bold text-lg leading-none mb-1 text-card-foreground">
-                  BiliRec
+                  Bilirec
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {t("app.subtitle")}
@@ -595,6 +613,19 @@ function App() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="relative shrink-0 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
+                  aria-label={t("about.title")}
+                  onClick={() => setIsAboutOpen(true)}
+                >
+                  <InfoIcon size={18} />
+                  {showServerOutdatedBadge ? (
+                    <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-destructive" />
+                  ) : null}
+                </Button>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -717,6 +748,15 @@ function App() {
                         {lang === "zh-TW" ? t("language.traditionalChinese") : t("language.simplifiedChinese")}
                       </DropdownMenuItem>
                     ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>{t("about.section")}</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onSelect={() => setIsAboutOpen(true)}
+                      className="gap-2 cursor-pointer text-muted-foreground"
+                    >
+                      <InfoIcon size={14} className="shrink-0" />
+                      {t("about.menuItem")}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -743,6 +783,13 @@ function App() {
             onControllerUnsupported={() => setBilibiliButtonVisible(false)}
           />
         )}
+
+        <AboutDialog
+          open={isAboutOpen}
+          onOpenChange={setIsAboutOpen}
+          version={serverVersion}
+          onVersionChange={setServerVersion}
+        />
 
         <div className="h-[calc(100vh-73px)] overflow-x-hidden flex">
           <LeftSidebar

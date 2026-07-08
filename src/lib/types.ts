@@ -179,3 +179,14 @@ export interface BilibiliAuthStatus {
   qr?: BilibiliAuthQr
   lastError?: string
 }
+
+export interface ServerVersionResult {
+  current: string
+  latest: string
+  outdated: boolean
+  checked: boolean
+  url: string
+  error: string
+  error_code?: string
+  retry_after_secs?: number
+}

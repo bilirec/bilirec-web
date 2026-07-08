@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance, isAxiosError } from "axios";
 import type {
   LoginRequest,
   RecordTask,
@@ -20,7 +20,8 @@ import type {
   RecordStatus,
   RecorderStats,
   BilibiliAuthStatus,
-  BilibiliAuthInitResponse
+  BilibiliAuthInitResponse,
+  ServerVersionResult
 } from "./types";
 import { sharedStore } from "./shared-store";
 
@@ -404,6 +405,27 @@ class ApiClient {
     return response.data;
   }
 
+  async getVersion(): Promise<ServerVersionResult> {
+    const response = await this.client.get<ServerVersionResult>("/version");
+    return response.data;
+  }
+
+  async checkVersion(): Promise<ServerVersionResult> {
+    const response = await this.client.post<ServerVersionResult>("/version/check");
+    return response.data;
+  }
+
+}
+
+export function parseVersionError(err: unknown): ServerVersionResult | null {
+  if (!isAxiosError(err)) {
+    return null;
+  }
+  const data = err.response?.data;
+  if (data && typeof data === "object" && "current" in data) {
+    return data as ServerVersionResult;
+  }
+  return null;
 }
 
 export const apiClient = new ApiClient();
