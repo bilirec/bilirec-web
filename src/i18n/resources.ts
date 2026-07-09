@@ -228,7 +228,14 @@ export const resources = {
         notSubscribed: "未訂閱此房間",
         unsubscribeFailed: "取消訂閱失敗",
         startSuccess: "已開始錄製",
-        startFailed: "啟動錄製失敗"
+        startFailed: "啟動錄製失敗",
+        notificationBlockedTitle: "瀏覽器通知已封鎖",
+        notificationBlockedDescription:
+          "無法接收開播提醒。請在瀏覽器的網站設定中，將此網站的通知權限改為「允許」。",
+        notificationBlockedDismiss: "關閉提示",
+        notificationEnableTitle: "開播提醒尚未開啟",
+        notificationEnableDescription: "開啟瀏覽器通知後，直播間開播時會收到提醒。",
+        notificationEnableAction: "開啟通知"
       },
       subscribeCard: {
         loadingTitle: "載入中...",
@@ -559,7 +566,14 @@ export const resources = {
         notSubscribed: "未订阅此房间",
         unsubscribeFailed: "取消订阅失败",
         startSuccess: "已开始录制",
-        startFailed: "启动录制失败"
+        startFailed: "启动录制失败",
+        notificationBlockedTitle: "浏览器通知已屏蔽",
+        notificationBlockedDescription:
+          "无法接收开播提醒。请在浏览器的网站设置中，将此网站的通知权限改为“允许”。",
+        notificationBlockedDismiss: "关闭提示",
+        notificationEnableTitle: "开播提醒尚未开启",
+        notificationEnableDescription: "开启浏览器通知后，直播间开播时会收到提醒。",
+        notificationEnableAction: "开启通知"
       },
       subscribeCard: {
         loadingTitle: "加载中...",

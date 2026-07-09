@@ -34,7 +34,8 @@ import {
 import { apiClient } from "@/lib/api";
 import {
   startLiveNotifications,
-  stopLiveNotifications
+  stopLiveNotifications,
+  watchNotificationPermission
 } from "@/lib/notifications";
 import { registerServiceWorker } from "@/lib/service-worker";
 import { storage } from "@/lib/storage";
@@ -381,7 +382,7 @@ function App() {
           return;
         }
 
-        if (result === "permission-denied") {
+        if (result === "permission-denied-fresh") {
           toast.error(t("toast.notificationBlocked"));
         } else if (result === "push-unavailable") {
           console.error(
@@ -401,10 +402,26 @@ function App() {
       console.error("Unexpected bootstrapNotifications rejection:", error);
     });
 
+    const unwatchPermission = watchNotificationPermission((status) => {
+      if (cancelled || status === "unsupported") {
+        return;
+      }
+
+      if (status === "granted" || status === "default") {
+        bootstrapNotifications().catch((error) => {
+          console.error(
+            "Failed to restart live notifications after permission change:",
+            error
+          );
+        });
+      }
+    });
+
     return () => {
       cancelled = true;
+      unwatchPermission();
     };
-  }, [isAuthenticated, t, userRole]);
+  }, [isAuthenticated, userRole]);
 
   const handleLoginSuccess = (response: LoginResponse) => {
     const role = response.role || "admin";

@@ -3,14 +3,84 @@ import { getServiceWorkerRegistration } from '@/lib/service-worker'
 
 export type NotificationBootstrapResult =
   | 'started'
-  | 'permission-denied'
+  | 'permission-denied-fresh'
+  | 'permission-denied-existing'
   | 'permission-default'
   | 'push-unavailable'
   | 'unsupported'
   | 'worker-unavailable'
 
+export type NotificationPermissionStatus =
+  | 'granted'
+  | 'denied'
+  | 'default'
+  | 'unsupported'
+
+export const NOTIFICATION_BLOCKED_BANNER_DISMISSED_KEY =
+  'notification-blocked-banner-dismissed'
+
+export type StartLiveNotificationsOptions = {
+  autoRequestPermission?: boolean
+}
+
 function canUseNotifications() {
   return typeof window !== 'undefined' && 'Notification' in window
+}
+
+export function getNotificationPermission(): NotificationPermissionStatus {
+  if (!canUseNotifications()) {
+    return 'unsupported'
+  }
+
+  return Notification.permission as NotificationPermissionStatus
+}
+
+export async function requestNotificationPermission(): Promise<NotificationPermissionStatus> {
+  if (!canUseNotifications()) {
+    return 'unsupported'
+  }
+
+  const current = Notification.permission
+  if (current === 'granted' || current === 'denied') {
+    return current as NotificationPermissionStatus
+  }
+
+  return (await Notification.requestPermission()) as NotificationPermissionStatus
+}
+
+export function watchNotificationPermission(
+  onChange: (status: NotificationPermissionStatus) => void
+): () => void {
+  if (!canUseNotifications() || !navigator.permissions?.query) {
+    return () => {}
+  }
+
+  let disposed = false
+  let removeListener: (() => void) | null = null
+
+  const handler = () => {
+    if (!disposed) {
+      onChange(getNotificationPermission())
+    }
+  }
+
+  void navigator.permissions
+    .query({ name: 'notifications' as PermissionName })
+    .then((status) => {
+      if (disposed) {
+        return
+      }
+
+      status.addEventListener('change', handler)
+      removeListener = () => status.removeEventListener('change', handler)
+      onChange(getNotificationPermission())
+    })
+    .catch(() => {})
+
+  return () => {
+    disposed = true
+    removeListener?.()
+  }
 }
 
 function base64ToUint8Array(base64String: string) {
@@ -26,7 +96,10 @@ function base64ToUint8Array(base64String: string) {
   return outputArray
 }
 
-export async function startLiveNotifications(): Promise<NotificationBootstrapResult> {
+export async function startLiveNotifications(
+  options: StartLiveNotificationsOptions = {}
+): Promise<NotificationBootstrapResult> {
+  const { autoRequestPermission = true } = options
   const registration = await getServiceWorkerRegistration()
   if (!registration) {
     return 'unsupported'
@@ -37,12 +110,16 @@ export async function startLiveNotifications(): Promise<NotificationBootstrapRes
   }
 
   let permission = Notification.permission
-  if (permission === 'default') {
+  let requestedPermission = false
+  if (permission === 'default' && autoRequestPermission) {
+    requestedPermission = true
     permission = await Notification.requestPermission()
   }
 
   if (permission === 'denied') {
-    return 'permission-denied'
+    return requestedPermission
+      ? 'permission-denied-fresh'
+      : 'permission-denied-existing'
   }
 
   if (permission !== 'granted') {

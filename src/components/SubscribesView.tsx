@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useGridVirtualizer } from '@/hooks/use-grid-virtualizer'
-import { BellIcon, MagnifyingGlassIcon } from '@phosphor-icons/react'
+import { BellIcon, BellSlashIcon, MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react'
 import { SearchBar } from './SearchBar'
 import { SubscribeCard } from './SubscribeCard'
 import { EmptyState } from './EmptyState'
 import { RoomIdInputWithConfirmDialog } from './RoomIdInputWithConfirmDialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 import type { RecordInfo, RecordStatus, RoomConfig, RoomInfo } from '@/lib/types'
@@ -14,6 +16,15 @@ import { usePageVisibility } from '@/hooks/use-visibility'
 import { useScoredSearch } from '@/hooks/use-scored-search'
 import { useRole } from '@/lib/role-context'
 import { normalizeText } from '@/lib/utils'
+import {
+  getNotificationPermission,
+  NOTIFICATION_BLOCKED_BANNER_DISMISSED_KEY,
+  requestNotificationPermission,
+  startLiveNotifications,
+  type NotificationPermissionStatus,
+  watchNotificationPermission,
+} from '@/lib/notifications'
+import { storage } from '@/lib/storage'
 import useSWR from 'swr'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +44,10 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   const { isReadOnly } = useRole()
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermissionStatus>(getNotificationPermission)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionRef = useRef(0)
   const isVisible = usePageVisibility()
@@ -104,6 +119,60 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     }, 200)
     return () => window.clearTimeout(timer)
   }, [searchInput])
+
+  useEffect(() => {
+    void storage
+      .get<boolean>(NOTIFICATION_BLOCKED_BANNER_DISMISSED_KEY)
+      .then((value) => {
+        if (value) {
+          setBannerDismissed(true)
+        }
+      })
+  }, [])
+
+  useEffect(() => {
+    return watchNotificationPermission((status) => {
+      setNotificationPermission(status)
+      if (status !== 'denied') {
+        setBannerDismissed(false)
+        void storage.delete(NOTIFICATION_BLOCKED_BANNER_DISMISSED_KEY)
+      }
+    })
+  }, [])
+
+  const showNotificationEnableBanner =
+    !isReadOnly && notificationPermission === 'default'
+
+  const showNotificationBlockedBanner =
+    !isReadOnly &&
+    notificationPermission === 'denied' &&
+    !bannerDismissed
+
+  const handleDismissNotificationBanner = () => {
+    setBannerDismissed(true)
+    void storage.set(NOTIFICATION_BLOCKED_BANNER_DISMISSED_KEY, true)
+  }
+
+  const handleEnableNotifications = async () => {
+    setIsRequestingPermission(true)
+    try {
+      const permission = await requestNotificationPermission()
+      setNotificationPermission(permission)
+
+      if (permission === 'granted') {
+        const result = await startLiveNotifications({ autoRequestPermission: false })
+        if (result === 'push-unavailable') {
+          console.error('Web Push bootstrap failed after granting permission:', result)
+        }
+      } else if (permission === 'denied') {
+        toast.error(t('toast.notificationBlocked'))
+      }
+    } catch (error) {
+      console.error('Failed to request notification permission:', error)
+    } finally {
+      setIsRequestingPermission(false)
+    }
+  }
 
   const normalizeSearchText = useMemo(
     () => (value: string) => normalizeText(value).toLowerCase(),
@@ -267,6 +336,53 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
             />
           )}
         </div>
+
+        {showNotificationEnableBanner && (
+          <Alert className="mt-3">
+            <BellIcon size={16} />
+            <div className="col-start-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <AlertTitle>{t('subscribesView.notificationEnableTitle')}</AlertTitle>
+                <AlertDescription>
+                  {t('subscribesView.notificationEnableDescription')}
+                </AlertDescription>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0"
+                disabled={isRequestingPermission}
+                onClick={() => void handleEnableNotifications()}
+              >
+                {t('subscribesView.notificationEnableAction')}
+              </Button>
+            </div>
+          </Alert>
+        )}
+
+        {showNotificationBlockedBanner && (
+          <Alert variant="destructive" className="mt-3">
+            <BellSlashIcon size={16} />
+            <div className="col-start-2 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <AlertTitle>{t('subscribesView.notificationBlockedTitle')}</AlertTitle>
+                <AlertDescription>
+                  {t('subscribesView.notificationBlockedDescription')}
+                </AlertDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                aria-label={t('subscribesView.notificationBlockedDismiss')}
+                onClick={handleDismissNotificationBanner}
+              >
+                <XIcon size={14} />
+              </Button>
+            </div>
+          </Alert>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 relative overflow-hidden">
