@@ -49,7 +49,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const scrollPositionRef = useRef(0)
+  const lastScrolledPinRef = useRef<number | null>(null)
   const isVisible = usePageVisibility()
 
   const {
@@ -234,12 +234,18 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   }, [subscribedRoomsError, t])
 
   useEffect(() => {
-    if (!scrollContainerRef.current) return
+    const el = scrollContainerRef.current
+    if (!el) return
+
     if (pinnedRoomId != null) {
-      scrollContainerRef.current.scrollTop = 0
-    } else if (scrollPositionRef.current > 0) {
-      scrollContainerRef.current.scrollTop = scrollPositionRef.current
+      if (lastScrolledPinRef.current !== pinnedRoomId) {
+        el.scrollTop = 0
+        lastScrolledPinRef.current = pinnedRoomId
+      }
+      return
     }
+
+    lastScrolledPinRef.current = null
   }, [rooms, pinnedRoomId])
 
   const { rows, fixedColumnsStyle, rowVirtualizer } = useGridVirtualizer<RoomInfo>({
