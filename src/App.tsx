@@ -132,7 +132,6 @@ function App() {
           apiClient.setBaseURL(serverUrl);
           await apiClient.getRecords();
           setIsAuthenticated(true);
-          maybeAutoCheckVersion(handleServerVersionResult, t);
           // Restore role from localStorage (already initialised in useState)
           // Fetch initial disk usage
           try {
