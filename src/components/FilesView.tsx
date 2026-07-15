@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CaretLeftIcon } from '@phosphor-icons/react'
 import { SearchBar } from './SearchBar'
 import { apiClient } from '@/lib/api'
+import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordFile, RecordFileListResponse } from '@/lib/types'
 import { useTranslation } from 'react-i18next'
@@ -223,8 +224,18 @@ export function FilesView() {
   }, [isSearchTransition, isFetching, isDebouncingSearch])
 
   useEffect(() => {
+    if (isSuccess) {
+      markOnline()
+    }
+  }, [isSuccess])
+
+  useEffect(() => {
     if (!isError) return
-    const err = error as any
+    if (isNetworkError(error)) {
+      markOffline()
+      return
+    }
+    const err = error as { response?: { data?: string } }
     toast.error(t('filesView.loadError') + (err?.response?.data ? `: ${err.response.data}` : ''))
   }, [isError, error, t])
 

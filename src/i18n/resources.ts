@@ -35,7 +35,9 @@ export const resources = {
         loginSuccess: "登入成功",
         logoutSuccess: "已登出",
         copyRoomIdSuccess: "已複製 直播間 ID: {{roomId}}",
-        copyRoomIdFailed: "複製 直播間 ID 失敗"
+        copyRoomIdFailed: "複製 直播間 ID 失敗",
+        networkReconnecting: "網絡異常，正在嘗試重新連接...",
+        networkRestored: "網絡已恢復"
       },
       login: {
         title: "Bilibili 錄製管理",
@@ -406,7 +408,9 @@ export const resources = {
         loginSuccess: "登录成功",
         logoutSuccess: "已登出",
         copyRoomIdSuccess: "已复制 直播间 ID: {{roomId}}",
-        copyRoomIdFailed: "复制 直播间 ID 失败"
+        copyRoomIdFailed: "复制 直播间 ID 失败",
+        networkReconnecting: "网络异常，正在尝试重新连接...",
+        networkRestored: "网络已恢复"
       },
       login: {
         title: "Bilibili 录制管理",

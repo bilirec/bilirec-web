@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ConvertCard } from './ConvertCard'
 import { EmptyState } from './EmptyState'
 import { apiClient } from '@/lib/api'
+import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { ConvertQueue } from '@/lib/types'
 import { LoadingScreen } from './LoadingScreen'
@@ -29,9 +30,14 @@ export function ConvertsView() {
     try {
       const data = await apiClient.getConvertTasks()
       setTasks(Array.isArray(data) ? data : [])
-    } catch (error: any) {
+      markOnline()
+    } catch (error: unknown) {
       console.error('Failed to fetch convert tasks:', error)
-      toast.error(t('convertsView.loadError'))
+      if (isNetworkError(error)) {
+        markOffline()
+      } else {
+        toast.error(t('convertsView.loadError'))
+      }
     } finally {
       setIsLoading(false)
     }

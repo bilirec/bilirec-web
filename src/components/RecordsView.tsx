@@ -9,6 +9,7 @@ import {
   defaultRecordStartConfig,
   type RecordStartConfig,
 } from '@/lib/room-config'
+import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordTask, RoomInfo } from '@/lib/types'
 import { LoadingScreen } from './LoadingScreen'
@@ -59,14 +60,21 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
       refreshInterval: 5000,
       revalidateOnFocus: false,
       fallbackData: [],
+      onSuccess: () => markOnline(),
+      onError: (err) => {
+        if (isNetworkError(err)) {
+          markOffline()
+        }
+      },
     }
   )
 
   useEffect(() => {
-    if (error) {
-      console.error('Failed to fetch tasks:', error)
-      toast.error(t('recordsView.loadError'))
+    if (!error || isNetworkError(error)) {
+      return
     }
+    console.error('Failed to fetch tasks:', error)
+    toast.error(t('recordsView.loadError'))
   }, [error, t])
 
   useEffect(() => {

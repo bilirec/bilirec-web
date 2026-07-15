@@ -8,6 +8,7 @@ import { ConvertsView } from "@/components/ConvertsView";
 import { SubscribesView } from "@/components/SubscribesView";
 import { BilibiliAuthDialog } from "@/components/BilibiliAuthDialog";
 import { AboutDialog } from "@/components/AboutDialog";
+import { NetworkStatusToaster } from "@/components/NetworkStatusToaster";
 import { BottomNav } from "@/components/BottomNav";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { DiskUsageDisplay } from "@/components/DiskUsageDisplay";
@@ -822,6 +823,7 @@ function App() {
         </div>
 
         <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+        <NetworkStatusToaster />
         <Toaster richColors position="top-center" />
       </div>
     </RoleContext.Provider>

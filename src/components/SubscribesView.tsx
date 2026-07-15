@@ -8,6 +8,7 @@ import { RoomIdInputWithConfirmDialog } from './RoomIdInputWithConfirmDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { apiClient } from '@/lib/api'
+import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordInfo, RecordStatus, RoomConfig, RoomInfo } from '@/lib/types'
 import { buildStartRecordParams } from '@/lib/room-config'
@@ -64,6 +65,12 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
       refreshInterval: 5000,
       revalidateOnFocus: false,
       fallbackData: [],
+      onSuccess: () => markOnline(),
+      onError: (err) => {
+        if (isNetworkError(err)) {
+          markOffline()
+        }
+      },
     }
   )
 
@@ -227,10 +234,11 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   const isLoading = isSubscribedRoomsLoading || (subscribedRoomIds.length > 0 && isDetailsLoading)
 
   useEffect(() => {
-    if (subscribedRoomsError) {
-      console.error('Failed to fetch subscribed rooms:', subscribedRoomsError)
-      toast.error(t('subscribesView.loadError'))
+    if (!subscribedRoomsError || isNetworkError(subscribedRoomsError)) {
+      return
     }
+    console.error('Failed to fetch subscribed rooms:', subscribedRoomsError)
+    toast.error(t('subscribesView.loadError'))
   }, [subscribedRoomsError, t])
 
   useEffect(() => {
