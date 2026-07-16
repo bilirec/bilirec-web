@@ -88,6 +88,7 @@ export interface StartRecordRequest {
   durationMinutes?: number
   qn?: number
   onlyAudio?: boolean
+  streamProfiles?: string[]
 }
 
 export interface ConvertQueue {
@@ -121,6 +122,7 @@ export interface RoomConfig {
   record_duration_minutes?: number
   qn?: number
   only_audio?: boolean
+  stream_profiles?: string[]
 }
 
 export interface UpdateRoomConfigRequest {
@@ -129,6 +131,7 @@ export interface UpdateRoomConfigRequest {
   record_duration_minutes?: number
   qn?: number
   only_audio?: boolean
+  stream_profiles?: string[]
 }
 
 export interface DiskUsage {

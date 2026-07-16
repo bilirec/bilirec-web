@@ -85,6 +85,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
         record_duration_minutes: roomConfig.record_duration_minutes,
         qn: roomConfig.qn ?? 0,
         only_audio: roomConfig.only_audio ?? false,
+        stream_profiles: roomConfig.stream_profiles ?? [],
       })
       setRoomConfig(updatedConfig)
       onOpenChange(false)
@@ -150,6 +151,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
                     record_duration_minutes: roomConfig.record_duration_minutes,
                     qn: roomConfig.qn,
                     only_audio: roomConfig.only_audio,
+                    stream_profiles: roomConfig.stream_profiles,
                   }}
                   onChange={(opts) => setRoomConfig((current) => (current ? { ...current, ...opts } : current))}
                   disabled={isSaving}

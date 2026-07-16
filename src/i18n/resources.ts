@@ -211,6 +211,13 @@ export const resources = {
         quality4k: "4K",
         qualityDolby: "杜比",
         qualityHighBitrateHint: "4K/杜比佔用更多記憶體，低配設備請謹慎選擇",
+        streamProfile: "允許的流格式",
+        streamProfileHint:
+          "可多選。未選表示允許全部格式。選中後只會在所選格式內嘗試錄製；同畫質下順序為 FLV → fMP4 → TS。",
+        streamProfileAutoHint: "目前未限制格式（自動）",
+        streamProfileFlv: "HTTP-FLV",
+        streamProfileHlsFmp4: "HLS-fMP4",
+        streamProfileHlsTs: "HLS-TS",
         onlyAudio: "僅錄音",
         onlyAudioHint: "只保存音頻流，不錄製畫面。"
       },
@@ -594,6 +601,13 @@ export const resources = {
         quality4k: "4K",
         qualityDolby: "杜比",
         qualityHighBitrateHint: "4K/杜比占用更多内存，低配设备请谨慎选择",
+        streamProfile: "允许的流格式",
+        streamProfileHint:
+          "可多选。未选表示允许全部格式。选中后只会在所选格式内尝试录制；同画质下顺序为 FLV → fMP4 → TS。",
+        streamProfileAutoHint: "目前未限制格式（自动）",
+        streamProfileFlv: "HTTP-FLV",
+        streamProfileHlsFmp4: "HLS-fMP4",
+        streamProfileHlsTs: "HLS-TS",
         onlyAudio: "仅录音",
         onlyAudioHint: "只保存音频流，不录制画面。"
       },

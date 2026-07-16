@@ -1,7 +1,11 @@
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import type { RecordStartConfig } from '@/lib/room-config'
+import {
+  normalizeStreamProfiles,
+  type RecordStartConfig,
+  type StreamProfileValue,
+} from '@/lib/room-config'
 import { useTranslation } from 'react-i18next'
 
 interface QualityOption {
@@ -17,6 +21,17 @@ const QUALITY_OPTIONS: QualityOption[] = [
   { qn: 400, labelKey: 'qualityBluRay' },
   { qn: 20000, labelKey: 'quality4k' },
   { qn: 30000, labelKey: 'qualityDolby' },
+]
+
+interface StreamProfileOption {
+  value: StreamProfileValue
+  labelKey: string
+}
+
+const STREAM_PROFILE_OPTIONS: StreamProfileOption[] = [
+  { value: 'http-flv', labelKey: 'streamProfileFlv' },
+  { value: 'hls-fmp4', labelKey: 'streamProfileHlsFmp4' },
+  { value: 'hls-ts', labelKey: 'streamProfileHlsTs' },
 ]
 
 interface RecordStartOptionsProps {
@@ -36,6 +51,14 @@ export function RecordStartOptions({
 
   const recordDuration = value.record_duration_minutes ?? 0
   const selectedQn = value.qn === 0 ? undefined : value.qn
+  const selectedStreamProfiles = normalizeStreamProfiles(value.stream_profiles)
+
+  const toggleStreamProfile = (profile: StreamProfileValue) => {
+    const next = selectedStreamProfiles.includes(profile)
+      ? selectedStreamProfiles.filter((item) => item !== profile)
+      : [...selectedStreamProfiles, profile]
+    onChange({ ...value, stream_profiles: next })
+  }
 
   return (
     <div className="space-y-4">
@@ -111,6 +134,34 @@ export function RecordStartOptions({
           <p className="text-xs text-destructive/70 dark:text-destructive/55">
             {t('recordStartOptions.qualityHighBitrateHint')}
           </p>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+        <div className="space-y-1">
+          <Label>{t('recordStartOptions.streamProfile')}</Label>
+          <p className="text-sm text-muted-foreground">{t('recordStartOptions.streamProfileHint')}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {STREAM_PROFILE_OPTIONS.map((option) => {
+            const isSelected = selectedStreamProfiles.includes(option.value)
+            return (
+              <Button
+                key={option.value}
+                type="button"
+                variant={isSelected ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1 sm:flex-none border"
+                disabled={disabled}
+                onClick={() => toggleStreamProfile(option.value)}
+              >
+                {t(`recordStartOptions.${option.labelKey}`)}
+              </Button>
+            )
+          })}
+        </div>
+        {selectedStreamProfiles.length === 0 && (
+          <p className="text-xs text-muted-foreground">{t('recordStartOptions.streamProfileAutoHint')}</p>
         )}
       </div>
 
