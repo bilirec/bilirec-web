@@ -44,6 +44,7 @@ export interface RecordTask {
   startTime?: string | number
   actualQn?: number
   isAudioOnly?: boolean
+  sessionTitle?: string
   error?: string
   roomInfo?: RoomInfo
 }
@@ -56,6 +57,7 @@ export interface RecorderStats {
   output_path: string
   actual_qn?: number
   is_audio_only?: boolean
+  room_title?: string
 }
 
 export type RecordStatus = 'recording' | 'recovering' | 'idle'

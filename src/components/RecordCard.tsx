@@ -3,8 +3,9 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon } from '@phosphor-icons/react'
+import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey } from '@/lib/record-quality'
 import type { RecordTask } from '@/lib/types'
@@ -34,6 +35,12 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   }
 
   const canControlRecording = task.status === 'recording' || task.status === 'recovering'
+  const currentTitle = task.roomInfo?.title
+  const sessionTitle = task.sessionTitle
+  const titleMismatched = canControlRecording
+    && !!sessionTitle
+    && !!currentTitle
+    && sessionTitle !== currentTitle
   const qualityLabelKey = getRecordQualityLabelKey(task.actualQn)
   const qualityLabel = qualityLabelKey
     ? t(`recordStartOptions.${qualityLabelKey}`)
@@ -122,9 +129,27 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                       <CopySimpleIcon size={12} />
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {task.roomInfo?.title || t('recordCard.loadingTitle')}
-                  </p>
+                  <div className="flex items-start gap-1.5">
+                    <p className="text-sm text-muted-foreground truncate flex-1 min-w-0">
+                      {task.roomInfo?.title || t('recordCard.loadingTitle')}
+                    </p>
+                    {titleMismatched && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                            aria-label={t('recordCard.titleChangedAria')}
+                          >
+                            <WarningCircleIcon size={14} weight="fill" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px] text-xs text-center">
+                          {t('recordCard.titleChangedHint', { oldTitle: sessionTitle })}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   {showStreamBadge && (
                     <div className="mt-1.5">
                       {task.isAudioOnly ? (

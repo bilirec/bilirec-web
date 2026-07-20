@@ -130,6 +130,7 @@ class ApiClient {
         startTime: roomStats?.start_time,
         actualQn: roomStats?.actual_qn,
         isAudioOnly: roomStats?.is_audio_only,
+        sessionTitle: roomStats?.room_title,
       } as RecordTask;
     });
 
