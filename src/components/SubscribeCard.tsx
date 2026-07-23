@@ -251,7 +251,7 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
                 type="button"
                 variant="outline"
                 size="icon"
-                className="subscribe-card-gear-desktop hidden sm:inline-flex shrink-0 sm:ml-auto"
+                className="subscribe-card-gear-desktop hidden sm:inline-flex shrink-0 sm:ml-auto hover:bg-accent hover:text-accent-foreground"
                 title={t('subscribeCard.roomConfig')}
                 aria-label={t('subscribeCard.roomConfigAria', { roomId: roomInfo.room_id })}
                 onClick={() => setIsConfigDialogOpen(true)}

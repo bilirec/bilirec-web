@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 @import "tw-animate-css";
 
+@custom-variant dark (&:is([data-appearance="dark"] *));
+
 /* Canonical theme variables live in this file. Do NOT duplicate these variables in other CSS files. */
 
 @layer base {
