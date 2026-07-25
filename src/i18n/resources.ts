@@ -240,7 +240,7 @@ export const resources = {
         copyRoomIdAria: "複製 直播間 ID {{roomId}}",
         actualQuality: "實際畫質",
         audioOnlyBadge: "僅音頻",
-        titleChangedHint: "標題已更改，檔案路徑仍使用錄製開始時的舊標題：「{{oldTitle}}」",
+        titleChangedHint: "標題已在直播途中更改。檔案輸出路徑仍爲: {{oldTitle}}",
         titleChangedAria: "錄製標題已更改，點擊或滑鼠移過查看詳情"
       },
       convertsView: {
@@ -632,7 +632,7 @@ export const resources = {
         copyRoomIdAria: "复制 直播间 ID {{roomId}}",
         actualQuality: "实际画质",
         audioOnlyBadge: "仅音频",
-        titleChangedHint: "标题已更改，文件路径仍使用录制开始时的旧标题：“{{oldTitle}}”",
+        titleChangedHint: "标题已在直播途中更改。文件输出路径仍为: {{oldTitle}}",
         titleChangedAria: "录制标题已更改，点击或鼠标移过查看详情"
       },
       convertsView: {
