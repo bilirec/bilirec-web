@@ -6,9 +6,9 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { MoreVerticalIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DownloadSimpleIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon } from '@phosphor-icons/react'
+import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon } from '@phosphor-icons/react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
-import { formatFileSize, isConvertibleVideoFile } from '@/lib/utils'
+import { formatFileSize, isConvertibleVideoFile, isDanmakuSidecarFile } from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
@@ -37,6 +37,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
   const sizeVal = typeof file.size === 'number' ? file.size : Number((file as any).size) || 0
   const extension = file.name.split('.').pop()?.toUpperCase()
   const isMp4 = extension?.toLowerCase() === 'mp4'
+  const isDanmakuSidecar = isDanmakuSidecarFile(name)
   const canConvert = isConvertibleVideoFile(name)
 
   const isRecording = 'is_recording' in file ? !!(file as any).is_recording : false
@@ -292,7 +293,11 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
     <Card className="h-full p-4 file-card transition-all hover:shadow-lg">
       <div className="flex h-full gap-3">
         <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-secondary-foreground">
-          <FileVideoIcon weight="fill" size={24} />
+          {isDanmakuSidecar ? (
+            <FileTextIcon weight="fill" size={24} />
+          ) : (
+            <FileVideoIcon weight="fill" size={24} />
+          )}
         </div>
 
         <div className="flex grow min-w-0 flex-col">

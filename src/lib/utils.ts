@@ -9,6 +9,13 @@ export function cn(...inputs: ClassValue[]) {
 /** Video container extensions that bilirec can convert to MP4 (excludes mp4 itself). */
 const CONVERTIBLE_VIDEO_EXTENSIONS = new Set(['ts', 'fmp4', 'flv'])
 
+const DANMAKU_SIDECAR_EXTENSIONS = new Set(['jsonl', 'xml'])
+
+export function isDanmakuSidecarFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return ext ? DANMAKU_SIDECAR_EXTENSIONS.has(ext) : false
+}
+
 export function isConvertibleVideoFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase()
   return ext ? CONVERTIBLE_VIDEO_EXTENSIONS.has(ext) : false
