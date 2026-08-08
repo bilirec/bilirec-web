@@ -129,6 +129,7 @@ class ApiClient {
         recordedTime: roomStats?.elapsed_seconds,
         startTime: roomStats?.start_time,
         actualQn: roomStats?.actual_qn,
+        actualStreamFormat: roomStats?.actual_stream_format,
         isAudioOnly: roomStats?.is_audio_only,
         sessionTitle: roomStats?.room_title,
       } as RecordTask;

@@ -43,6 +43,7 @@ export interface RecordTask {
   recordedTime?: number
   startTime?: string | number
   actualQn?: number
+  actualStreamFormat?: string
   isAudioOnly?: boolean
   sessionTitle?: string
   error?: string
@@ -56,6 +57,7 @@ export interface RecorderStats {
   status: string
   output_path: string
   actual_qn?: number
+  actual_stream_format?: string
   is_audio_only?: boolean
   room_title?: string
 }

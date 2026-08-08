@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { RoomCover } from '@/components/RoomCover'
 import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
-import { getRecordQualityLabelKey } from '@/lib/record-quality'
+import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
 import { toast } from 'sonner'
@@ -47,7 +47,9 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
     : task.actualQn && task.actualQn > 0
       ? `QN ${task.actualQn}`
       : undefined
-  const showStreamBadge = canControlRecording && (task.isAudioOnly || qualityLabel !== undefined)
+  const streamFormatLabel = getRecordStreamFormatLabel(task.actualStreamFormat)
+  const showStreamBadge = canControlRecording
+    && (task.isAudioOnly || qualityLabel !== undefined || streamFormatLabel !== undefined)
 
   const confirmStop = async () => {
     setIsStopDialogOpen(false)
@@ -151,15 +153,24 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                     )}
                   </div>
                   {showStreamBadge && (
-                    <div className="mt-1.5">
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {task.isAudioOnly ? (
                         <Badge variant="secondary" className="text-xs font-normal">
                           {t('recordCard.audioOnlyBadge')}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-xs font-normal" title={t('recordCard.actualQuality')}>
-                          {qualityLabel}
-                        </Badge>
+                        <>
+                          {qualityLabel && (
+                            <Badge variant="outline" className="text-xs font-normal" title={t('recordCard.actualQuality')}>
+                              {qualityLabel}
+                            </Badge>
+                          )}
+                          {streamFormatLabel && (
+                            <Badge variant="outline" className="text-xs font-normal" title={t('recordCard.actualStreamFormat')}>
+                              {streamFormatLabel}
+                            </Badge>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
