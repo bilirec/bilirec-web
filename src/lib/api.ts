@@ -25,6 +25,15 @@ import type {
 } from "./types";
 import { sharedStore } from "./shared-store";
 
+/** Encode each path segment for /files/* routes. */
+export function encodeFilePath(path: string): string {
+  return path
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string = "";
@@ -60,6 +69,19 @@ class ApiClient {
 
   getBaseURL(): string {
     return this.baseURL;
+  }
+
+  /** Absolute origin without trailing slash (empty when same-origin / relative). */
+  private originBase(): string {
+    return this.baseURL ? this.baseURL.replace(/\/$/, "") : "";
+  }
+
+  getPlaybackUrl(path: string): string {
+    return `${this.originBase()}/files/playback/${encodeFilePath(path)}`;
+  }
+
+  getDanmakuUrl(path: string): string {
+    return `${this.originBase()}/files/danmaku/${encodeFilePath(path)}`;
   }
 
   // Token is handled by an HttpOnly cookie set by the server. We don't store it client-side.

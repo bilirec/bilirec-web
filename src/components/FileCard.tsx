@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { cn } from '../lib/utils';
 import { useRole } from '@/lib/role-context'
 import { useTranslation } from 'react-i18next'
+import { PreviewPlayerDialog } from '@/components/preview/PreviewPlayerDialog'
 
 interface FileCardProps {
   file: RecordFile
@@ -109,6 +110,8 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
     }
   }
 
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+
   const handlePreview = () => {
     if (isDir) return
 
@@ -117,15 +120,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
       return
     }
 
-    const fullPath = currentPath ? `${currentPath}/${name}` : name
-    const encodedPath = fullPath
-      .split('/')
-      .filter(Boolean)
-      .map(encodeURIComponent)
-      .join('/')
-    const baseURL = apiClient.getBaseURL() ? apiClient.getBaseURL().replace(/\/$/, '') : ''
-    const previewUrl = `${baseURL}/files/playback/${encodedPath}`
-    window.open(previewUrl, '_blank', 'noopener,noreferrer')
+    setIsPreviewOpen(true)
   }
 
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false)
@@ -551,6 +546,15 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {isMp4 ? (
+              <PreviewPlayerDialog
+                open={isPreviewOpen}
+                onOpenChange={setIsPreviewOpen}
+                path={fullPath}
+                name={name}
+              />
+            ) : null}
 
           </div>
         </div>

@@ -120,6 +120,67 @@ body {
   background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02), rgba(255,255,255,0.08));
 }
 
+/* Preview overlay enter / exit (SC, guard, gift) */
+@keyframes bilirec-overlay-hang-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bilirec-overlay-hang-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes bilirec-overlay-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bilirec-overlay-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.bilirec-overlay-hang.bilirec-overlay-enter {
+  animation: bilirec-overlay-hang-in 0.28s ease-out both;
+}
+
+.bilirec-overlay-hang.bilirec-overlay-exit {
+  animation: bilirec-overlay-hang-out 0.28s ease-in both;
+}
+
+.bilirec-overlay-toast.bilirec-overlay-enter {
+  animation: bilirec-overlay-toast-in 0.28s ease-out both;
+}
+
+.bilirec-overlay-toast.bilirec-overlay-exit {
+  animation: bilirec-overlay-toast-out 0.28s ease-in both;
+}
+
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
@@ -279,4 +340,81 @@ body {
       height: 2.25rem;
     }
   }
+}
+
+/* Danmaku host: clipped to video picture; layer fills the host */
+.bilirec-danmaku-host {
+  z-index: 18;
+  pointer-events: none;
+}
+
+.bilirec-danmaku-host > .N-dmLayer {
+  width: 100% !important;
+  height: 100% !important;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Danmaku preview player: kill media-chrome default gray control chrome */
+.bilirec-preview-player media-control-bar.bilirec-preview-bar,
+.bilirec-preview-player .bilirec-preview-bar {
+  background: transparent !important;
+  box-shadow: none !important;
+  width: 100%;
+}
+
+.bilirec-preview-player media-control-bar.bilirec-preview-bar::part(container),
+.bilirec-preview-player media-time-range,
+.bilirec-preview-player media-volume-range {
+  --media-control-background: transparent;
+  --media-control-hover-background: rgb(255 255 255 / 0.12);
+}
+
+/* Progress row: trap media-time-range's shadow #range { z-index: 1 } so it
+   cannot paint over later control rows or the playback-rate menu. */
+.bilirec-preview-player media-control-bar.bilirec-preview-bar-progress,
+.bilirec-preview-player .bilirec-preview-bar-progress {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+/* Rate menu: opaque dark panel (not gray-on-video). Keep above isolated progress.
+   Do not set position here — media-chrome sets absolute when open. */
+.bilirec-preview-player media-playback-rate-menu,
+media-playback-rate-menu.bilirec-preview-rate-menu {
+  --media-menu-background: rgb(24 24 27 / 0.96);
+  --media-control-background: rgb(24 24 27 / 0.96);
+  --media-menu-item-hover-background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(8px);
+  /* Above the chat overlay (19), progress, and control rows; chrome owns positioning. */
+  z-index: 30;
+}
+
+/* Built-in media-chrome tooltips: dark panel, not light-gray */
+.bilirec-preview-player media-tooltip {
+  --media-tooltip-background-color: rgb(24 24 27);
+  --media-tooltip-background: rgb(24 24 27);
+  --media-tooltip-arrow-color: rgb(24 24 27);
+  --media-text-color: #fff;
+  --media-primary-color: #fff;
+}
+
+/* Align 倍速 button text with 跳幀 / 縮放 labels (text-xs) */
+.bilirec-preview-player .bilirec-preview-rate-chip media-playback-rate-menu-button,
+.bilirec-preview-player media-playback-rate-menu-button.bilirec-preview-rate-btn {
+  --media-font-size: 0.75rem;
+  --media-control-height: 1.25rem;
+  --media-button-padding: 0 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  min-height: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.15rem;
+  background: transparent !important;
 }
