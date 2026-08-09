@@ -2,7 +2,7 @@ import type { RoomConfig, StartRecordRequest } from './types'
 
 export type RecordStartConfig = Pick<
   RoomConfig,
-  'record_duration_minutes' | 'qn' | 'only_audio' | 'stream_profiles'
+  'record_duration_minutes' | 'qn' | 'only_audio' | 'record_danmaku' | 'stream_profiles'
 >
 
 export const STREAM_PROFILE_VALUES = ['http-flv', 'hls-fmp4', 'hls-ts'] as const
@@ -29,7 +29,13 @@ export function normalizeStreamProfiles(
 }
 
 export function defaultRecordStartConfig(): RecordStartConfig {
-  return { record_duration_minutes: 0, qn: 0, only_audio: false, stream_profiles: [] }
+  return {
+    record_duration_minutes: 0,
+    qn: 0,
+    only_audio: false,
+    record_danmaku: false,
+    stream_profiles: [],
+  }
 }
 
 export function recordStartConfigFromRoomConfig(config: RoomConfig): RecordStartConfig {
@@ -37,6 +43,7 @@ export function recordStartConfigFromRoomConfig(config: RoomConfig): RecordStart
     record_duration_minutes: config.record_duration_minutes ?? 0,
     qn: config.qn ?? 0,
     only_audio: config.only_audio ?? false,
+    record_danmaku: config.record_danmaku ?? false,
     stream_profiles: normalizeStreamProfiles(config.stream_profiles),
   }
 }
@@ -44,7 +51,7 @@ export function recordStartConfigFromRoomConfig(config: RoomConfig): RecordStart
 export function buildStartRecordParams(
   roomId: number,
   config:
-    | Pick<RoomConfig, 'record_duration_minutes' | 'qn' | 'only_audio' | 'stream_profiles'>
+    | Pick<RoomConfig, 'record_duration_minutes' | 'qn' | 'only_audio' | 'record_danmaku' | 'stream_profiles'>
     | null
     | undefined,
 ): StartRecordRequest {
@@ -61,6 +68,9 @@ export function buildStartRecordParams(
   }
   if (config?.only_audio) {
     params.onlyAudio = true
+  }
+  if (config?.record_danmaku) {
+    params.recordDanmaku = true
   }
   const streamProfiles = normalizeStreamProfiles(config?.stream_profiles)
   if (streamProfiles.length > 0) {

@@ -172,6 +172,9 @@ class ApiClient {
     if (data.onlyAudio) {
       params.only_audio = true;
     }
+    if (data.recordDanmaku) {
+      params.record_danmaku = true;
+    }
     if (data.streamProfiles?.length) {
       params.stream_profile = data.streamProfiles.join(',')
     }

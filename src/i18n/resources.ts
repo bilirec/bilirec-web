@@ -271,7 +271,9 @@ export const resources = {
         streamProfileHlsFmp4: "HLS-fMP4",
         streamProfileHlsTs: "HLS-TS",
         onlyAudio: "僅錄音",
-        onlyAudioHint: "只保存音頻流，不錄製畫面。"
+        onlyAudioHint: "只保存音頻流，不錄製畫面。",
+        recordDanmaku: "錄製彈幕",
+        recordDanmakuHint: "同時保存彈幕與禮物等互動記錄。"
       },
       recordCard: {
         roomFallback: "直播間 {{roomId}}",
@@ -716,7 +718,9 @@ export const resources = {
         streamProfileHlsFmp4: "HLS-fMP4",
         streamProfileHlsTs: "HLS-TS",
         onlyAudio: "仅录音",
-        onlyAudioHint: "只保存音频流，不录制画面。"
+        onlyAudioHint: "只保存音频流，不录制画面。",
+        recordDanmaku: "录制弹幕",
+        recordDanmakuHint: "同时保存弹幕与礼物等互动记录。"
       },
       recordCard: {
         roomFallback: "直播间 {{roomId}}",

@@ -177,6 +177,19 @@ export function RecordStartOptions({
           disabled={disabled}
         />
       </div>
+
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+        <div className="space-y-1">
+          <Label htmlFor="record-danmaku">{t('recordStartOptions.recordDanmaku')}</Label>
+          <p className="text-sm text-muted-foreground">{t('recordStartOptions.recordDanmakuHint')}</p>
+        </div>
+        <Switch
+          id="record-danmaku"
+          checked={value.record_danmaku ?? false}
+          onCheckedChange={(checked) => onChange({ ...value, record_danmaku: checked })}
+          disabled={disabled}
+        />
+      </div>
     </div>
   )
 }

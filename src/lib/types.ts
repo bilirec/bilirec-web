@@ -92,6 +92,7 @@ export interface StartRecordRequest {
   durationMinutes?: number
   qn?: number
   onlyAudio?: boolean
+  recordDanmaku?: boolean
   streamProfiles?: string[]
 }
 
@@ -126,6 +127,7 @@ export interface RoomConfig {
   record_duration_minutes?: number
   qn?: number
   only_audio?: boolean
+  record_danmaku?: boolean
   stream_profiles?: string[]
 }
 
@@ -135,6 +137,7 @@ export interface UpdateRoomConfigRequest {
   record_duration_minutes?: number
   qn?: number
   only_audio?: boolean
+  record_danmaku?: boolean
   stream_profiles?: string[]
 }
 
