@@ -40,6 +40,8 @@ export interface RecordTask {
   status: 'recording' | 'recovering' | 'idle'
   fileName?: string
   fileSize?: number
+  recordDanmaku?: boolean
+  danmakuFileSize?: number
   recordedTime?: number
   startTime?: string | number
   actualQn?: number
@@ -52,6 +54,8 @@ export interface RecordTask {
 
 export interface RecorderStats {
   bytes_written: number
+  danmaku_bytes_written?: number
+  record_danmaku?: boolean
   elapsed_seconds: number
   start_time: number
   status: string

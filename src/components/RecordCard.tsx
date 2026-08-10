@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon } from '@phosphor-icons/react'
+import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
@@ -224,9 +224,20 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
               </div>
             )}
             {task.fileSize !== undefined && (
-              <div className="flex items-center gap-2 text-muted-foreground" title="預計錄製檔案大小">
+              <div className="flex items-center gap-2 text-muted-foreground" title={t('recordCard.estimatedSize')}>
                 <DatabaseIcon size={16} />
                 <span className="font-mono">{formatFileSize(task.fileSize)}</span>
+                {task.recordDanmaku && task.danmakuFileSize !== undefined && (
+                  <>
+                    <span className="text-muted-foreground/50">
+                      <LineVerticalIcon size={16} className="rotate-[15deg]" />
+                    </span>
+                    <span className="flex items-center gap-1 font-mono" title={t('recordCard.estimatedDanmakuSize')}>
+                      <ChatCircleDotsIcon size={16} />
+                      {formatFileSize(task.danmakuFileSize)}
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </div>
