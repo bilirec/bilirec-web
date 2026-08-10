@@ -418,3 +418,41 @@ media-playback-rate-menu.bilirec-preview-rate-menu {
   padding-inline: 0.15rem;
   background: transparent !important;
 }
+
+/* Make the most frequently used controls easier to tap on narrow screens.
+   Keep these overrides mobile-only so desktop controls retain their current size. */
+@media (max-width: 639px) {
+  .bilirec-preview-player media-play-button,
+  .bilirec-preview-player media-seek-backward-button,
+  .bilirec-preview-player media-seek-forward-button,
+  .bilirec-preview-player media-mute-button,
+  .bilirec-preview-player media-playback-rate-menu-button,
+  .bilirec-preview-player .bilirec-preview-touch,
+  .bilirec-preview-player .bilirec-preview-rate-btn {
+    --media-control-height: 2.75rem;
+    --media-button-icon-width: 1.5rem;
+    --media-button-icon-height: 1.5rem;
+    --media-button-padding: 0 0.35rem;
+    min-height: 2.75rem;
+  }
+
+  .bilirec-preview-player media-play-button,
+  .bilirec-preview-player media-seek-backward-button,
+  .bilirec-preview-player media-seek-forward-button {
+    min-width: 2.75rem;
+  }
+
+  .bilirec-preview-player .bilirec-preview-touch {
+    min-width: 2.75rem;
+  }
+
+  .bilirec-preview-player .bilirec-preview-rate-chip {
+    height: 2.5rem;
+  }
+
+  .bilirec-preview-player .bilirec-preview-rate-btn {
+    min-height: 2.5rem;
+    height: 2.5rem;
+    line-height: 2.5rem;
+  }
+}

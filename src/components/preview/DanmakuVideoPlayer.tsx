@@ -34,7 +34,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Slider } from "@/components/ui/slider"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/preview/EventOverlayLayer"
 import { PreviewChatList } from "@/components/preview/PreviewChatList"
@@ -77,6 +77,16 @@ import "media-chrome/dist/lang/zh-TW.js"
 export type ObjectFitMode = "contain" | "cover" | "fill"
 
 const FIT_CYCLE: ObjectFitMode[] = ["contain", "cover", "fill"]
+
+type OrientationLockController = {
+  lock?: (orientation: "landscape") => Promise<void>
+  unlock?: () => void
+}
+
+function getScreenOrientation(): OrientationLockController | undefined {
+  if (typeof window === "undefined") return undefined
+  return window.screen.orientation as OrientationLockController | undefined
+}
 
 function getObjectFitContentBox(
   video: HTMLVideoElement,
@@ -148,6 +158,10 @@ function danmakuScaleForWidth(width: number): number {
   return DANMAKU_SCALE_DESKTOP
 }
 
+function sameNumberList(a: number[], b: number[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
 const MEDIA_CHROME_VARS = {
   "--media-primary-color": "#fff",
   // Keep secondary dark so built-in tooltips are not light-gray panels
@@ -180,11 +194,13 @@ function TextChipButton({
   title,
   onClick,
   active,
+  className,
   children,
 }: {
   title: string
   onClick: () => void
   active?: boolean
+  className?: string
   children: ReactNode
 }) {
   return (
@@ -194,9 +210,10 @@ function TextChipButton({
       aria-label={title}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium tracking-wide text-white/90",
+        "inline-flex h-10 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium tracking-wide text-white/90 sm:h-8",
         "hover:bg-white/12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40",
-        active && "bg-white/15 text-white"
+        active && "bg-white/15 text-white",
+        className
       )}
     >
       {children}
@@ -207,7 +224,12 @@ function TextChipButton({
 /** Shared muted label style for 跳幀 / 縮放 / 倍速 */
 const ADV_LABEL = "text-xs font-medium text-white/55 shrink-0"
 
-export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className }: DanmakuVideoPlayerProps) {
+export function DanmakuVideoPlayer({
+  playbackUrl,
+  videoPath,
+  fileName,
+  className,
+}: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
   // Keep media-chrome tooltips in sync with app i18n (zh-CN / zh-TW)
   const mediaLang = getCurrentLanguage()
@@ -219,6 +241,10 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
   const listReadyRef = useRef(false)
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
+  const touchDeviceRef = useRef(
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
+  )
+  const orientationLockedRef = useRef(false)
 
   const [objectFit, setObjectFit] = useState<ObjectFitMode>("contain")
   const [danmakuHidden, setDanmakuHidden] = useState(false)
@@ -230,6 +256,10 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
   const [paused, setPaused] = useState(true)
   const [seekEpoch, setSeekEpoch] = useState(0)
   const [stageFullscreen, setStageFullscreen] = useState(false)
+  const [appFullscreen, setAppFullscreen] = useState(false)
+  const [orientationLocked, setOrientationLocked] = useState(false)
+  const [cssRotated, setCssRotated] = useState(false)
+  const [rotatedStageSize, setRotatedStageSize] = useState({ width: 0, height: 0 })
   const [bullets, setBullets] = useState<DanmakuListItem[]>([])
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
   const [chatItems, setChatItems] = useState<PreviewChatItem[]>([])
@@ -241,6 +271,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
   const [seekOffsetSec, setSeekOffsetSec] = useState(() => loadSeekOffsetSec())
   const [danmakuOpacity, setDanmakuOpacity] = useState(() => loadDanmakuOpacity())
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
+  const [overlayCornerDraft, setOverlayCornerDraft] = useState<OverlayCorner>(() => loadOverlayCorner())
   const [danmakuScale, setDanmakuScale] = useState(DANMAKU_SCALE_DESKTOP)
   const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({ mode: "content" })
   const [ratesDraft, setRatesDraft] = useState(() => loadPlaybackRates().join(", "))
@@ -250,6 +281,31 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const frameStepSec = frameStepMs / 1000
+
+  const unlockScreenOrientation = useCallback(() => {
+    if (!orientationLockedRef.current) return
+    orientationLockedRef.current = false
+    setOrientationLocked(false)
+    try {
+      getScreenOrientation()?.unlock?.()
+    } catch {
+      // Ignore browsers that reject unlocking after fullscreen has ended.
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFs = () => {
+      const stage = stageRef.current
+      setStageFullscreen(!!stage && document.fullscreenElement === stage)
+    }
+    onFs()
+    document.addEventListener("fullscreenchange", onFs)
+    return () => document.removeEventListener("fullscreenchange", onFs)
+  }, [])
+
+  useEffect(() => {
+    return () => unlockScreenOrientation()
+  }, [unlockScreenOrientation])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -300,15 +356,14 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
     const overlayHost = overlayHostRef.current
     const video = videoRef.current
     if (!stage || !host || !video) return
+    const stageParent = stage.parentElement
 
     const sync = () => {
       const box = getObjectFitContentBox(video, objectFit)
-      const stageRect = stage.getBoundingClientRect()
-      const videoRect = video.getBoundingClientRect()
-      const top = videoRect.top - stageRect.top + box.top
-      const left = videoRect.left - stageRect.left + box.left
       const stageW = stage.clientWidth
       const stageH = stage.clientHeight
+      const top = box.top
+      const left = box.left
       const applyBox = (el: HTMLElement) => {
         el.style.top = `${top}px`
         el.style.left = `${left}px`
@@ -316,6 +371,25 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
         el.style.height = `${box.height}px`
       }
       applyBox(host)
+
+      const viewportWidth = cssRotated
+        ? stageParent?.clientWidth ?? stage.clientWidth
+        : stage.clientWidth
+      const viewportHeight = cssRotated
+        ? stageParent?.clientHeight ?? stage.clientHeight
+        : stage.clientHeight
+      const viewportPortrait = viewportHeight > viewportWidth
+      if (cssRotated && !viewportPortrait) {
+        setCssRotated(false)
+        setRotatedStageSize((prev) =>
+          prev.width === 0 && prev.height === 0 ? prev : { width: 0, height: 0 }
+        )
+      } else if (cssRotated) {
+        const nextSize = { width: viewportHeight, height: viewportWidth }
+        setRotatedStageSize((prev) =>
+          prev.width === nextSize.width && prev.height === nextSize.height ? prev : nextSize
+        )
+      }
 
       const topBar = Math.max(0, top)
       const bottomBar = Math.max(0, stageH - top - box.height)
@@ -382,23 +456,23 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
     sync()
     const ro = new ResizeObserver(sync)
     ro.observe(stage)
+    if (stageParent) ro.observe(stageParent)
     ro.observe(video)
     video.addEventListener("loadedmetadata", sync)
     return () => {
       ro.disconnect()
       video.removeEventListener("loadedmetadata", sync)
     }
-  }, [objectFit, playbackUrl, mediaLang])
-
-  useEffect(() => {
-    const onFs = () => {
-      const stage = stageRef.current
-      setStageFullscreen(!!stage && document.fullscreenElement === stage)
-    }
-    onFs()
-    document.addEventListener("fullscreenchange", onFs)
-    return () => document.removeEventListener("fullscreenchange", onFs)
-  }, [])
+  }, [
+    appFullscreen,
+    cssRotated,
+    mediaLang,
+    objectFit,
+    orientationLocked,
+    playbackUrl,
+    rotatedStageSize.height,
+    rotatedStageSize.width,
+  ])
 
   useEffect(() => {
     const dm = danmakuRef.current
@@ -613,6 +687,48 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
     }
   }
 
+  const toggleAppFullscreen = async () => {
+    if (appFullscreen) {
+      unlockScreenOrientation()
+      setAppFullscreen(false)
+      setCssRotated(false)
+      setRotatedStageSize({ width: 0, height: 0 })
+      return
+    }
+
+    setAppFullscreen(true)
+    const video = videoRef.current
+    const stage = stageRef.current
+    if (!video || !stage) return
+
+    const landscapeVideo =
+      video.videoWidth > 0 && video.videoHeight > 0 && video.videoWidth > video.videoHeight
+    const portraitStage = stage.clientHeight > stage.clientWidth
+    if (!landscapeVideo || !portraitStage) return
+
+    const orientation = getScreenOrientation()
+    if (orientation?.lock) {
+      try {
+        await orientation.lock("landscape")
+        orientationLockedRef.current = true
+        setOrientationLocked(true)
+        return
+      } catch {
+        // Browsers without PWA orientation-lock support use the CSS fallback below.
+      }
+    }
+
+    setCssRotated(true)
+  }
+
+  const toggleFullscreen = async () => {
+    if (touchDeviceRef.current) {
+      await toggleAppFullscreen()
+      return
+    }
+    await toggleStageFullscreen()
+  }
+
   const applySettings = () => {
     const parsedRates = parseRatesInput(ratesDraft)
     if (!parsedRates) {
@@ -643,6 +759,8 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
     setDanmakuOpacity(opacity)
     saveDanmakuOpacity(opacity)
     setOpacityDraft(opacity)
+    setOverlayCorner(overlayCornerDraft)
+    saveOverlayCorner(overlayCornerDraft)
     setSettingsOpen(false)
     toast.success(t("previewPlayer.settingsApplied"))
   }
@@ -653,6 +771,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
     setSeekOffsetSec(DEFAULT_SEEK_OFFSET_SEC)
     setDanmakuOpacity(DEFAULT_DANMAKU_OPACITY)
     setOverlayCorner(DEFAULT_OVERLAY_CORNER)
+    setOverlayCornerDraft(DEFAULT_OVERLAY_CORNER)
     setRatesDraft(DEFAULT_PLAYBACK_RATES.join(", "))
     setFrameDraft(String(DEFAULT_FRAME_STEP_MS))
     setSeekDraft(String(DEFAULT_SEEK_OFFSET_SEC))
@@ -673,28 +792,78 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
         ? t("previewPlayer.danmakuLoading")
         : null
 
+  const parsedRatesDraft = parseRatesInput(ratesDraft)
+  const parsedFrameDraft = parsePositiveNumber(frameDraft, { min: 1, max: 5000 })
+  const parsedSeekDraft = parsePositiveNumber(seekDraft, { min: 0.5, max: 600 })
+  const normalizedOpacityDraft = Math.min(100, Math.max(0, Math.round(opacityDraft)))
+  const settingsDraftInvalid =
+    parsedRatesDraft == null || parsedFrameDraft == null || parsedSeekDraft == null
+  const hasPendingSettings =
+    settingsDraftInvalid ||
+    !sameNumberList(parsedRatesDraft ?? [], [...rates].sort((a, b) => a - b)) ||
+    parsedFrameDraft !== frameStepMs ||
+    parsedSeekDraft !== seekOffsetSec ||
+    normalizedOpacityDraft !== danmakuOpacity ||
+    overlayCornerDraft !== overlayCorner
+
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
   const chatLayout =
     overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked" ? overlayLayout : null
+  const touchDevice = touchDeviceRef.current
+  const mobileAppFullscreen = touchDevice && appFullscreen
+  const cssRotationActive =
+    mobileAppFullscreen && cssRotated && rotatedStageSize.width > 0 && rotatedStageSize.height > 0
+  const landscapeFullscreen = mobileAppFullscreen && (orientationLocked || cssRotationActive)
+  const landscapeControlClass = landscapeFullscreen
+    ? "w-auto min-w-0 flex-none"
+    : "w-full min-w-0 flex-1 sm:w-auto sm:flex-none"
+  const mobileStageClass = mobileAppFullscreen
+    ? orientationLocked || !cssRotationActive
+      ? "fixed inset-0 z-9999 flex-none"
+      : "fixed z-9999 flex-none"
+    : undefined
+  const stageStyle: CSSProperties | undefined = cssRotationActive
+    ? {
+        width: rotatedStageSize.width,
+        height: rotatedStageSize.height,
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%) rotate(90deg)",
+      }
+    : undefined
 
   return (
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
-      <div className="pointer-events-none absolute top-2 left-3 right-12 z-30 flex max-w-[calc(100%-3.5rem)] flex-col gap-0.5">
-        {headerTitle ? (
-          <div className="truncate text-sm font-medium text-white drop-shadow-md">{headerTitle}</div>
-        ) : null}
-        {statusHint ? (
-          <p className="text-[11px] leading-snug text-amber-200/80 drop-shadow-md">{statusHint}</p>
-        ) : null}
-      </div>
-
-      <div ref={stageRef} className="bilirec-preview-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black">
-        <MediaController
-          key={mediaLang}
-          className="bilirec-preview-player absolute inset-0 h-full w-full"
-          style={MEDIA_CHROME_VARS}
-          lang={mediaLang}
+      {headerTitle || statusHint ? (
+        <div
+          className="pointer-events-none absolute top-2 left-3 right-12 z-30 flex max-w-[calc(100%-3.5rem)] flex-col gap-0.5 sm:top-0 sm:right-0 sm:left-0 sm:max-w-none sm:bg-linear-to-b sm:from-black/60 sm:via-black/25 sm:to-transparent sm:px-3 sm:pt-2 sm:pb-4"
+          aria-hidden
         >
+          <div className="max-w-full sm:max-w-[calc(100%-3.5rem)]">
+            {headerTitle ? (
+              <div className="truncate text-sm font-medium text-white drop-shadow-md">{headerTitle}</div>
+            ) : null}
+            {statusHint ? (
+              <p className="text-[11px] leading-snug text-amber-200/80 drop-shadow-md">{statusHint}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        ref={stageRef}
+        className={cn(
+          "bilirec-preview-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black",
+          mobileStageClass
+        )}
+        style={stageStyle}
+      >
+          <MediaController
+            key={mediaLang}
+            className="bilirec-preview-player absolute inset-0 h-full w-full"
+            style={MEDIA_CHROME_VARS}
+            lang={mediaLang}
+          >
           <video
             ref={videoRef}
             slot="media"
@@ -723,33 +892,84 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
               </MediaControlBar>
 
               {/* Controls below progress; higher stack than the isolated range */}
-              <div className="relative z-[1] flex w-full flex-col gap-0.5">
-              {/* Common controls */}
-              <MediaControlBar className="bilirec-preview-bar flex w-full items-center gap-0.5">
-                <div className="flex items-center">
-                  <MediaPlayButton />
-                  <MediaSeekBackwardButton seekOffset={seekOffsetSec} />
-                  <MediaSeekForwardButton seekOffset={seekOffsetSec} />
+              <div className="relative z-1 flex w-full flex-col gap-0.5">
+              {/* Common controls: two intentional rows on narrow screens. */}
+              <MediaControlBar
+                className={cn(
+                  "bilirec-preview-bar flex w-full gap-0.5",
+                  landscapeFullscreen ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
+                )}
+              >
+                {/* Transport and time */}
+                <div
+                  className={cn(
+                    "flex items-center",
+                    landscapeFullscreen
+                      ? "w-auto justify-start gap-0"
+                      : "w-full justify-between gap-0.5 sm:w-auto sm:justify-start"
+                  )}
+                >
+                  <div className={cn("flex items-center", landscapeFullscreen ? "gap-0" : "gap-1 sm:gap-0")}>
+                    <MediaPlayButton />
+                    <MediaSeekBackwardButton seekOffset={seekOffsetSec} />
+                    <MediaSeekForwardButton seekOffset={seekOffsetSec} />
+                  </div>
+
+                  <MediaTimeDisplay
+                    showDuration
+                    className={cn(
+                      "shrink-0 tabular-nums text-[11px]",
+                      landscapeFullscreen ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
+                    )}
+                  />
                 </div>
 
-                <MediaTimeDisplay showDuration className="mx-1 tabular-nums text-[11px] sm:text-xs" />
-
-                <div className="ml-auto flex items-center gap-0.5">
-                  <div className="hidden items-center sm:flex">
+                {/* Secondary controls */}
+                <div
+                  className={cn(
+                    "flex items-center",
+                    landscapeFullscreen
+                      ? "ml-auto w-auto gap-0.5"
+                      : "w-full gap-1 sm:ml-auto sm:w-auto sm:gap-0.5"
+                  )}
+                >
+                  <div className={cn("items-center", landscapeFullscreen ? "flex" : "hidden sm:flex")}>
                     <MediaMuteButton />
                     <MediaVolumeRange className="max-w-[5.5rem]" />
                   </div>
-                  <div className="sm:hidden">
+                  <div
+                    className={cn(
+                      "min-w-0 items-center justify-center",
+                      landscapeFullscreen ? "hidden" : "flex flex-1 sm:hidden"
+                    )}
+                  >
                     <MediaMuteButton />
                   </div>
 
-                  <div className="bilirec-preview-rate-chip flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 hover:bg-white/12 sm:px-2.5">
-                    <MediaPlaybackRateMenuButton className="bilirec-preview-rate-btn" />
+                  <div
+                    className={cn(
+                      "bilirec-preview-rate-chip flex min-w-0 items-center gap-1 rounded-md hover:bg-white/12",
+                      landscapeFullscreen
+                        ? "h-8 flex-none px-2.5"
+                        : "flex-1 px-1.5 sm:h-8 sm:flex-none sm:px-2.5"
+                    )}
+                  >
+                    <MediaPlaybackRateMenuButton
+                      className={cn(
+                        "bilirec-preview-rate-btn justify-center",
+                        landscapeFullscreen ? "w-auto" : "w-full sm:w-auto"
+                      )}
+                    />
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div
+                    className={
+                      landscapeFullscreen ? "flex items-center gap-1" : "contents sm:flex sm:items-center sm:gap-1"
+                    }
+                  >
                     {chatLayout ? (
                       <MediaChromeButton
+                        className={cn("bilirec-preview-touch", landscapeControlClass)}
                         noTooltip
                         title={
                           screenDanmakuVisible
@@ -772,6 +992,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                     ) : null}
 
                     <MediaChromeButton
+                      className={cn("bilirec-preview-touch", landscapeControlClass)}
                       noTooltip
                       title={danmakuHidden ? t("previewPlayer.showDanmaku") : t("previewPlayer.hideDanmaku")}
                       onClick={() => setDanmakuHidden((v) => !v)}
@@ -787,6 +1008,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                   <TextChipButton
                     title={advancedOpen ? t("previewPlayer.hideAdvanced") : t("previewPlayer.showAdvanced")}
                     active={advancedOpen}
+                    className={cn(landscapeControlClass, "justify-center")}
                     onClick={() => setAdvancedOpen((v) => !v)}
                   >
                     <span>{t("previewPlayer.advanced")}</span>
@@ -798,9 +1020,10 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                   </TextChipButton>
 
                   <MediaChromeButton
+                    className={cn("bilirec-preview-touch", landscapeControlClass)}
                     noTooltip
                     title={t("previewPlayer.fullscreen")}
-                    onClick={() => void toggleStageFullscreen()}
+                    onClick={() => void toggleFullscreen()}
                   >
                     <CornersOutIcon className="size-5" weight="bold" />
                   </MediaChromeButton>
@@ -815,18 +1038,20 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                       {t("previewPlayer.frameGroup")}
                     </span>
                     <MediaChromeButton
+                      className="bilirec-preview-touch"
                       noTooltip
                       title={t("previewPlayer.frameBack")}
                       onClick={() => stepFrame(-1)}
                     >
-                      <ArrowCounterClockwiseIcon className="size-4" weight="bold" />
+                      <ArrowCounterClockwiseIcon className="size-5 sm:size-4" weight="bold" />
                     </MediaChromeButton>
                     <MediaChromeButton
+                      className="bilirec-preview-touch"
                       noTooltip
                       title={t("previewPlayer.frameForward")}
                       onClick={() => stepFrame(1)}
                     >
-                      <ArrowClockwiseIcon className="size-4" weight="bold" />
+                      <ArrowClockwiseIcon className="size-5 sm:size-4" weight="bold" />
                     </MediaChromeButton>
                   </div>
 
@@ -841,25 +1066,23 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                   </div>
 
                   <div className="ml-auto flex items-center gap-1.5">
-                    <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-                      <PopoverTrigger asChild>
+                    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                      <DialogTrigger asChild>
                         <button
                           type="button"
-                          className="inline-flex size-8 items-center justify-center rounded-md text-white/90 hover:bg-white/12"
+                          className="inline-flex size-10 items-center justify-center rounded-md text-white/90 hover:bg-white/12 sm:size-8"
                           title={t("previewPlayer.settings")}
                           aria-label={t("previewPlayer.settings")}
                         >
-                          <GearSixIcon className="size-[1.125rem]" weight="bold" />
+                          <GearSixIcon className="size-5 sm:size-[1.125rem]" weight="bold" />
                         </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        container={stageRef.current}
-                        side="top"
-                        sideOffset={8}
-                        align="end"
-                        className="max-h-[calc(100dvh-1rem)] w-80 max-w-[calc(100vw-1rem)] space-y-3 overflow-y-auto border-white/15 bg-zinc-900 text-zinc-50 shadow-xl"
+                      </DialogTrigger>
+                      <DialogContent
+                        aria-describedby={undefined}
+                        className="max-h-[calc(100dvh-2rem)] w-80 max-w-[calc(100vw-1rem)] space-y-3 overflow-y-auto border-white/15 bg-zinc-900 p-4 text-zinc-50 shadow-xl"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                       >
+                        <DialogTitle className="sr-only">{t("previewPlayer.settings")}</DialogTitle>
                         <div className="space-y-1.5">
                           <Label htmlFor="preview-rates" className="text-zinc-200">
                             {t("previewPlayer.ratesLabel")}
@@ -947,12 +1170,9 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                                 key={corner}
                                 type="button"
                                 size="sm"
-                                variant={overlayCorner === corner ? "default" : "outline"}
+                                variant={overlayCornerDraft === corner ? "default" : "outline"}
                                 className="border-white/20 bg-transparent text-xs text-zinc-200 hover:bg-white/10 hover:text-white"
-                                onClick={() => {
-                                  setOverlayCorner(corner)
-                                  saveOverlayCorner(corner)
-                                }}
+                                onClick={() => setOverlayCornerDraft(corner)}
                               >
                                 {t(`previewPlayer.${cornerLabelKey(corner)}`)}
                               </Button>
@@ -960,25 +1180,50 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
                           </div>
                           <p className="text-xs text-zinc-400">{t("previewPlayer.overlayCornerHint")}</p>
                         </div>
-                        <div className="flex justify-between gap-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-zinc-300 hover:bg-white/10 hover:text-white"
-                            onClick={resetSettings}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p
+                            className={cn(
+                              "text-xs",
+                              settingsDraftInvalid
+                                ? "text-amber-300"
+                                : hasPendingSettings
+                                  ? "text-amber-300"
+                                  : "text-emerald-300"
+                            )}
+                            role="status"
+                            aria-live="polite"
                           >
-                            {t("previewPlayer.resetSettings")}
-                          </Button>
-                          <Button type="button" size="sm" onClick={applySettings}>
-                            {t("previewPlayer.applySettings")}
-                          </Button>
+                            {settingsDraftInvalid
+                              ? t("previewPlayer.settingsStatusInvalid")
+                              : hasPendingSettings
+                                ? t("previewPlayer.settingsStatusPending")
+                                : t("previewPlayer.settingsStatusApplied")}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-zinc-300 hover:bg-white/10 hover:text-white"
+                              onClick={resetSettings}
+                            >
+                              {t("previewPlayer.resetSettings")}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={applySettings}
+                              disabled={!hasPendingSettings}
+                            >
+                              {t("previewPlayer.applySettings")}
+                            </Button>
+                          </div>
                         </div>
-                      </PopoverContent>
-                    </Popover>
+                      </DialogContent>
+                    </Dialog>
 
                     <TextChipButton title={t("previewPlayer.nativePlayer")} onClick={openNative}>
-                      <ArrowSquareOutIcon className="size-3.5 opacity-90" weight="bold" />
+                      <ArrowSquareOutIcon className="size-4 opacity-90 sm:size-3.5" weight="bold" />
                       <span>{t("previewPlayer.nativePlayerShort")}</span>
                     </TextChipButton>
                   </div>
@@ -992,7 +1237,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
         {/* Sized to the video picture box (not the whole stage / letterbox / chrome) */}
         <div
           ref={danmakuHostRef}
-          className="bilirec-danmaku-host pointer-events-none absolute z-[18] overflow-hidden"
+          className="bilirec-danmaku-host pointer-events-none absolute z-18 overflow-hidden"
           aria-hidden
         />
 
@@ -1015,7 +1260,7 @@ export function DanmakuVideoPlayer({ playbackUrl, videoPath, fileName, className
               hidden={danmakuHidden}
               seekEpoch={seekEpoch}
               overlayCorner={overlayCorner}
-              fullscreen={stageFullscreen}
+              fullscreen={stageFullscreen || (touchDevice && appFullscreen)}
             />
           )}
         </div>
