@@ -1,64 +1,105 @@
-import type { DanmakuAttrs, DanmakuListItem, DanmakuType } from "n-danmaku"
+import type { DanmakuListItem } from "n-danmaku"
 import { apiClient } from "@/lib/api"
+import {
+  parseJsonlDanmaku,
+  type DanmakuMeta,
+  type OverlayEvent,
+  type ParsedDanmaku,
+  type PreviewChatItem,
+} from "./danmaku-parse"
 
-export type OverlayKind = "super_chat" | "gift" | "guard"
+export { parseJsonlDanmaku } from "./danmaku-parse"
+export type {
+  DanmakuMeta,
+  OverlayEvent,
+  OverlayKind,
+  ParsedDanmaku,
+  PreviewChatItem,
+  PreviewChatKind,
+} from "./danmaku-parse"
 
-export type PreviewChatKind = "danmaku" | OverlayKind
-
-/** Unified timeline row for portrait chat-list mode. */
-export interface PreviewChatItem {
-  id: string
-  kind: PreviewChatKind
-  /** Seconds from segment start */
-  ts: number
-  user: string
+interface DanmakuWorkerRequest {
+  id: number
   text: string
-  /** Danmaku text color (css). */
-  color?: string
-  price?: number
-  lifeSec?: number
-  backgroundColor?: string
-  backgroundBottomColor?: string
-  backgroundPriceColor?: string
-  messageFontColor?: string
-  backgroundImage?: string
-  nameColor?: string
-  face?: string
-  giftName?: string
-  giftCount?: number
-  level?: number
 }
 
-export interface DanmakuMeta {
-  roomId?: number
-  shortId?: number
-  name?: string
-  title?: string
-  startTime?: string
+interface DanmakuWorkerResponse {
+  id: number
+  result?: ParsedDanmaku
+  error?: string
 }
 
-export interface OverlayEvent {
-  id: string
-  kind: OverlayKind
-  /** Seconds from segment start */
-  ts: number
-  user: string
-  /** Display body (message / gift line / guard line) */
-  text: string
-  price?: number
-  /** Super Chat hang duration from JSONL `time` (seconds). */
-  lifeSec?: number
-  /** Official Bilibili SC palette (from WS / JSONL; aligned with blivedm-go). */
-  backgroundColor?: string
-  backgroundBottomColor?: string
-  backgroundPriceColor?: string
-  messageFontColor?: string
-  backgroundImage?: string
-  nameColor?: string
-  face?: string
-  giftName?: string
-  giftCount?: number
-  level?: number
+interface PendingDanmakuParse {
+  resolve: (result: ParsedDanmaku) => void
+  reject: (error: Error) => void
+}
+
+class DanmakuWorkerUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "DanmakuWorkerUnavailableError"
+  }
+}
+
+let danmakuWorker: Worker | null = null
+let danmakuWorkerRequestId = 0
+const pendingDanmakuParses = new Map<number, PendingDanmakuParse>()
+
+function getDanmakuWorker(): Worker {
+  if (typeof Worker === "undefined") {
+    throw new DanmakuWorkerUnavailableError("Web Workers are unavailable")
+  }
+  if (danmakuWorker) return danmakuWorker
+
+  let worker: Worker
+  try {
+    worker = new Worker(new URL("./danmaku-worker.ts", import.meta.url), { type: "module" })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new DanmakuWorkerUnavailableError(message)
+  }
+
+  worker.onmessage = (event: MessageEvent<DanmakuWorkerResponse>) => {
+    const pending = pendingDanmakuParses.get(event.data.id)
+    if (!pending) return
+    pendingDanmakuParses.delete(event.data.id)
+    if (event.data.error) {
+      pending.reject(new Error(event.data.error))
+      return
+    }
+    if (!event.data.result) {
+      pending.reject(new Error("Danmaku worker returned no result"))
+      return
+    }
+    pending.resolve(event.data.result)
+  }
+
+  worker.onerror = (event) => {
+    const error = new Error(event.message || "Danmaku worker failed")
+    for (const pending of pendingDanmakuParses.values()) {
+      pending.reject(error)
+    }
+    pendingDanmakuParses.clear()
+    worker.terminate()
+    if (danmakuWorker === worker) danmakuWorker = null
+  }
+
+  danmakuWorker = worker
+  return worker
+}
+
+function parseJsonlInWorker(text: string): Promise<ParsedDanmaku> {
+  const worker = getDanmakuWorker()
+  const id = ++danmakuWorkerRequestId
+  return new Promise((resolve, reject) => {
+    pendingDanmakuParses.set(id, { resolve, reject })
+    try {
+      worker.postMessage({ id, text } satisfies DanmakuWorkerRequest)
+    } catch (error) {
+      pendingDanmakuParses.delete(id)
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  })
 }
 
 /** Resolved colors for Super Chat card (enhancer-style two-tone). */
@@ -135,49 +176,6 @@ export type DanmakuFetchResult =
   | { kind: "none"; reason: "missing" | "xml" | "error"; message?: string }
   | { kind: "jsonl"; meta?: DanmakuMeta; bullets: DanmakuListItem[]; overlays: OverlayEvent[]; chatItems: PreviewChatItem[] }
 
-function colorIntToCss(color: number | undefined): string {
-  const n = typeof color === "number" && Number.isFinite(color) ? color >>> 0 : 0xffffff
-  return `#${(n & 0xffffff).toString(16).padStart(6, "0")}`
-}
-
-function modeToType(mode: number | undefined): { type: DanmakuType; reverse: boolean } {
-  const m = typeof mode === "number" ? mode : 1
-  if (m === 4) return { type: "bottom", reverse: false }
-  if (m === 5) return { type: "top", reverse: false }
-  if (m === 6) return { type: "scroll", reverse: true }
-  return { type: "scroll", reverse: false }
-}
-
-function asNumber(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function asString(v: unknown, fallback = ""): string {
-  return typeof v === "string" ? v : fallback
-}
-
-const GIFT_COALESCE_MS = 500
-
-/** Drop near-duplicate gifts (same user + gift within window) to limit DOM storms. */
-function coalesceGifts<T extends { kind: string; user: string; giftName?: string; ts: number }>(items: T[]): T[] {
-  const out: T[] = []
-  const lastKey = new Map<string, number>()
-  for (const ev of items) {
-    if (ev.kind !== "gift") {
-      out.push(ev)
-      continue
-    }
-    const key = `${ev.user}\0${ev.giftName ?? ""}`
-    const prev = lastKey.get(key)
-    const tMs = ev.ts * 1000
-    if (prev != null && tMs - prev < GIFT_COALESCE_MS) continue
-    lastKey.set(key, tMs)
-    out.push(ev)
-  }
-  return out
-}
-
 /** Last index with ts <= t (+epsilon), assuming items sorted by ts ascending. */
 export function chatItemsVisibleEnd(items: PreviewChatItem[], t: number): number {
   const limit = t + 0.05
@@ -189,145 +187,6 @@ export function chatItemsVisibleEnd(items: PreviewChatItem[], t: number): number
     else hi = mid
   }
   return lo
-}
-
-export function parseJsonlDanmaku(text: string): {
-  meta?: DanmakuMeta
-  bullets: DanmakuListItem[]
-  overlays: OverlayEvent[]
-  chatItems: PreviewChatItem[]
-} {
-  const bullets: DanmakuListItem[] = []
-  const overlays: OverlayEvent[] = []
-  const chatItems: PreviewChatItem[] = []
-  let meta: DanmakuMeta | undefined
-  let lineNo = 0
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line) continue
-    lineNo += 1
-    let obj: Record<string, unknown>
-    try {
-      obj = JSON.parse(line) as Record<string, unknown>
-    } catch {
-      continue
-    }
-    const type = asString(obj.type)
-    if (type === "meta") {
-      meta = {
-        roomId: asNumber(obj.room_id),
-        shortId: asNumber(obj.short_id),
-        name: asString(obj.name),
-        title: asString(obj.title),
-        startTime: asString(obj.start_time),
-      }
-      continue
-    }
-
-    const ts = asNumber(obj.ts)
-    const timeMs = Math.max(0, Math.round(ts * 1000))
-    const userInfo =
-      obj.user_info && typeof obj.user_info === "object"
-        ? (obj.user_info as Record<string, unknown>)
-        : undefined
-    const user =
-      asString(obj.user) ||
-      asString(userInfo?.uname) ||
-      asString(obj.uname) ||
-      asString(obj.username)
-
-    if (type === "danmaku") {
-      const textBody = asString(obj.text)
-      const color = colorIntToCss(asNumber(obj.color, 0xffffff))
-      const { type: dmType, reverse } = modeToType(asNumber(obj.mode, 1))
-      const styles: DanmakuAttrs = {
-        color,
-        opacity: 80,
-        scale: 0.63,
-        weight: "bold",
-        type: dmType,
-        reverse,
-        outline: true,
-        pointer_events: false,
-        custom_css: { "text-shadow": "1px 0 1px #000000" },
-      }
-      bullets.push({
-        time: timeMs,
-        text: textBody,
-        reset_styles: true,
-        styles,
-      })
-      chatItems.push({
-        id: `dm-${lineNo}-${timeMs}`,
-        kind: "danmaku",
-        ts,
-        user,
-        text: textBody,
-        color,
-      })
-      continue
-    }
-
-    if (type === "super_chat") {
-      const sc: OverlayEvent = {
-        id: `sc-${lineNo}-${timeMs}`,
-        kind: "super_chat",
-        ts,
-        user,
-        text: asString(obj.message),
-        price: asNumber(obj.price),
-        lifeSec: asNumber(obj.time),
-        backgroundColor: asString(obj.background_color) || undefined,
-        backgroundBottomColor: asString(obj.background_bottom_color) || undefined,
-        backgroundPriceColor: asString(obj.background_price_color) || undefined,
-        messageFontColor: asString(obj.message_font_color) || undefined,
-        backgroundImage: asString(obj.background_image) || undefined,
-        nameColor: asString(obj.name_color) || asString(userInfo?.name_color) || undefined,
-        face: asString(obj.face) || asString(userInfo?.face) || undefined,
-      }
-      overlays.push(sc)
-      chatItems.push({ ...sc })
-      continue
-    }
-
-    if (type === "gift") {
-      const gift: OverlayEvent = {
-        id: `gift-${lineNo}-${timeMs}`,
-        kind: "gift",
-        ts,
-        user,
-        text: "",
-        giftName: asString(obj.gift_name) || asString(obj.giftName),
-        giftCount: asNumber(obj.gift_count, asNumber(obj.num, 1)),
-        face: asString(obj.face) || undefined,
-        nameColor: asString(obj.name_color) || undefined,
-      }
-      overlays.push(gift)
-      chatItems.push({ ...gift })
-      continue
-    }
-
-    if (type === "guard") {
-      const guard: OverlayEvent = {
-        id: `guard-${lineNo}-${timeMs}`,
-        kind: "guard",
-        ts,
-        user,
-        text: "",
-        level: asNumber(obj.level, asNumber(obj.guard_level)),
-        giftCount: asNumber(obj.count, asNumber(obj.num, 1)),
-      }
-      overlays.push(guard)
-      chatItems.push({ ...guard })
-    }
-  }
-
-  const coalescedOverlays = coalesceGifts(overlays)
-  const coalescedChat = coalesceGifts(chatItems)
-  coalescedChat.sort((a, b) => a.ts - b.ts || a.id.localeCompare(b.id))
-  coalescedOverlays.sort((a, b) => a.ts - b.ts)
-  return { meta, bullets, overlays: coalescedOverlays, chatItems: coalescedChat }
 }
 
 /**
@@ -360,7 +219,16 @@ export async function fetchDanmakuForVideo(
     if (trimmed.startsWith("<") && !trimmed.startsWith("{")) {
       return { kind: "none", reason: "xml" }
     }
-    const parsed = parseJsonlDanmaku(text)
+    let parsed: ParsedDanmaku
+    try {
+      parsed = await parseJsonlInWorker(text)
+    } catch (error) {
+      if (!(error instanceof DanmakuWorkerUnavailableError)) throw error
+      parsed = parseJsonlDanmaku(text)
+    }
+    if (signal?.aborted) {
+      return { kind: "none", reason: "error", message: "aborted" }
+    }
     return { kind: "jsonl", ...parsed }
   } catch (err) {
     if (signal?.aborted) {

@@ -27,6 +27,7 @@ import {
   ChatCircleSlashIcon,
   ChatCircleTextIcon,
   CornersOutIcon,
+  CircleNotchIcon,
   GearSixIcon,
   SubtitlesIcon,
   SubtitlesSlashIcon,
@@ -132,6 +133,7 @@ const DANMAKU_BASE_SPEED = 0.5
 const DANMAKU_TICK_UNCERTAINTY_MS = 120
 /** n-danmaku must not be ticked for every animation frame; its ranges overlap. */
 const DANMAKU_TICK_INTERVAL_MS = 160
+const DANMAKU_LOAD_CHUNK_SIZE = 1000
 
 function danmakuLifeForRate(rate: number): number {
   const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1
@@ -254,6 +256,7 @@ export function DanmakuVideoPlayer({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [paused, setPaused] = useState(true)
+  const [videoMetadataReady, setVideoMetadataReady] = useState(false)
   const [seekEpoch, setSeekEpoch] = useState(0)
   const [stageFullscreen, setStageFullscreen] = useState(false)
   const [appFullscreen, setAppFullscreen] = useState(false)
@@ -261,6 +264,7 @@ export function DanmakuVideoPlayer({
   const [cssRotated, setCssRotated] = useState(false)
   const [rotatedStageSize, setRotatedStageSize] = useState({ width: 0, height: 0 })
   const [bullets, setBullets] = useState<DanmakuListItem[]>([])
+  const [loadedDanmakuCount, setLoadedDanmakuCount] = useState<number | null>(null)
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
   const [chatItems, setChatItems] = useState<PreviewChatItem[]>([])
   const [meta, setMeta] = useState<DanmakuMeta | undefined>()
@@ -311,6 +315,7 @@ export function DanmakuVideoPlayer({
     const ac = new AbortController()
     setDanmakuStatus("loading")
     setBullets([])
+    setLoadedDanmakuCount(null)
     setOverlays([])
     setChatItems([])
     setMeta(undefined)
@@ -477,46 +482,68 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     const dm = danmakuRef.current
     if (!dm || danmakuStatus !== "ready") return
-    try {
-      dm.list.del("vod")
-    } catch {
-      /* ignore */
+    let cancelled = false
+
+    const loadDanmaku = async () => {
+      listReadyRef.current = false
+      try {
+        dm.list.del("vod")
+      } catch {
+        /* ignore */
+      }
+      dm.list.new("vod")
+      dm.list.use("vod")
+      dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
+      // n-danmaku ranges are % of host height: top/scroll from top, bottom from bottom.
+      dm.ranges({
+        scroll: [2, 85],
+        top: [2, 35],
+        bottom: [2, 32],
+        random: [2, 85],
+      })
+
+      // n-danmaku's addDm inserts each item by scanning its timeline. Loading
+      // in batches keeps each synchronous section short enough for the browser
+      // to paint between batches.
+      for (let start = 0; start < bullets.length; start += DANMAKU_LOAD_CHUNK_SIZE) {
+        if (cancelled) return
+        const chunk = bullets
+          .slice(start, start + DANMAKU_LOAD_CHUNK_SIZE)
+          .map((b) => ({
+            ...b,
+            styles: {
+              ...b.styles,
+              scale: danmakuScale,
+              opacity: danmakuOpacity,
+              life: danmakuLifeForRate(playbackRate),
+              pointer_events: false,
+              custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
+            },
+          }))
+        dm.list.load(chunk)
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      }
+
+      if (cancelled) return
+      listReadyRef.current = true
+      setLoadedDanmakuCount(bullets.length)
+      dm.clear()
+      const list = dm.list as unknown as { lastTickRange: [number, number] }
+      list.lastTickRange = [0, 0]
+      lastDanmakuTickMsRef.current = null
+      const video = videoRef.current
+      if (video && !video.paused) {
+        const videoMs = Math.round(video.currentTime * 1000)
+        dm.list.tick(videoMs)
+        lastDanmakuTickMsRef.current = videoMs
+        dm.resume()
+      }
     }
-    dm.list.new("vod")
-    dm.list.use("vod")
-    dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
-    // n-danmaku ranges are % of host height: top/scroll from top, bottom from bottom.
-    dm.ranges({
-      scroll: [2, 85],
-      top: [2, 35],
-      bottom: [2, 32],
-      random: [2, 85],
-    })
-    // n-danmaku load() mutates items (deletes time) — clone so React state stays intact
-    dm.list.load(
-      bullets.map((b) => ({
-        ...b,
-        styles: {
-          ...b.styles,
-          scale: danmakuScale,
-          opacity: danmakuOpacity,
-          life: danmakuLifeForRate(playbackRate),
-          pointer_events: false,
-          custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
-        },
-      }))
-    )
-    listReadyRef.current = true
-    dm.clear()
-    const list = dm.list as unknown as { lastTickRange: [number, number] }
-    list.lastTickRange = [0, 0]
-    lastDanmakuTickMsRef.current = null
-    const video = videoRef.current
-    if (video && !video.paused) {
-      const videoMs = Math.round(video.currentTime * 1000)
-      dm.list.tick(videoMs)
-      lastDanmakuTickMsRef.current = videoMs
-      dm.resume()
+
+    void loadDanmaku()
+    return () => {
+      cancelled = true
+      listReadyRef.current = false
     }
   }, [bullets, danmakuStatus, danmakuOpacity, danmakuScale, playbackRate])
 
@@ -604,6 +631,12 @@ export function DanmakuVideoPlayer({
       // Fallback for throttled requestAnimationFrame (background tabs / seeks).
       tickDanmaku()
     }
+    const onLoadStart = () => {
+      setVideoMetadataReady(false)
+    }
+    const onLoadedMetadata = () => {
+      setVideoMetadataReady(true)
+    }
     const onPlay = () => {
       setPaused(false)
       danmakuRef.current?.resume()
@@ -644,6 +677,8 @@ export function DanmakuVideoPlayer({
     }
 
     video.addEventListener("timeupdate", onTimeUpdate)
+    video.addEventListener("loadstart", onLoadStart)
+    video.addEventListener("loadedmetadata", onLoadedMetadata)
     video.addEventListener("play", onPlay)
     video.addEventListener("pause", onPause)
     video.addEventListener("ratechange", onRateChange)
@@ -652,11 +687,14 @@ export function DanmakuVideoPlayer({
     setPaused(video.paused)
     setCurrentTime(video.currentTime)
     setPlaybackRate(video.playbackRate)
+    setVideoMetadataReady(video.readyState >= HTMLMediaElement.HAVE_METADATA)
     if (!video.paused) startDanmakuTicker()
 
     return () => {
       stopDanmakuTicker()
       video.removeEventListener("timeupdate", onTimeUpdate)
+      video.removeEventListener("loadstart", onLoadStart)
+      video.removeEventListener("loadedmetadata", onLoadedMetadata)
       video.removeEventListener("play", onPlay)
       video.removeEventListener("pause", onPause)
       video.removeEventListener("ratechange", onRateChange)
@@ -807,6 +845,10 @@ export function DanmakuVideoPlayer({
     overlayCornerDraft !== overlayCorner
 
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
+  const loadedDanmakuHint =
+    loadedDanmakuCount != null && loadedDanmakuCount > 0
+      ? t("previewPlayer.danmakuLoaded", { count: loadedDanmakuCount })
+      : null
   const chatLayout =
     overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked" ? overlayLayout : null
   const touchDevice = touchDeviceRef.current
@@ -834,7 +876,7 @@ export function DanmakuVideoPlayer({
 
   return (
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
-      {headerTitle || statusHint ? (
+      {headerTitle || statusHint || loadedDanmakuHint ? (
         <div
           className="pointer-events-none absolute top-2 left-3 right-12 z-30 flex max-w-[calc(100%-3.5rem)] flex-col gap-0.5 sm:top-0 sm:right-0 sm:left-0 sm:max-w-none sm:bg-linear-to-b sm:from-black/60 sm:via-black/25 sm:to-transparent sm:px-3 sm:pt-2 sm:pb-4"
           aria-hidden
@@ -842,6 +884,9 @@ export function DanmakuVideoPlayer({
           <div className="max-w-full sm:max-w-[calc(100%-3.5rem)]">
             {headerTitle ? (
               <div className="truncate text-sm font-medium text-white drop-shadow-md">{headerTitle}</div>
+            ) : null}
+            {loadedDanmakuHint ? (
+              <p className="text-[11px] leading-snug text-yellow-300 drop-shadow-md">{loadedDanmakuHint}</p>
             ) : null}
             {statusHint ? (
               <p className="text-[11px] leading-snug text-amber-200/80 drop-shadow-md">{statusHint}</p>
@@ -1233,6 +1278,17 @@ export function DanmakuVideoPlayer({
             </div>
           </div>
         </MediaController>
+
+        {!videoMetadataReady || danmakuStatus === "loading" ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-black/20"
+            role="status"
+            aria-live="polite"
+            aria-label={t("previewPlayer.videoLoading")}
+          >
+            <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
+          </div>
+        ) : null}
 
         {/* Sized to the video picture box (not the whole stage / letterbox / chrome) */}
         <div

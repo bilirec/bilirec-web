@@ -184,6 +184,8 @@ export const resources = {
       },
       previewPlayer: {
         danmakuLoading: "正在載入彈幕…",
+        videoLoading: "正在載入影片…",
+        danmakuLoaded: "已裝填 {{count}} 個彈幕",
         danmakuMissing: "如要支援彈幕/禮物記錄，請輸出同名的彈幕文件格式爲 JSONL",
         danmakuXmlSkipped: "如要支援彈幕/禮物記錄，請輸出同名的彈幕文件格式爲 JSONL",
         hideDanmaku: "隱藏彈幕與特效",
@@ -632,6 +634,8 @@ export const resources = {
       },
       previewPlayer: {
         danmakuLoading: "正在加载弹幕…",
+        videoLoading: "正在加载视频…",
+        danmakuLoaded: "已装填 {{count}} 个弹幕",
         danmakuMissing: "如要支持弹幕/礼物记录，请输出同名的弹幕文件格式为 JSONL",
         danmakuXmlSkipped: "如要支持弹幕/礼物记录，请输出同名的弹幕文件格式为 JSONL",
         hideDanmaku: "隐藏弹幕与特效",
