@@ -132,7 +132,7 @@ export const resources = {
         downloading: "正在下載...",
         downloadCanceled: "下載已取消",
         downloadFailed: "下載失敗",
-        inRecordingPreviewBlocked: "檔案正在錄製中，無法預覽",
+        inRecordingPlaybackBlocked: "檔案正在錄製中，無法回放",
         inRecordingConvertBlocked: "檔案正在錄製中，無法轉換",
         convertNotSupported: "無法轉換",
         enqueueConvertSuccess: "已加入轉換佇列",
@@ -155,7 +155,7 @@ export const resources = {
         recordingBadge: "錄製中",
         download: "下載",
         downloadingLabel: "下載中…",
-        preview: "預覽",
+        playback: "回放",
         convert: "轉換",
         converting: "轉換中…",
         share: "分享",
@@ -171,7 +171,7 @@ export const resources = {
         downloadInProgress: "下載中",
         deleteFileAria: "刪除檔案 {{name}}",
         convertAria: "轉換 {{name}}",
-        previewAria: "預覽 {{name}}",
+        playbackAria: "回放 {{name}}",
         shareFileAria: "分享檔案 {{name}}",
         moreActions: "更多操作",
         convertConfirmTitle: "確認轉換",
@@ -182,7 +182,7 @@ export const resources = {
         convertRunning: "轉換 {{format}} 中…",
         confirmConvert: "確定轉換 {{format}}"
       },
-      previewPlayer: {
+      playbackPlayer: {
         danmakuLoading: "正在載入彈幕…",
         videoLoading: "正在載入影片…",
         danmakuLoaded: "已裝填 {{count}} 個彈幕",
@@ -582,7 +582,7 @@ export const resources = {
         downloading: "正在下载...",
         downloadCanceled: "下载已取消",
         downloadFailed: "下载失败",
-        inRecordingPreviewBlocked: "文件正在录制中，无法预览",
+        inRecordingPlaybackBlocked: "文件正在录制中，无法回放",
         inRecordingConvertBlocked: "文件正在录制中，无法转换",
         convertNotSupported: "无法转换",
         enqueueConvertSuccess: "已加入转换队列",
@@ -605,7 +605,7 @@ export const resources = {
         recordingBadge: "录制中",
         download: "下载",
         downloadingLabel: "下载中…",
-        preview: "预览",
+        playback: "回放",
         convert: "转换",
         converting: "转换中…",
         share: "分享",
@@ -621,7 +621,7 @@ export const resources = {
         downloadInProgress: "下载中",
         deleteFileAria: "删除文件 {{name}}",
         convertAria: "转换 {{name}}",
-        previewAria: "预览 {{name}}",
+        playbackAria: "回放 {{name}}",
         shareFileAria: "分享文件 {{name}}",
         moreActions: "更多操作",
         convertConfirmTitle: "确认转换",
@@ -632,7 +632,7 @@ export const resources = {
         convertRunning: "转换 {{format}} 中…",
         confirmConvert: "确认转换 {{format}}"
       },
-      previewPlayer: {
+      playbackPlayer: {
         danmakuLoading: "正在加载弹幕…",
         videoLoading: "正在加载视频…",
         danmakuLoaded: "已装填 {{count}} 个弹幕",

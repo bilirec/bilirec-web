@@ -5,7 +5,7 @@ import {
   type DanmakuMeta,
   type OverlayEvent,
   type ParsedDanmaku,
-  type PreviewChatItem,
+  type PlaybackChatItem,
 } from "./danmaku-parse"
 
 export { parseJsonlDanmaku } from "./danmaku-parse"
@@ -14,8 +14,8 @@ export type {
   OverlayEvent,
   OverlayKind,
   ParsedDanmaku,
-  PreviewChatItem,
-  PreviewChatKind,
+  PlaybackChatItem,
+  PlaybackChatKind,
 } from "./danmaku-parse"
 
 interface DanmakuWorkerRequest {
@@ -174,10 +174,10 @@ export function resolveSuperChatTheme(
 
 export type DanmakuFetchResult =
   | { kind: "none"; reason: "missing" | "xml" | "error"; message?: string }
-  | { kind: "jsonl"; meta?: DanmakuMeta; bullets: DanmakuListItem[]; overlays: OverlayEvent[]; chatItems: PreviewChatItem[] }
+  | { kind: "jsonl"; meta?: DanmakuMeta; bullets: DanmakuListItem[]; overlays: OverlayEvent[]; chatItems: PlaybackChatItem[] }
 
 /** Last index with ts <= t (+epsilon), assuming items sorted by ts ascending. */
-export function chatItemsVisibleEnd(items: PreviewChatItem[], t: number): number {
+export function chatItemsVisibleEnd(items: PlaybackChatItem[], t: number): number {
   const limit = t + 0.05
   let lo = 0
   let hi = items.length

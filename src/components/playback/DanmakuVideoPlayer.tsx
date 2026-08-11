@@ -37,13 +37,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Slider } from "@/components/ui/slider"
-import { EventOverlayLayer, type OverlayLayout } from "@/components/preview/EventOverlayLayer"
-import { PreviewChatList } from "@/components/preview/PreviewChatList"
+import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
+import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
 import {
   fetchDanmakuForVideo,
   type DanmakuMeta,
   type OverlayEvent,
-  type PreviewChatItem,
+  type PlaybackChatItem,
 } from "@/lib/danmaku"
 import {
   DEFAULT_DANMAKU_OPACITY,
@@ -66,8 +66,8 @@ import {
   savePlaybackRates,
   saveSeekOffsetSec,
   saveScreenDanmakuVisible,
-} from "@/lib/preview-settings"
-import type { OverlayCorner } from "@/lib/preview-settings"
+} from "@/lib/playback-settings"
+import type { OverlayCorner } from "@/lib/playback-settings"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { DanmakuListItem } from "n-danmaku"
@@ -122,7 +122,7 @@ function getObjectFitContentBox(
   return { top: 0, left: (elW - width) / 2, width, height: elH }
 }
 
-/** Default n-danmaku font is ~width/36; desktop preview stays a bit smaller than live. */
+/** Default n-danmaku font is ~width/36; desktop playback stays a bit smaller than live. */
 const DANMAKU_SCALE_DESKTOP = 0.63
 /** Narrow / phone picture boxes need a larger scale or bullets become unreadable. */
 const DANMAKU_SCALE_NARROW = 1.55
@@ -266,7 +266,7 @@ export function DanmakuVideoPlayer({
   const [bullets, setBullets] = useState<DanmakuListItem[]>([])
   const [loadedDanmakuCount, setLoadedDanmakuCount] = useState<number | null>(null)
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
-  const [chatItems, setChatItems] = useState<PreviewChatItem[]>([])
+  const [chatItems, setChatItems] = useState<PlaybackChatItem[]>([])
   const [meta, setMeta] = useState<DanmakuMeta | undefined>()
   const [danmakuStatus, setDanmakuStatus] = useState<"loading" | "ready" | "none" | "xml">("loading")
   const [rates, setRates] = useState<number[]>(() => loadPlaybackRates())
@@ -770,17 +770,17 @@ export function DanmakuVideoPlayer({
   const applySettings = () => {
     const parsedRates = parseRatesInput(ratesDraft)
     if (!parsedRates) {
-      toast.error(t("previewPlayer.ratesInvalid"))
+      toast.error(t("playbackPlayer.ratesInvalid"))
       return
     }
     const fs = parsePositiveNumber(frameDraft, { min: 1, max: 5000 })
     if (fs == null) {
-      toast.error(t("previewPlayer.frameStepInvalid"))
+      toast.error(t("playbackPlayer.frameStepInvalid"))
       return
     }
     const so = parsePositiveNumber(seekDraft, { min: 0.5, max: 600 })
     if (so == null) {
-      toast.error(t("previewPlayer.seekOffsetInvalid"))
+      toast.error(t("playbackPlayer.seekOffsetInvalid"))
       return
     }
     const opacity = Math.min(100, Math.max(0, Math.round(opacityDraft)))
@@ -800,7 +800,7 @@ export function DanmakuVideoPlayer({
     setOverlayCorner(overlayCornerDraft)
     saveOverlayCorner(overlayCornerDraft)
     setSettingsOpen(false)
-    toast.success(t("previewPlayer.settingsApplied"))
+    toast.success(t("playbackPlayer.settingsApplied"))
   }
 
   const resetSettings = () => {
@@ -821,13 +821,13 @@ export function DanmakuVideoPlayer({
     saveOverlayCorner(DEFAULT_OVERLAY_CORNER)
   }
 
-  const fitLabel = t(`previewPlayer.fit.${objectFit}`)
+  const fitLabel = t(`playbackPlayer.fit.${objectFit}`)
 
   const statusHint =
     danmakuStatus === "xml" || danmakuStatus === "none"
-      ? t("previewPlayer.danmakuXmlSkipped")
+      ? t("playbackPlayer.danmakuXmlSkipped")
       : danmakuStatus === "loading"
-        ? t("previewPlayer.danmakuLoading")
+        ? t("playbackPlayer.danmakuLoading")
         : null
 
   const parsedRatesDraft = parseRatesInput(ratesDraft)
@@ -847,7 +847,7 @@ export function DanmakuVideoPlayer({
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
   const loadedDanmakuHint =
     loadedDanmakuCount != null && loadedDanmakuCount > 0
-      ? t("previewPlayer.danmakuLoaded", { count: loadedDanmakuCount })
+      ? t("playbackPlayer.danmakuLoaded", { count: loadedDanmakuCount })
       : null
   const chatLayout =
     overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked" ? overlayLayout : null
@@ -898,14 +898,14 @@ export function DanmakuVideoPlayer({
       <div
         ref={stageRef}
         className={cn(
-          "bilirec-preview-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black",
+          "bilirec-playback-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black",
           mobileStageClass
         )}
         style={stageStyle}
       >
           <MediaController
             key={mediaLang}
-            className="bilirec-preview-player absolute inset-0 h-full w-full"
+            className="bilirec-playback-player absolute inset-0 h-full w-full"
             style={MEDIA_CHROME_VARS}
             lang={mediaLang}
           >
@@ -920,7 +920,7 @@ export function DanmakuVideoPlayer({
           />
           <MediaLoadingIndicator slot="centered-chrome" />
           <MediaPlaybackRateMenu
-            className="bilirec-preview-rate-menu"
+            className="bilirec-playback-rate-menu"
             hidden
             anchor="auto"
             rates={rates}
@@ -932,7 +932,7 @@ export function DanmakuVideoPlayer({
             <div className="pointer-events-auto flex w-full flex-col gap-0.5 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
               {/* VLC-style: progress alone on first row.
                   Isolate so media-time-range's shadow #range { z-index:1 } cannot escape. */}
-              <MediaControlBar className="bilirec-preview-bar bilirec-preview-bar-progress relative z-0 isolate w-full">
+              <MediaControlBar className="bilirec-playback-bar bilirec-playback-bar-progress relative z-0 isolate w-full">
                 <MediaTimeRange className="w-full min-w-0 flex-1" />
               </MediaControlBar>
 
@@ -941,7 +941,7 @@ export function DanmakuVideoPlayer({
               {/* Common controls: two intentional rows on narrow screens. */}
               <MediaControlBar
                 className={cn(
-                  "bilirec-preview-bar flex w-full gap-0.5",
+                    "bilirec-playback-bar flex w-full gap-0.5",
                   landscapeFullscreen ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
                 )}
               >
@@ -993,7 +993,7 @@ export function DanmakuVideoPlayer({
 
                   <div
                     className={cn(
-                      "bilirec-preview-rate-chip flex min-w-0 items-center gap-1 rounded-md hover:bg-white/12",
+                      "bilirec-playback-rate-chip flex min-w-0 items-center gap-1 rounded-md hover:bg-white/12",
                       landscapeFullscreen
                         ? "h-8 flex-none px-2.5"
                         : "flex-1 px-1.5 sm:h-8 sm:flex-none sm:px-2.5"
@@ -1001,7 +1001,7 @@ export function DanmakuVideoPlayer({
                   >
                     <MediaPlaybackRateMenuButton
                       className={cn(
-                        "bilirec-preview-rate-btn justify-center",
+                        "bilirec-playback-rate-btn justify-center",
                         landscapeFullscreen ? "w-auto" : "w-full sm:w-auto"
                       )}
                     />
@@ -1014,12 +1014,12 @@ export function DanmakuVideoPlayer({
                   >
                     {chatLayout ? (
                       <MediaChromeButton
-                        className={cn("bilirec-preview-touch", landscapeControlClass)}
+                        className={cn("bilirec-playback-touch", landscapeControlClass)}
                         noTooltip
                         title={
                           screenDanmakuVisible
-                            ? t("previewPlayer.hideScreenDanmaku")
-                            : t("previewPlayer.showScreenDanmaku")
+                            ? t("playbackPlayer.hideScreenDanmaku")
+                            : t("playbackPlayer.showScreenDanmaku")
                         }
                         aria-pressed={screenDanmakuVisible}
                         onClick={() => {
@@ -1037,9 +1037,9 @@ export function DanmakuVideoPlayer({
                     ) : null}
 
                     <MediaChromeButton
-                      className={cn("bilirec-preview-touch", landscapeControlClass)}
+                      className={cn("bilirec-playback-touch", landscapeControlClass)}
                       noTooltip
-                      title={danmakuHidden ? t("previewPlayer.showDanmaku") : t("previewPlayer.hideDanmaku")}
+                      title={danmakuHidden ? t("playbackPlayer.showDanmaku") : t("playbackPlayer.hideDanmaku")}
                       onClick={() => setDanmakuHidden((v) => !v)}
                     >
                       {danmakuHidden ? (
@@ -1051,12 +1051,12 @@ export function DanmakuVideoPlayer({
                   </div>
 
                   <TextChipButton
-                    title={advancedOpen ? t("previewPlayer.hideAdvanced") : t("previewPlayer.showAdvanced")}
+                    title={advancedOpen ? t("playbackPlayer.hideAdvanced") : t("playbackPlayer.showAdvanced")}
                     active={advancedOpen}
                     className={cn(landscapeControlClass, "justify-center")}
                     onClick={() => setAdvancedOpen((v) => !v)}
                   >
-                    <span>{t("previewPlayer.advanced")}</span>
+                    <span>{t("playbackPlayer.advanced")}</span>
                     {advancedOpen ? (
                       <CaretDownIcon className="size-3.5 opacity-80" weight="bold" />
                     ) : (
@@ -1065,9 +1065,9 @@ export function DanmakuVideoPlayer({
                   </TextChipButton>
 
                   <MediaChromeButton
-                    className={cn("bilirec-preview-touch", landscapeControlClass)}
+                    className={cn("bilirec-playback-touch", landscapeControlClass)}
                     noTooltip
-                    title={t("previewPlayer.fullscreen")}
+                    title={t("playbackPlayer.fullscreen")}
                     onClick={() => void toggleFullscreen()}
                   >
                     <CornersOutIcon className="size-5" weight="bold" />
@@ -1077,23 +1077,23 @@ export function DanmakuVideoPlayer({
 
               {/* Advanced row — text chips separated from icon-only clusters */}
               {advancedOpen ? (
-                <MediaControlBar className="bilirec-preview-bar flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/10 pt-1.5">
+                <MediaControlBar className="bilirec-playback-bar flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/10 pt-1.5">
                   <div className="flex items-center gap-1">
                     <span className={cn(ADV_LABEL, "mr-0.5", chatLayout ? "inline" : "hidden sm:inline")}>
-                      {t("previewPlayer.frameGroup")}
+                      {t("playbackPlayer.frameGroup")}
                     </span>
                     <MediaChromeButton
-                      className="bilirec-preview-touch"
+                      className="bilirec-playback-touch"
                       noTooltip
-                      title={t("previewPlayer.frameBack")}
+                      title={t("playbackPlayer.frameBack")}
                       onClick={() => stepFrame(-1)}
                     >
                       <ArrowCounterClockwiseIcon className="size-5 sm:size-4" weight="bold" />
                     </MediaChromeButton>
                     <MediaChromeButton
-                      className="bilirec-preview-touch"
+                      className="bilirec-playback-touch"
                       noTooltip
-                      title={t("previewPlayer.frameForward")}
+                      title={t("playbackPlayer.frameForward")}
                       onClick={() => stepFrame(1)}
                     >
                       <ArrowClockwiseIcon className="size-5 sm:size-4" weight="bold" />
@@ -1102,10 +1102,10 @@ export function DanmakuVideoPlayer({
 
                   <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
                     <TextChipButton
-                      title={t("previewPlayer.objectFit", { mode: objectFit })}
+                      title={t("playbackPlayer.objectFit", { mode: objectFit })}
                       onClick={cycleFit}
                     >
-                      <span className={ADV_LABEL}>{t("previewPlayer.fitLabel")}</span>
+                      <span className={ADV_LABEL}>{t("playbackPlayer.fitLabel")}</span>
                       <span className="text-xs font-medium text-white/90">{fitLabel}</span>
                     </TextChipButton>
                   </div>
@@ -1116,8 +1116,8 @@ export function DanmakuVideoPlayer({
                         <button
                           type="button"
                           className="inline-flex size-10 items-center justify-center rounded-md text-white/90 hover:bg-white/12 sm:size-8"
-                          title={t("previewPlayer.settings")}
-                          aria-label={t("previewPlayer.settings")}
+                          title={t("playbackPlayer.settings")}
+                          aria-label={t("playbackPlayer.settings")}
                         >
                           <GearSixIcon className="size-5 sm:size-[1.125rem]" weight="bold" />
                         </button>
@@ -1127,13 +1127,13 @@ export function DanmakuVideoPlayer({
                         className="max-h-[calc(100dvh-2rem)] w-80 max-w-[calc(100vw-1rem)] space-y-3 overflow-y-auto border-white/15 bg-zinc-900 p-4 text-zinc-50 shadow-xl"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                       >
-                        <DialogTitle className="sr-only">{t("previewPlayer.settings")}</DialogTitle>
+                        <DialogTitle className="sr-only">{t("playbackPlayer.settings")}</DialogTitle>
                         <div className="space-y-1.5">
-                          <Label htmlFor="preview-rates" className="text-zinc-200">
-                            {t("previewPlayer.ratesLabel")}
+                          <Label htmlFor="playback-rates" className="text-zinc-200">
+                            {t("playbackPlayer.ratesLabel")}
                           </Label>
                           <Input
-                            id="preview-rates"
+                            id="playback-rates"
                             value={ratesDraft}
                             onChange={(e) => setRatesDraft(e.target.value)}
                             placeholder="0.25, 0.5, 1, 1.5, 2"
@@ -1142,14 +1142,14 @@ export function DanmakuVideoPlayer({
                             spellCheck={false}
                             className="border-white/15 bg-zinc-950 text-zinc-50 placeholder:text-zinc-500"
                           />
-                          <p className="text-xs text-zinc-400">{t("previewPlayer.ratesHint")}</p>
+                          <p className="text-xs text-zinc-400">{t("playbackPlayer.ratesHint")}</p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="preview-frame" className="text-zinc-200">
-                            {t("previewPlayer.frameStepLabel")}
+                          <Label htmlFor="playback-frame" className="text-zinc-200">
+                            {t("playbackPlayer.frameStepLabel")}
                           </Label>
                           <Input
-                            id="preview-frame"
+                            id="playback-frame"
                             type="number"
                             min={1}
                             max={5000}
@@ -1173,11 +1173,11 @@ export function DanmakuVideoPlayer({
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="preview-seek" className="text-zinc-200">
-                            {t("previewPlayer.seekOffsetLabel")}
+                          <Label htmlFor="playback-seek" className="text-zinc-200">
+                            {t("playbackPlayer.seekOffsetLabel")}
                           </Label>
                           <Input
-                            id="preview-seek"
+                            id="playback-seek"
                             type="number"
                             min={0.5}
                             max={600}
@@ -1189,13 +1189,13 @@ export function DanmakuVideoPlayer({
                         </div>
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-2">
-                            <Label htmlFor="preview-opacity" className="text-zinc-200">
-                              {t("previewPlayer.danmakuOpacityLabel")}
+                            <Label htmlFor="playback-opacity" className="text-zinc-200">
+                              {t("playbackPlayer.danmakuOpacityLabel")}
                             </Label>
                             <span className="tabular-nums text-xs text-zinc-400">{opacityDraft}%</span>
                           </div>
                           <Slider
-                            id="preview-opacity"
+                            id="playback-opacity"
                             min={0}
                             max={100}
                             step={1}
@@ -1203,11 +1203,11 @@ export function DanmakuVideoPlayer({
                             onValueChange={(v) => setOpacityDraft(v[0] ?? DEFAULT_DANMAKU_OPACITY)}
                             className="w-full"
                           />
-                          <p className="text-xs text-zinc-400">{t("previewPlayer.danmakuOpacityHint")}</p>
+                          <p className="text-xs text-zinc-400">{t("playbackPlayer.danmakuOpacityHint")}</p>
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-zinc-200">
-                            {t("previewPlayer.overlayCornerLabel")}
+                            {t("playbackPlayer.overlayCornerLabel")}
                           </Label>
                           <div className="grid grid-cols-2 gap-1.5">
                             {OVERLAY_CORNERS.map((corner) => (
@@ -1219,11 +1219,11 @@ export function DanmakuVideoPlayer({
                                 className="border-white/20 bg-transparent text-xs text-zinc-200 hover:bg-white/10 hover:text-white"
                                 onClick={() => setOverlayCornerDraft(corner)}
                               >
-                                {t(`previewPlayer.${cornerLabelKey(corner)}`)}
+                                {t(`playbackPlayer.${cornerLabelKey(corner)}`)}
                               </Button>
                             ))}
                           </div>
-                          <p className="text-xs text-zinc-400">{t("previewPlayer.overlayCornerHint")}</p>
+                          <p className="text-xs text-zinc-400">{t("playbackPlayer.overlayCornerHint")}</p>
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p
@@ -1239,10 +1239,10 @@ export function DanmakuVideoPlayer({
                             aria-live="polite"
                           >
                             {settingsDraftInvalid
-                              ? t("previewPlayer.settingsStatusInvalid")
+                              ? t("playbackPlayer.settingsStatusInvalid")
                               : hasPendingSettings
-                                ? t("previewPlayer.settingsStatusPending")
-                                : t("previewPlayer.settingsStatusApplied")}
+                                ? t("playbackPlayer.settingsStatusPending")
+                                : t("playbackPlayer.settingsStatusApplied")}
                           </p>
                           <div className="flex items-center gap-2">
                             <Button
@@ -1252,7 +1252,7 @@ export function DanmakuVideoPlayer({
                               className="text-zinc-300 hover:bg-white/10 hover:text-white"
                               onClick={resetSettings}
                             >
-                              {t("previewPlayer.resetSettings")}
+                              {t("playbackPlayer.resetSettings")}
                             </Button>
                             <Button
                               type="button"
@@ -1260,16 +1260,16 @@ export function DanmakuVideoPlayer({
                               onClick={applySettings}
                               disabled={!hasPendingSettings}
                             >
-                              {t("previewPlayer.applySettings")}
+                              {t("playbackPlayer.applySettings")}
                             </Button>
                           </div>
                         </div>
                       </DialogContent>
                     </Dialog>
 
-                    <TextChipButton title={t("previewPlayer.nativePlayer")} onClick={openNative}>
+                    <TextChipButton title={t("playbackPlayer.nativePlayer")} onClick={openNative}>
                       <ArrowSquareOutIcon className="size-4 opacity-90 sm:size-3.5" weight="bold" />
-                      <span>{t("previewPlayer.nativePlayerShort")}</span>
+                      <span>{t("playbackPlayer.nativePlayerShort")}</span>
                     </TextChipButton>
                   </div>
                 </MediaControlBar>
@@ -1284,7 +1284,7 @@ export function DanmakuVideoPlayer({
             className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-black/20"
             role="status"
             aria-live="polite"
-            aria-label={t("previewPlayer.videoLoading")}
+            aria-label={t("playbackPlayer.videoLoading")}
           >
             <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
           </div>
@@ -1303,7 +1303,7 @@ export function DanmakuVideoPlayer({
           aria-hidden={!chatLayout}
         >
           {chatLayout ? (
-            <PreviewChatList
+            <PlaybackChatList
               items={chatItems}
               currentTime={currentTime}
               hidden={danmakuHidden}

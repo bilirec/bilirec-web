@@ -120,7 +120,7 @@ body {
   background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02), rgba(255,255,255,0.08));
 }
 
-/* Preview overlay enter / exit (SC, guard, gift) */
+/* Playback overlay enter / exit (SC, guard, gift) */
 @keyframes bilirec-overlay-hang-in {
   from {
     opacity: 0;
@@ -355,25 +355,25 @@ body {
   pointer-events: none;
 }
 
-/* Danmaku preview player: kill media-chrome default gray control chrome */
-.bilirec-preview-player media-control-bar.bilirec-preview-bar,
-.bilirec-preview-player .bilirec-preview-bar {
+/* Danmaku playback player: kill media-chrome default gray control chrome */
+.bilirec-playback-player media-control-bar.bilirec-playback-bar,
+.bilirec-playback-player .bilirec-playback-bar {
   background: transparent !important;
   box-shadow: none !important;
   width: 100%;
 }
 
-.bilirec-preview-player media-control-bar.bilirec-preview-bar::part(container),
-.bilirec-preview-player media-time-range,
-.bilirec-preview-player media-volume-range {
+.bilirec-playback-player media-control-bar.bilirec-playback-bar::part(container),
+.bilirec-playback-player media-time-range,
+.bilirec-playback-player media-volume-range {
   --media-control-background: transparent;
   --media-control-hover-background: rgb(255 255 255 / 0.12);
 }
 
 /* Progress row: trap media-time-range's shadow #range { z-index: 1 } so it
    cannot paint over later control rows or the playback-rate menu. */
-.bilirec-preview-player media-control-bar.bilirec-preview-bar-progress,
-.bilirec-preview-player .bilirec-preview-bar-progress {
+.bilirec-playback-player media-control-bar.bilirec-playback-bar-progress,
+.bilirec-playback-player .bilirec-playback-bar-progress {
   position: relative;
   z-index: 0;
   isolation: isolate;
@@ -381,8 +381,8 @@ body {
 
 /* Rate menu: opaque dark panel (not gray-on-video). Keep above isolated progress.
    Do not set position here — media-chrome sets absolute when open. */
-.bilirec-preview-player media-playback-rate-menu,
-media-playback-rate-menu.bilirec-preview-rate-menu {
+.bilirec-playback-player media-playback-rate-menu,
+media-playback-rate-menu.bilirec-playback-rate-menu {
   --media-menu-background: rgb(24 24 27 / 0.96);
   --media-control-background: rgb(24 24 27 / 0.96);
   --media-menu-item-hover-background: rgb(255 255 255 / 0.12);
@@ -396,7 +396,7 @@ media-playback-rate-menu.bilirec-preview-rate-menu {
 }
 
 /* Built-in media-chrome tooltips: dark panel, not light-gray */
-.bilirec-preview-player media-tooltip {
+.bilirec-playback-player media-tooltip {
   --media-tooltip-background-color: rgb(24 24 27);
   --media-tooltip-background: rgb(24 24 27);
   --media-tooltip-arrow-color: rgb(24 24 27);
@@ -405,8 +405,8 @@ media-playback-rate-menu.bilirec-preview-rate-menu {
 }
 
 /* Align 倍速 button text with 跳幀 / 縮放 labels (text-xs) */
-.bilirec-preview-player .bilirec-preview-rate-chip media-playback-rate-menu-button,
-.bilirec-preview-player media-playback-rate-menu-button.bilirec-preview-rate-btn {
+.bilirec-playback-player .bilirec-playback-rate-chip media-playback-rate-menu-button,
+.bilirec-playback-player media-playback-rate-menu-button.bilirec-playback-rate-btn {
   --media-font-size: 0.75rem;
   --media-control-height: 1.25rem;
   --media-button-padding: 0 0.15rem;
@@ -422,13 +422,13 @@ media-playback-rate-menu.bilirec-preview-rate-menu {
 /* Make the most frequently used controls easier to tap on narrow screens.
    Keep these overrides mobile-only so desktop controls retain their current size. */
 @media (max-width: 639px) {
-  .bilirec-preview-player media-play-button,
-  .bilirec-preview-player media-seek-backward-button,
-  .bilirec-preview-player media-seek-forward-button,
-  .bilirec-preview-player media-mute-button,
-  .bilirec-preview-player media-playback-rate-menu-button,
-  .bilirec-preview-player .bilirec-preview-touch,
-  .bilirec-preview-player .bilirec-preview-rate-btn {
+  .bilirec-playback-player media-play-button,
+  .bilirec-playback-player media-seek-backward-button,
+  .bilirec-playback-player media-seek-forward-button,
+  .bilirec-playback-player media-mute-button,
+  .bilirec-playback-player media-playback-rate-menu-button,
+  .bilirec-playback-player .bilirec-playback-touch,
+  .bilirec-playback-player .bilirec-playback-rate-btn {
     --media-control-height: 2.75rem;
     --media-button-icon-width: 1.5rem;
     --media-button-icon-height: 1.5rem;
@@ -436,21 +436,21 @@ media-playback-rate-menu.bilirec-preview-rate-menu {
     min-height: 2.75rem;
   }
 
-  .bilirec-preview-player media-play-button,
-  .bilirec-preview-player media-seek-backward-button,
-  .bilirec-preview-player media-seek-forward-button {
+  .bilirec-playback-player media-play-button,
+  .bilirec-playback-player media-seek-backward-button,
+  .bilirec-playback-player media-seek-forward-button {
     min-width: 2.75rem;
   }
 
-  .bilirec-preview-player .bilirec-preview-touch {
+  .bilirec-playback-player .bilirec-playback-touch {
     min-width: 2.75rem;
   }
 
-  .bilirec-preview-player .bilirec-preview-rate-chip {
+  .bilirec-playback-player .bilirec-playback-rate-chip {
     height: 2.5rem;
   }
 
-  .bilirec-preview-player .bilirec-preview-rate-btn {
+  .bilirec-playback-player .bilirec-playback-rate-btn {
     min-height: 2.5rem;
     height: 2.5rem;
     line-height: 2.5rem;

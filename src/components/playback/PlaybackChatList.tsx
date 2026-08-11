@@ -7,9 +7,9 @@ import {
   guardLevelColor,
   guardLevelLabel,
   resolveSuperChatTheme,
-  type PreviewChatItem,
+  type PlaybackChatItem,
 } from "@/lib/danmaku"
-import { GuardIcon, type OverlayLayout } from "@/components/preview/EventOverlayLayer"
+import { GuardIcon, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
 
 const CONTROL_RESERVE_PX = 100
 const STICK_BOTTOM_PX = 48
@@ -17,15 +17,15 @@ const EST_ROW_PX = 36
 
 type ChatListLayout = Extract<OverlayLayout, { mode: "letterbox" | "docked" }>
 
-interface PreviewChatListProps {
-  items: PreviewChatItem[]
+interface PlaybackChatListProps {
+  items: PlaybackChatItem[]
   currentTime: number
   hidden: boolean
   layout: ChatListLayout
   className?: string
 }
 
-function ChatRow({ item }: { item: PreviewChatItem }) {
+function ChatRow({ item }: { item: PlaybackChatItem }) {
   const { t } = useTranslation()
 
   if (item.kind === "danmaku") {
@@ -94,8 +94,8 @@ function ChatRow({ item }: { item: PreviewChatItem }) {
         <span className="font-medium text-pink-200">{item.user}</span>
         <span className="text-white/75">
           {" "}
-          {t("previewPlayer.giftLine", {
-            gift: item.giftName || t("previewPlayer.giftFallback"),
+          {t("playbackPlayer.giftLine", {
+            gift: item.giftName || t("playbackPlayer.giftFallback"),
             count: item.giftCount ?? 1,
           })}
         </span>
@@ -121,7 +121,7 @@ function ChatRow({ item }: { item: PreviewChatItem }) {
             <span className="text-[11px] font-bold leading-tight" style={{ color }}>
               {label}
             </span>
-            <span className="text-[10px] text-white/55 leading-tight">{t("previewPlayer.guardAction")}</span>
+            <span className="text-[10px] text-white/55 leading-tight">{t("playbackPlayer.guardAction")}</span>
           </div>
           <div className="mt-0.5 flex items-center gap-1">
             <span className="truncate text-xs font-medium leading-tight text-white">{item.user}</span>
@@ -139,13 +139,13 @@ function ChatRow({ item }: { item: PreviewChatItem }) {
  * Portrait chat timeline (virtualized): letterbox black bar, or translucent dock on vertical VODs.
  * Follows playback (stick-to-bottom) until the user scrolls up.
  */
-export function PreviewChatList({
+export function PlaybackChatList({
   items,
   currentTime,
   hidden,
   layout,
   className,
-}: PreviewChatListProps) {
+}: PlaybackChatListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
   const [stickBottom, setStickBottom] = useState(true)
@@ -179,7 +179,7 @@ export function PreviewChatList({
     })
     return () => cancelAnimationFrame(id)
     // Only follow when the visible window grows/shrinks with playback/seek.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- virtualizer API is stable enough here
+    // The virtualizer API is stable enough here; only the visible row count drives this effect.
   }, [visible.length])
 
   if (hidden) return null

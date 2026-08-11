@@ -1,9 +1,9 @@
-const RATES_KEY = "bilirec.preview.rates"
-const FRAME_STEP_KEY = "bilirec.preview.frameStepMs"
-const SEEK_OFFSET_KEY = "bilirec.preview.seekOffsetSec"
-const DANMAKU_OPACITY_KEY = "bilirec.preview.danmakuOpacity"
-const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.preview.screenDanmakuVisible"
-const OVERLAY_CORNER_KEY = "bilirec.preview.overlayCorner"
+const RATES_KEY = "bilirec.playback.rates"
+const FRAME_STEP_KEY = "bilirec.playback.frameStepMs"
+const SEEK_OFFSET_KEY = "bilirec.playback.seekOffsetSec"
+const DANMAKU_OPACITY_KEY = "bilirec.playback.danmakuOpacity"
+const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
+const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
 
 export const DEFAULT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 /** ~1 frame at 30fps */

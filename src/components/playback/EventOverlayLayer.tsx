@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { OverlayEvent } from "@/lib/danmaku"
 import { guardLevelColor, guardLevelIcon, guardLevelLabel, resolveSuperChatTheme } from "@/lib/danmaku"
-import type { OverlayCorner } from "@/lib/preview-settings"
+import type { OverlayCorner } from "@/lib/playback-settings"
 
 const SC_FALLBACK_SEC = 4.5
 const GUARD_LIFE_SEC = 10
@@ -342,7 +342,7 @@ export function EventOverlayLayer({
                         {label}
                       </span>
                       <span className="text-[10px] sm:text-[11px] text-white/55 leading-tight">
-                        {t("previewPlayer.guardAction")}
+                        {t("playbackPlayer.guardAction")}
                       </span>
                     </div>
                     <div className="mt-0.5 flex items-center gap-1">
@@ -373,8 +373,8 @@ export function EventOverlayLayer({
               <span className="text-pink-200 font-medium">{event.user}</span>
               <span className="text-white/80">
                 {" "}
-                {t("previewPlayer.giftLine", {
-                  gift: event.giftName || t("previewPlayer.giftFallback"),
+                {t("playbackPlayer.giftLine", {
+                  gift: event.giftName || t("playbackPlayer.giftFallback"),
                   count: event.giftCount ?? 1,
                 })}
               </span>

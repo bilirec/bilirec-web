@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 import { cn } from '../lib/utils';
 import { useRole } from '@/lib/role-context'
 import { useTranslation } from 'react-i18next'
-import { PreviewPlayerDialog } from '@/components/preview/PreviewPlayerDialog'
+import { PlaybackPlayerDialog } from '@/components/playback/PlaybackPlayerDialog'
 
 interface FileCardProps {
   file: RecordFile
@@ -110,17 +110,17 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
     }
   }
 
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPlaybackOpen, setIsPlaybackOpen] = useState(false)
 
-  const handlePreview = () => {
+  const handlePlayback = () => {
     if (isDir) return
 
     if (isRecording) {
-      toast.error(t('fileCard.inRecordingPreviewBlocked'))
+      toast.error(t('fileCard.inRecordingPlaybackBlocked'))
       return
     }
 
-    setIsPreviewOpen(true)
+    setIsPlaybackOpen(true)
   }
 
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false)
@@ -341,7 +341,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                 </span>
               </Button>
 
-              {/* Desktop actions: show preview (mp4), share, convert (ts/fmp4/flv) & delete on sm+ */}
+              {/* Desktop actions: show playback (mp4), share, convert (ts/fmp4/flv) & delete on sm+ */}
               <div className="hidden sm:flex items-center gap-2">
                 {isMp4 && (
                   <Button
@@ -349,9 +349,9 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                     variant="outline"
                     className={cn("p-2 rounded-md h-8 w-8 flex items-center justify-center shrink-0")}
                     disabled={isRecording || isDeleting || isDownloading}
-                    onClick={handlePreview}
-                    aria-label={t('fileCard.previewAria', { name })}
-                    title={isRecording ? t('fileCard.inRecordingPreviewBlocked') : t('fileCard.preview')}
+                    onClick={handlePlayback}
+                    aria-label={t('fileCard.playbackAria', { name })}
+                    title={isRecording ? t('fileCard.inRecordingPlaybackBlocked') : t('fileCard.playback')}
                   >
                     <EyeIcon size={16} />
                   </Button>
@@ -420,8 +420,8 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {isMp4 && (
-                      <DropdownMenuItem onSelect={() => { handlePreview(); }} disabled={isDeleting || isDownloading || isRecording}>
-                        {t('fileCard.preview')}
+                      <DropdownMenuItem onSelect={() => { handlePlayback(); }} disabled={isDeleting || isDownloading || isRecording}>
+                        {t('fileCard.playback')}
                       </DropdownMenuItem>
                     )}
                     {/* Show share item only when not recording or downloading */}
@@ -548,9 +548,9 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
             </Dialog>
 
             {isMp4 ? (
-              <PreviewPlayerDialog
-                open={isPreviewOpen}
-                onOpenChange={setIsPreviewOpen}
+              <PlaybackPlayerDialog
+                open={isPlaybackOpen}
+                onOpenChange={setIsPlaybackOpen}
                 path={fullPath}
                 name={name}
               />

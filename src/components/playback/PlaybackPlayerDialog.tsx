@@ -1,9 +1,9 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { DanmakuVideoPlayer } from "@/components/preview/DanmakuVideoPlayer"
+import { DanmakuVideoPlayer } from "@/components/playback/DanmakuVideoPlayer"
 import { apiClient } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-interface PreviewPlayerDialogProps {
+interface PlaybackPlayerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Relative path under recordings root, e.g. room/file.mp4 */
@@ -12,7 +12,7 @@ interface PreviewPlayerDialogProps {
   name: string
 }
 
-export function PreviewPlayerDialog({ open, onOpenChange, path, name }: PreviewPlayerDialogProps) {
+export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: PlaybackPlayerDialogProps) {
   const playbackUrl = apiClient.getPlaybackUrl(path)
 
   return (

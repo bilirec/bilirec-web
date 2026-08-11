@@ -2,12 +2,12 @@ import type { DanmakuAttrs, DanmakuListItem, DanmakuType } from "n-danmaku"
 
 export type OverlayKind = "super_chat" | "gift" | "guard"
 
-export type PreviewChatKind = "danmaku" | OverlayKind
+export type PlaybackChatKind = "danmaku" | OverlayKind
 
 /** Unified timeline row for portrait chat-list mode. */
-export interface PreviewChatItem {
+export interface PlaybackChatItem {
   id: string
-  kind: PreviewChatKind
+  kind: PlaybackChatKind
   /** Seconds from segment start */
   ts: number
   user: string
@@ -64,7 +64,7 @@ export interface ParsedDanmaku {
   meta?: DanmakuMeta
   bullets: DanmakuListItem[]
   overlays: OverlayEvent[]
-  chatItems: PreviewChatItem[]
+  chatItems: PlaybackChatItem[]
 }
 
 function colorIntToCss(color: number | undefined): string {
@@ -113,7 +113,7 @@ function coalesceGifts<T extends { kind: string; user: string; giftName?: string
 export function parseJsonlDanmaku(text: string): ParsedDanmaku {
   const bullets: DanmakuListItem[] = []
   const overlays: OverlayEvent[] = []
-  const chatItems: PreviewChatItem[] = []
+  const chatItems: PlaybackChatItem[] = []
   let meta: DanmakuMeta | undefined
   let lineNo = 0
 
