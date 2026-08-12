@@ -314,7 +314,9 @@ export function EventOverlayLayer({
             : {}),
           ...(mobileLayout && isBottomCorner(overlayCorner)
             ? {
-                bottom: `calc(${safeMobileBottomInset}px + env(safe-area-inset-bottom, 0px))`,
+                // Cap with a picture-height % so short landscape screens keep
+                // bottom-corner gifts near the lower edge, not mid-frame.
+                bottom: `min(calc(${safeMobileBottomInset}px + env(safe-area-inset-bottom, 0px)), 22%)`,
               }
             : {}),
           // Give the flex column a real cross-axis width so toast rows cannot

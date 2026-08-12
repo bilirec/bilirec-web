@@ -834,24 +834,34 @@ export function DanmakuVideoPlayer({
 
   useEffect(() => {
     let frame = 0
+    let nestedFrame = 0
     if (!mobileLandscapeLayout) {
       setMobileOverlayBottomInset((prev) => (prev === 0 ? prev : 0))
       return () => undefined
     }
 
-    // Measure the control overlap once after the mobile fullscreen geometry settles.
+    // Measure after layout settles. Exclude the controls gradient padding so
+    // bottom-corner overlays sit in the fade zone (near the real chrome), and
+    // cap by picture height so short landscape phones do not push them mid-screen.
     frame = requestAnimationFrame(() => {
-      const host = overlayHostRef.current
-      const controls = controlsHostRef.current
-      if (!host || !controls) return
-      const inset = Math.max(
-        0,
-        Math.round(host.getBoundingClientRect().bottom - controls.getBoundingClientRect().top)
-      )
-      setMobileOverlayBottomInset((prev) => (prev === inset ? prev : inset))
+      nestedFrame = requestAnimationFrame(() => {
+        const host = overlayHostRef.current
+        const controls = controlsHostRef.current
+        if (!host || !controls) return
+        const hostRect = host.getBoundingClientRect()
+        const controlsRect = controls.getBoundingClientRect()
+        const padTop = Number.parseFloat(getComputedStyle(controls).paddingTop) || 0
+        const raw = Math.round(hostRect.bottom - controlsRect.top - padTop)
+        const maxByScreen = Math.max(40, Math.round(hostRect.height * 0.22))
+        const inset = Math.min(Math.max(0, raw + 6), maxByScreen)
+        setMobileOverlayBottomInset((prev) => (prev === inset ? prev : inset))
+      })
     })
-    return () => cancelAnimationFrame(frame)
-  }, [mobileLandscapeLayout])
+    return () => {
+      cancelAnimationFrame(frame)
+      cancelAnimationFrame(nestedFrame)
+    }
+  }, [mobileLandscapeLayout, advancedOpen])
 
   return (
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
