@@ -12,7 +12,10 @@
         "lint": "eslint .",
         "check:sw": "node --check public/sw.js && tsc --noEmit --allowJs --checkJs --lib ES2022,WebWorker public/sw.js",
         "preview": "vite preview",
-        "deploy": "wrangler deploy --keep-vars"
+        "deploy": "node scripts/deploy.js",
+        "deploy:main": "wrangler deploy",
+        "deploy:nightly": "wrangler deploy --env nightly",
+        "deploy:preview": "wrangler versions upload -e \"\""
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
@@ -98,6 +101,7 @@
         "typescript": "~5.7.2",
         "typescript-eslint": "^8.38.0",
         "vite": "^7.2.6",
-        "vite-plugin-pwa": "^1.2.0"
+        "vite-plugin-pwa": "^1.2.0",
+        "wrangler": "^4.120.1"
     }
 }

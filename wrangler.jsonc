@@ -2,11 +2,29 @@
   "name": "bilirec-web",
   "compatibility_date": "2026-01-05",
   "main": "worker/index.ts",
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     // Only /m/* is reverse-proxied to Umami (UMAMI_ORIGIN runtime var).
     // All other routes stay on static assets and do not invoke this Worker.
     "run_worker_first": ["/m/*"]
+  },
+  "routes": [
+    {
+      "pattern": "app.bilirec.org",
+      "custom_domain": true
+    }
+  ],
+  "env": {
+    "nightly": {
+      "name": "bilirec-web-nightly",
+      "routes": [
+        {
+          "pattern": "app-nightly.bilirec.org",
+          "custom_domain": true
+        }
+      ]
+    }
   }
 }
