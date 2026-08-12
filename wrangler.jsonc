@@ -4,5 +4,19 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
+  },
+  // Nightly is a separate Worker (bilirec-web-nightly). Bind its custom
+  // domain here; in Workers Builds set that Worker's production branch to
+  // `develop` and disable non-production branch builds so only develop deploys it.
+  "env": {
+    "nightly": {
+      "name": "bilirec-web-nightly",
+      "routes": [
+        {
+          "pattern": "app-nightly.bilirec.org",
+          "custom_domain": true
+        }
+      ]
+    }
   }
 }
