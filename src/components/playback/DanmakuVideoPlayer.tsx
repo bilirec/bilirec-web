@@ -922,7 +922,7 @@ export function DanmakuVideoPlayer({
               {/* Common controls: two intentional rows on narrow screens. */}
               <MediaControlBar
                 className={cn(
-                    "bilirec-playback-bar flex w-full gap-0.5",
+                  "bilirec-playback-bar flex w-full gap-0.5",
                   mobileLandscapeLayout ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
                 )}
               >
@@ -1058,9 +1058,15 @@ export function DanmakuVideoPlayer({
 
               {/* Advanced row — text chips separated from icon-only clusters */}
               {advancedOpen ? (
-                <MediaControlBar className="bilirec-playback-bar flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/10 pt-1.5">
-                  <div className="flex items-center gap-1">
-                    <span className={cn(ADV_LABEL, "mr-0.5", chatLayout ? "inline" : "hidden sm:inline")}>
+                <MediaControlBar className="bilirec-playback-bar flex w-full items-center gap-x-3 border-t border-white/10 pt-1.5 max-[349px]:gap-x-1.5">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span
+                      className={cn(
+                        ADV_LABEL,
+                        "mr-0.5 max-[349px]:hidden",
+                        chatLayout ? "inline" : "hidden sm:inline"
+                      )}
+                    >
                       {t("playbackPlayer.frameGroup")}
                     </span>
                     <MediaChromeButton
@@ -1081,17 +1087,20 @@ export function DanmakuVideoPlayer({
                     </MediaChromeButton>
                   </div>
 
-                  <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
+                  <div className="flex min-w-0 shrink items-center gap-1.5 border-l border-white/10 pl-3 max-[349px]:pl-2">
                     <TextChipButton
                       title={t("playbackPlayer.objectFit", { mode: objectFit })}
                       onClick={cycleFit}
+                      className="max-[349px]:px-1.5"
                     >
-                      <span className={ADV_LABEL}>{t("playbackPlayer.fitLabel")}</span>
+                      <span className={cn(ADV_LABEL, "max-[349px]:hidden")}>
+                        {t("playbackPlayer.fitLabel")}
+                      </span>
                       <span className="text-xs font-medium text-white/90">{fitLabel}</span>
                     </TextChipButton>
                   </div>
 
-                  <div className="ml-auto flex items-center gap-1.5">
+                  <div className="ml-auto flex shrink-0 items-center gap-1.5 max-[349px]:gap-1">
                     {!immersiveFullscreen ? (
                     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
                       <DialogTrigger asChild>
@@ -1252,7 +1261,7 @@ export function DanmakuVideoPlayer({
 
                     <TextChipButton title={t("playbackPlayer.nativePlayer")} onClick={openNative}>
                       <ArrowSquareOutIcon className="size-4 opacity-90 sm:size-3.5" weight="bold" />
-                      <span>{t("playbackPlayer.nativePlayerShort")}</span>
+                      <span className="max-[349px]:hidden">{t("playbackPlayer.nativePlayerShort")}</span>
                     </TextChipButton>
                   </div>
                 </MediaControlBar>
