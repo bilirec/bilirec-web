@@ -491,10 +491,24 @@ export function DanmakuVideoPlayer({
     playbackRate,
   ])
 
+  const touchDevice = touchDeviceRef.current
+  const landscapeVideo =
+    (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
+  const mobileLandscapeLayout =
+    touchDevice && landscapeVideo && (orientationLocked || viewportLandscape)
+  const chatLayout =
+    !mobileLandscapeLayout &&
+    (overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked")
+      ? overlayLayout
+      : null
+  // Flying danmaku is optional only while the portrait chat list is on screen.
+  // Landscape desktop/mobile has no chat panel, so ignore that hide preference.
+  const screenDanmakuActive = chatLayout == null || screenDanmakuVisible
+
   useEffect(() => {
     const layer = danmakuHostRef.current?.querySelector(".N-dmLayer") as HTMLElement | null
     if (!layer) return
-    const visible = !danmakuHidden && screenDanmakuVisible
+    const visible = !danmakuHidden && screenDanmakuActive
     layer.style.display = visible ? "block" : "none"
     if (!visible) {
       danmakuRef.current?.clear()
@@ -512,7 +526,7 @@ export function DanmakuVideoPlayer({
       lastDanmakuTickMsRef.current = videoMs
       dm.resume()
     }
-  }, [danmakuHidden, screenDanmakuVisible])
+  }, [danmakuHidden, screenDanmakuActive])
 
   const stepFrame = useCallback(
     (dir: -1 | 1) => {
@@ -540,7 +554,7 @@ export function DanmakuVideoPlayer({
       if (!force && danmakuSeekingRef.current) return
       if (
         !danmakuHidden &&
-        screenDanmakuVisible &&
+        screenDanmakuActive &&
         listReadyRef.current &&
         danmakuRef.current
       ) {
@@ -611,7 +625,7 @@ export function DanmakuVideoPlayer({
       }
       if (
         !danmakuHidden &&
-        screenDanmakuVisible &&
+        screenDanmakuActive &&
         listReadyRef.current &&
         dm &&
         !video.paused
@@ -645,7 +659,7 @@ export function DanmakuVideoPlayer({
       video.removeEventListener("seeking", onSeeking)
       video.removeEventListener("seeked", onSeeked)
     }
-  }, [danmakuHidden, playbackUrl, screenDanmakuVisible])
+  }, [danmakuHidden, playbackUrl, screenDanmakuActive])
 
   const cycleFit = () => {
     setObjectFit((prev) => FIT_CYCLE[(FIT_CYCLE.indexOf(prev) + 1) % FIT_CYCLE.length])
@@ -805,21 +819,9 @@ export function DanmakuVideoPlayer({
     loadedDanmakuCount != null && loadedDanmakuCount > 0
       ? t("playbackPlayer.danmakuLoaded", { count: loadedDanmakuCount })
       : null
-  const touchDevice = touchDeviceRef.current
   const mobileAppFullscreen = touchDevice && appFullscreen && !stageFullscreen
   // Settings Dialog portals to document.body and is invisible under native/CSS immersive fullscreen.
   const immersiveFullscreen = stageFullscreen || mobileAppFullscreen
-  const landscapeVideo =
-    (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
-  const mobileLandscapeLayout =
-    touchDevice &&
-    landscapeVideo &&
-    (orientationLocked || viewportLandscape)
-  const chatLayout =
-    !mobileLandscapeLayout &&
-    (overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked")
-      ? overlayLayout
-      : null
   const landscapeControlClass = mobileLandscapeLayout
     ? "w-auto min-w-0 flex-none"
     : "w-full min-w-0 flex-1 sm:w-auto sm:flex-none"
