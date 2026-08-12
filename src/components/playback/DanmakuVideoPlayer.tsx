@@ -249,7 +249,8 @@ export function DanmakuVideoPlayer({
   const orientationLockedRef = useRef(false)
 
   const [objectFit, setObjectFit] = useState<ObjectFitMode>("contain")
-  const [danmakuHidden, setDanmakuHidden] = useState(false)
+  // Keep effects off until the paired JSONL is loaded and contains events.
+  const [danmakuHidden, setDanmakuHidden] = useState(true)
   const [screenDanmakuVisible, setScreenDanmakuVisible] = useState<boolean>(() =>
     loadScreenDanmakuVisible()
   )
@@ -314,6 +315,7 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     const ac = new AbortController()
     setDanmakuStatus("loading")
+    setDanmakuHidden(true)
     setBullets([])
     setLoadedDanmakuCount(null)
     setOverlays([])
@@ -329,6 +331,7 @@ export function DanmakuVideoPlayer({
       setBullets(res.bullets)
       setOverlays(res.overlays)
       setChatItems(res.chatItems)
+      setDanmakuHidden(res.bullets.length === 0 && res.overlays.length === 0)
       setDanmakuStatus("ready")
     })
     return () => ac.abort()
