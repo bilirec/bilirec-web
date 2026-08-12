@@ -1319,7 +1319,7 @@ export function DanmakuVideoPlayer({
               hidden={danmakuHidden}
               seekEpoch={seekEpoch}
               overlayCorner={overlayCorner}
-              fullscreen={stageFullscreen || (touchDevice && appFullscreen)}
+              fullscreen={stageFullscreen}
             />
           )}
         </div>
