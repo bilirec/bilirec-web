@@ -244,7 +244,7 @@ export function PlaybackChatList({
       {!stickBottom && visible.length > 0 ? (
         <button
           type="button"
-          className="absolute bottom-1 right-2 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-sm"
+          className="absolute top-1 right-2 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-sm"
           onClick={() => {
             stickRef.current = true
             setStickBottom(true)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import NDanmaku from "n-danmaku"
 import {
@@ -68,6 +68,30 @@ import {
   saveScreenDanmakuVisible,
 } from "@/lib/playback-settings"
 import type { OverlayCorner } from "@/lib/playback-settings"
+import {
+  DANMAKU_LOAD_CHUNK_SIZE,
+  DANMAKU_SCALE_DESKTOP,
+  DANMAKU_TICK_INTERVAL_MS,
+  DANMAKU_TICK_UNCERTAINTY_MS,
+  cornerLabelKey,
+  danmakuLifeForRate,
+  danmakuScaleForWidth,
+  sameNumberList,
+} from "@/lib/playback-danmaku"
+import {
+  exitDocumentFullscreen,
+  getScreenOrientation,
+  requestElementFullscreen,
+} from "@/lib/playback-fullscreen"
+import {
+  DEFAULT_VIDEO_OBJECT_POSITION,
+  FIT_CYCLE,
+  MEDIA_CHROME_VARS,
+  PORTRAIT_LANDSCAPE_OBJECT_POSITION,
+  PORTRAIT_LANDSCAPE_VIDEO_ALIGNMENT,
+  getObjectFitContentBox,
+  type ObjectFitMode,
+} from "@/lib/playback-layout"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { DanmakuListItem } from "n-danmaku"
@@ -75,114 +99,7 @@ import { getCurrentLanguage } from "@/i18n"
 import "media-chrome/dist/lang/zh-CN.js"
 import "media-chrome/dist/lang/zh-TW.js"
 
-export type ObjectFitMode = "contain" | "cover" | "fill"
-
-const FIT_CYCLE: ObjectFitMode[] = ["contain", "cover", "fill"]
-
-type OrientationLockController = {
-  lock?: (orientation: "landscape") => Promise<void>
-  unlock?: () => void
-}
-
-function getScreenOrientation(): OrientationLockController | undefined {
-  if (typeof window === "undefined") return undefined
-  return window.screen.orientation as OrientationLockController | undefined
-}
-
-function getObjectFitContentBox(
-  video: HTMLVideoElement,
-  fit: ObjectFitMode
-): { top: number; left: number; width: number; height: number } {
-  const elW = video.clientWidth
-  const elH = video.clientHeight
-  const vw = video.videoWidth
-  const vh = video.videoHeight
-  if (!elW || !elH || !vw || !vh || fit === "fill") {
-    return { top: 0, left: 0, width: elW, height: elH }
-  }
-
-  const videoAspect = vw / vh
-  const elAspect = elW / elH
-
-  if (fit === "cover") {
-    if (videoAspect > elAspect) {
-      const width = elH * videoAspect
-      return { top: 0, left: (elW - width) / 2, width, height: elH }
-    }
-    const height = elW / videoAspect
-    return { top: (elH - height) / 2, left: 0, width: elW, height }
-  }
-
-  // contain
-  if (videoAspect > elAspect) {
-    const height = elW / videoAspect
-    return { top: (elH - height) / 2, left: 0, width: elW, height }
-  }
-  const width = elH * videoAspect
-  return { top: 0, left: (elW - width) / 2, width, height: elH }
-}
-
-/** Default n-danmaku font is ~width/36; desktop playback stays a bit smaller than live. */
-const DANMAKU_SCALE_DESKTOP = 0.63
-/** Narrow / phone picture boxes need a larger scale or bullets become unreadable. */
-const DANMAKU_SCALE_NARROW = 1.55
-/** Keep the base danmaku motion at half of n-danmaku's default speed. */
-const DANMAKU_DEFAULT_LIFE_MS = 5000
-const DANMAKU_BASE_SPEED = 0.5
-/** Small look-ahead window; the RAF ticker prevents dense bursts on each tick. */
-const DANMAKU_TICK_UNCERTAINTY_MS = 120
-/** n-danmaku must not be ticked for every animation frame; its ranges overlap. */
-const DANMAKU_TICK_INTERVAL_MS = 160
-const DANMAKU_LOAD_CHUNK_SIZE = 1000
-
-function danmakuLifeForRate(rate: number): number {
-  const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1
-  return DANMAKU_DEFAULT_LIFE_MS / (safeRate * DANMAKU_BASE_SPEED)
-}
-
-function cornerLabelKey(corner: OverlayCorner): string {
-  switch (corner) {
-    case "top-right":
-      return "overlayCornerTopRight"
-    case "bottom-left":
-      return "overlayCornerBottomLeft"
-    case "bottom-right":
-      return "overlayCornerBottomRight"
-    case "top-left":
-    default:
-      return "overlayCornerTopLeft"
-  }
-}
-
-function danmakuScaleForWidth(width: number): number {
-  if (width > 0 && width < 520) return DANMAKU_SCALE_NARROW
-  if (width > 0 && width < 900) return 0.95
-  return DANMAKU_SCALE_DESKTOP
-}
-
-function sameNumberList(a: number[], b: number[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index])
-}
-
-const MEDIA_CHROME_VARS = {
-  "--media-primary-color": "#fff",
-  // Keep secondary dark so built-in tooltips are not light-gray panels
-  "--media-secondary-color": "rgb(24 24 27 / 0.92)",
-  "--media-control-background": "transparent",
-  "--media-control-hover-background": "rgb(255 255 255 / 0.12)",
-  "--media-menu-background": "rgb(24 24 27 / 0.96)",
-  "--media-tooltip-background-color": "rgb(24 24 27)",
-  "--media-tooltip-background": "rgb(24 24 27)",
-  "--media-tooltip-arrow-color": "rgb(24 24 27)",
-  "--media-text-color": "#fff",
-  "--media-button-icon-width": "1.25rem",
-  "--media-font-family": "inherit",
-  "--media-range-track-background": "rgb(255 255 255 / 0.28)",
-  "--media-range-bar-color": "#fff",
-  "--media-range-thumb-background": "#fff",
-  "--media-time-range-buffered-color": "rgb(255 255 255 / 0.35)",
-  "--media-preview-time-background": "rgb(0 0 0 / 0.75)",
-} as CSSProperties
+export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
   playbackUrl: string
@@ -212,7 +129,7 @@ function TextChipButton({
       aria-label={title}
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium tracking-wide text-white/90 sm:h-8",
+        "inline-flex h-10 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium tracking-wide text-white/90 [@media(pointer:fine)]:h-8",
         "hover:bg-white/12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40",
         active && "bg-white/15 text-white",
         className
@@ -238,6 +155,7 @@ export function DanmakuVideoPlayer({
   const stageRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
   const overlayHostRef = useRef<HTMLDivElement>(null)
+  const controlsHostRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const danmakuRef = useRef<NDanmaku | null>(null)
   const listReadyRef = useRef(false)
@@ -249,6 +167,9 @@ export function DanmakuVideoPlayer({
   const orientationLockedRef = useRef(false)
 
   const [objectFit, setObjectFit] = useState<ObjectFitMode>("contain")
+  const [videoObjectPosition, setVideoObjectPosition] = useState<string>(
+    DEFAULT_VIDEO_OBJECT_POSITION
+  )
   // Keep effects off until the paired JSONL is loaded and contains events.
   const [danmakuHidden, setDanmakuHidden] = useState(true)
   const [screenDanmakuVisible, setScreenDanmakuVisible] = useState<boolean>(() =>
@@ -262,8 +183,10 @@ export function DanmakuVideoPlayer({
   const [stageFullscreen, setStageFullscreen] = useState(false)
   const [appFullscreen, setAppFullscreen] = useState(false)
   const [orientationLocked, setOrientationLocked] = useState(false)
-  const [cssRotated, setCssRotated] = useState(false)
-  const [rotatedStageSize, setRotatedStageSize] = useState({ width: 0, height: 0 })
+  const [viewportLandscape, setViewportLandscape] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth > window.innerHeight
+  )
+  const [mobileOverlayBottomInset, setMobileOverlayBottomInset] = useState(0)
   const [bullets, setBullets] = useState<DanmakuListItem[]>([])
   const [loadedDanmakuCount, setLoadedDanmakuCount] = useState<number | null>(null)
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
@@ -301,11 +224,34 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     const onFs = () => {
       const stage = stageRef.current
-      setStageFullscreen(!!stage && document.fullscreenElement === stage)
+      const isStageFullscreen = !!stage && document.fullscreenElement === stage
+      setStageFullscreen(isStageFullscreen)
+      // System / gesture exit from native fullscreen should release orientation lock.
+      if (!isStageFullscreen) unlockScreenOrientation()
     }
     onFs()
     document.addEventListener("fullscreenchange", onFs)
     return () => document.removeEventListener("fullscreenchange", onFs)
+  }, [unlockScreenOrientation])
+
+  useEffect(() => {
+    const updateViewportOrientation = () => {
+      const width = window.visualViewport?.width ?? window.innerWidth
+      const height = window.visualViewport?.height ?? window.innerHeight
+      setViewportLandscape((prev) => {
+        const next = width > height
+        return prev === next ? prev : next
+      })
+    }
+    updateViewportOrientation()
+    window.addEventListener("resize", updateViewportOrientation)
+    window.addEventListener("orientationchange", updateViewportOrientation)
+    window.visualViewport?.addEventListener("resize", updateViewportOrientation)
+    return () => {
+      window.removeEventListener("resize", updateViewportOrientation)
+      window.removeEventListener("orientationchange", updateViewportOrientation)
+      window.visualViewport?.removeEventListener("resize", updateViewportOrientation)
+    }
   }, [])
 
   useEffect(() => {
@@ -364,12 +310,24 @@ export function DanmakuVideoPlayer({
     const overlayHost = overlayHostRef.current
     const video = videoRef.current
     if (!stage || !host || !video) return
-    const stageParent = stage.parentElement
 
     const sync = () => {
-      const box = getObjectFitContentBox(video, objectFit)
       const stageW = stage.clientWidth
       const stageH = stage.clientHeight
+      const box = getObjectFitContentBox(
+        video,
+        objectFit,
+        PORTRAIT_LANDSCAPE_VIDEO_ALIGNMENT
+      )
+      const nextObjectPosition =
+        objectFit === "contain" &&
+        stageH > stageW &&
+        video.videoWidth > video.videoHeight
+          ? PORTRAIT_LANDSCAPE_OBJECT_POSITION
+          : DEFAULT_VIDEO_OBJECT_POSITION
+      setVideoObjectPosition((prev) =>
+        prev === nextObjectPosition ? prev : nextObjectPosition
+      )
       const top = box.top
       const left = box.left
       const applyBox = (el: HTMLElement) => {
@@ -379,25 +337,6 @@ export function DanmakuVideoPlayer({
         el.style.height = `${box.height}px`
       }
       applyBox(host)
-
-      const viewportWidth = cssRotated
-        ? stageParent?.clientWidth ?? stage.clientWidth
-        : stage.clientWidth
-      const viewportHeight = cssRotated
-        ? stageParent?.clientHeight ?? stage.clientHeight
-        : stage.clientHeight
-      const viewportPortrait = viewportHeight > viewportWidth
-      if (cssRotated && !viewportPortrait) {
-        setCssRotated(false)
-        setRotatedStageSize((prev) =>
-          prev.width === 0 && prev.height === 0 ? prev : { width: 0, height: 0 }
-        )
-      } else if (cssRotated) {
-        const nextSize = { width: viewportHeight, height: viewportWidth }
-        setRotatedStageSize((prev) =>
-          prev.width === nextSize.width && prev.height === nextSize.height ? prev : nextSize
-        )
-      }
 
       const topBar = Math.max(0, top)
       const bottomBar = Math.max(0, stageH - top - box.height)
@@ -458,13 +397,11 @@ export function DanmakuVideoPlayer({
         return prev.mode === "content" ? prev : { mode: "content" }
       })
 
-      danmakuRef.current?.resetRanges()
     }
 
     sync()
     const ro = new ResizeObserver(sync)
     ro.observe(stage)
-    if (stageParent) ro.observe(stageParent)
     ro.observe(video)
     video.addEventListener("loadedmetadata", sync)
     return () => {
@@ -473,13 +410,11 @@ export function DanmakuVideoPlayer({
     }
   }, [
     appFullscreen,
-    cssRotated,
     mediaLang,
     objectFit,
     orientationLocked,
     playbackUrl,
-    rotatedStageSize.height,
-    rotatedStageSize.width,
+    viewportLandscape,
   ])
 
   useEffect(() => {
@@ -497,7 +432,7 @@ export function DanmakuVideoPlayer({
       dm.list.new("vod")
       dm.list.use("vod")
       dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
-      // n-danmaku ranges are % of host height: top/scroll from top, bottom from bottom.
+      // n-danmaku ranges are percentages of the host height.
       dm.ranges({
         scroll: [2, 85],
         top: [2, 35],
@@ -548,7 +483,13 @@ export function DanmakuVideoPlayer({
       cancelled = true
       listReadyRef.current = false
     }
-  }, [bullets, danmakuStatus, danmakuOpacity, danmakuScale, playbackRate])
+  }, [
+    bullets,
+    danmakuStatus,
+    danmakuOpacity,
+    danmakuScale,
+    playbackRate,
+  ])
 
   useEffect(() => {
     const layer = danmakuHostRef.current?.querySelector(".N-dmLayer") as HTMLElement | null
@@ -729,37 +670,49 @@ export function DanmakuVideoPlayer({
   }
 
   const toggleAppFullscreen = async () => {
-    if (appFullscreen) {
+    if (appFullscreen || document.fullscreenElement) {
       unlockScreenOrientation()
+      await exitDocumentFullscreen()
       setAppFullscreen(false)
-      setCssRotated(false)
-      setRotatedStageSize({ width: 0, height: 0 })
       return
     }
 
-    setAppFullscreen(true)
     const video = videoRef.current
     const stage = stageRef.current
     if (!video || !stage) return
 
-    const landscapeVideo =
-      video.videoWidth > 0 && video.videoHeight > 0 && video.videoWidth > video.videoHeight
-    const portraitStage = stage.clientHeight > stage.clientWidth
-    if (!landscapeVideo || !portraitStage) return
-
-    const orientation = getScreenOrientation()
-    if (orientation?.lock) {
-      try {
-        await orientation.lock("landscape")
-        orientationLockedRef.current = true
-        setOrientationLocked(true)
-        return
-      } catch {
-        // Browsers without PWA orientation-lock support use the CSS fallback below.
-      }
+    const enteredFullscreen = await requestElementFullscreen(stage)
+    if (!enteredFullscreen) {
+      // Fullscreen API unavailable: CSS-only immersive fallback (lock will not work).
+      setAppFullscreen(true)
+      toast.info(t("playbackPlayer.orientationLockFailed"))
+      return
     }
 
-    setCssRotated(true)
+    setAppFullscreen(true)
+
+    const landscapeVideo =
+      video.videoWidth > 0 && video.videoHeight > 0 && video.videoWidth > video.videoHeight
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth
+    const portraitViewport = viewportHeight > viewportWidth
+
+    if (!landscapeVideo || !portraitViewport) return
+
+    const orientation = getScreenOrientation()
+    if (!orientation?.lock) {
+      toast.info(t("playbackPlayer.orientationLockFailed"))
+      return
+    }
+
+    try {
+      await orientation.lock("landscape")
+      orientationLockedRef.current = true
+      setOrientationLocked(true)
+    } catch (lockError) {
+      console.warn("Screen orientation lock rejected; keeping fullscreen:", lockError)
+      toast.info(t("playbackPlayer.orientationLockFailed"))
+    }
   }
 
   const toggleFullscreen = async () => {
@@ -852,30 +805,53 @@ export function DanmakuVideoPlayer({
     loadedDanmakuCount != null && loadedDanmakuCount > 0
       ? t("playbackPlayer.danmakuLoaded", { count: loadedDanmakuCount })
       : null
-  const chatLayout =
-    overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked" ? overlayLayout : null
   const touchDevice = touchDeviceRef.current
-  const mobileAppFullscreen = touchDevice && appFullscreen
-  const cssRotationActive =
-    mobileAppFullscreen && cssRotated && rotatedStageSize.width > 0 && rotatedStageSize.height > 0
-  const landscapeFullscreen = mobileAppFullscreen && (orientationLocked || cssRotationActive)
-  const landscapeControlClass = landscapeFullscreen
+  const mobileAppFullscreen = touchDevice && appFullscreen && !stageFullscreen
+  // Settings Dialog portals to document.body and is invisible under native/CSS immersive fullscreen.
+  const immersiveFullscreen = stageFullscreen || mobileAppFullscreen
+  const landscapeVideo =
+    (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
+  const mobileLandscapeLayout =
+    touchDevice &&
+    landscapeVideo &&
+    (orientationLocked || viewportLandscape)
+  const chatLayout =
+    !mobileLandscapeLayout &&
+    (overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked")
+      ? overlayLayout
+      : null
+  const landscapeControlClass = mobileLandscapeLayout
     ? "w-auto min-w-0 flex-none"
     : "w-full min-w-0 flex-1 sm:w-auto sm:flex-none"
   const mobileStageClass = mobileAppFullscreen
-    ? orientationLocked || !cssRotationActive
-      ? "fixed inset-0 z-9999 flex-none"
-      : "fixed z-9999 flex-none"
+    ? "fixed inset-0 z-9999 flex-none"
     : undefined
-  const stageStyle: CSSProperties | undefined = cssRotationActive
-    ? {
-        width: rotatedStageSize.width,
-        height: rotatedStageSize.height,
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%) rotate(90deg)",
-      }
-    : undefined
+
+  useEffect(() => {
+    if (!immersiveFullscreen) return
+    setSettingsOpen(false)
+  }, [immersiveFullscreen])
+
+  useEffect(() => {
+    let frame = 0
+    if (!mobileLandscapeLayout) {
+      setMobileOverlayBottomInset((prev) => (prev === 0 ? prev : 0))
+      return () => undefined
+    }
+
+    // Measure the control overlap once after the mobile fullscreen geometry settles.
+    frame = requestAnimationFrame(() => {
+      const host = overlayHostRef.current
+      const controls = controlsHostRef.current
+      if (!host || !controls) return
+      const inset = Math.max(
+        0,
+        Math.round(host.getBoundingClientRect().bottom - controls.getBoundingClientRect().top)
+      )
+      setMobileOverlayBottomInset((prev) => (prev === inset ? prev : inset))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [mobileLandscapeLayout])
 
   return (
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
@@ -904,7 +880,6 @@ export function DanmakuVideoPlayer({
           "bilirec-playback-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black",
           mobileStageClass
         )}
-        style={stageStyle}
       >
           <MediaController
             key={mediaLang}
@@ -919,7 +894,7 @@ export function DanmakuVideoPlayer({
             playsInline
             preload="metadata"
             className="h-full w-full bg-black"
-            style={{ objectFit }}
+            style={{ objectFit, objectPosition: videoObjectPosition }}
           />
           <MediaLoadingIndicator slot="centered-chrome" />
           <MediaPlaybackRateMenu
@@ -931,7 +906,10 @@ export function DanmakuVideoPlayer({
 
           {/* Bottom chrome: dark gradient only — no solid gray bar.
               Unnamed default slot == bottom chrome in media-container. */}
-          <div className="pointer-events-none relative z-20 flex w-full flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10">
+          <div
+            ref={controlsHostRef}
+            className="pointer-events-none relative z-20 flex w-full flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10"
+          >
             <div className="pointer-events-auto flex w-full flex-col gap-0.5 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
               {/* VLC-style: progress alone on first row.
                   Isolate so media-time-range's shadow #range { z-index:1 } cannot escape. */}
@@ -945,19 +923,19 @@ export function DanmakuVideoPlayer({
               <MediaControlBar
                 className={cn(
                     "bilirec-playback-bar flex w-full gap-0.5",
-                  landscapeFullscreen ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
+                  mobileLandscapeLayout ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
                 )}
               >
                 {/* Transport and time */}
                 <div
                   className={cn(
                     "flex items-center",
-                    landscapeFullscreen
+                    mobileLandscapeLayout
                       ? "w-auto justify-start gap-0"
                       : "w-full justify-between gap-0.5 sm:w-auto sm:justify-start"
                   )}
                 >
-                  <div className={cn("flex items-center", landscapeFullscreen ? "gap-0" : "gap-1 sm:gap-0")}>
+                  <div className={cn("flex items-center", mobileLandscapeLayout ? "gap-0" : "gap-1 sm:gap-0")}>
                     <MediaPlayButton />
                     <MediaSeekBackwardButton seekOffset={seekOffsetSec} />
                     <MediaSeekForwardButton seekOffset={seekOffsetSec} />
@@ -967,7 +945,7 @@ export function DanmakuVideoPlayer({
                     showDuration
                     className={cn(
                       "shrink-0 tabular-nums text-[11px]",
-                      landscapeFullscreen ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
+                      mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
                     )}
                   />
                 </div>
@@ -976,19 +954,19 @@ export function DanmakuVideoPlayer({
                 <div
                   className={cn(
                     "flex items-center",
-                    landscapeFullscreen
+                    mobileLandscapeLayout
                       ? "ml-auto w-auto gap-0.5"
                       : "w-full gap-1 sm:ml-auto sm:w-auto sm:gap-0.5"
                   )}
                 >
-                  <div className={cn("items-center", landscapeFullscreen ? "flex" : "hidden sm:flex")}>
+                  <div className={cn("items-center", mobileLandscapeLayout ? "flex" : "hidden sm:flex")}>
                     <MediaMuteButton />
                     <MediaVolumeRange className="max-w-[5.5rem]" />
                   </div>
                   <div
                     className={cn(
                       "min-w-0 items-center justify-center",
-                      landscapeFullscreen ? "hidden" : "flex flex-1 sm:hidden"
+                      mobileLandscapeLayout ? "hidden" : "flex flex-1 sm:hidden"
                     )}
                   >
                     <MediaMuteButton />
@@ -997,22 +975,22 @@ export function DanmakuVideoPlayer({
                   <div
                     className={cn(
                       "bilirec-playback-rate-chip flex min-w-0 items-center gap-1 rounded-md hover:bg-white/12",
-                      landscapeFullscreen
-                        ? "h-8 flex-none px-2.5"
+                      mobileLandscapeLayout
+                        ? "flex-none px-2.5"
                         : "flex-1 px-1.5 sm:h-8 sm:flex-none sm:px-2.5"
                     )}
                   >
                     <MediaPlaybackRateMenuButton
                       className={cn(
                         "bilirec-playback-rate-btn justify-center",
-                        landscapeFullscreen ? "w-auto" : "w-full sm:w-auto"
+                        mobileLandscapeLayout ? "w-auto" : "w-full sm:w-auto"
                       )}
                     />
                   </div>
 
                   <div
                     className={
-                      landscapeFullscreen ? "flex items-center gap-1" : "contents sm:flex sm:items-center sm:gap-1"
+                      mobileLandscapeLayout ? "flex items-center gap-1" : "contents sm:flex sm:items-center sm:gap-1"
                     }
                   >
                     {chatLayout ? (
@@ -1114,6 +1092,7 @@ export function DanmakuVideoPlayer({
                   </div>
 
                   <div className="ml-auto flex items-center gap-1.5">
+                    {!immersiveFullscreen ? (
                     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
                       <DialogTrigger asChild>
                         <button
@@ -1269,6 +1248,7 @@ export function DanmakuVideoPlayer({
                         </div>
                       </DialogContent>
                     </Dialog>
+                    ) : null}
 
                     <TextChipButton title={t("playbackPlayer.nativePlayer")} onClick={openNative}>
                       <ArrowSquareOutIcon className="size-4 opacity-90 sm:size-3.5" weight="bold" />
@@ -1319,7 +1299,16 @@ export function DanmakuVideoPlayer({
               hidden={danmakuHidden}
               seekEpoch={seekEpoch}
               overlayCorner={overlayCorner}
-              fullscreen={stageFullscreen}
+              overlayMode={
+                touchDevice
+                  ? mobileLandscapeLayout
+                    ? "mobile"
+                    : "none"
+                  : stageFullscreen
+                    ? "desktop"
+                    : "none"
+              }
+              mobileBottomInset={mobileOverlayBottomInset}
             />
           )}
         </div>

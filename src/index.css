@@ -419,9 +419,9 @@ media-playback-rate-menu.bilirec-playback-rate-menu {
   background: transparent !important;
 }
 
-/* Make the most frequently used controls easier to tap on narrow screens.
-   Keep these overrides mobile-only so desktop controls retain their current size. */
-@media (max-width: 639px) {
+/* Make the most frequently used controls easier to tap on touch devices.
+   Prefer pointer type over viewport width so landscape phones keep large targets. */
+@media (pointer: coarse) {
   .bilirec-playback-player media-play-button,
   .bilirec-playback-player media-seek-backward-button,
   .bilirec-playback-player media-seek-forward-button,

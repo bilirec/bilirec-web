@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { OverlayEvent } from "@/lib/danmaku"
@@ -12,8 +12,8 @@ const GIFT_LIFE_SEC = 3
 const EXIT_MS = 280
 const MAX_HANG = 3
 const MAX_TOAST = 4
-/** Enlarge overlays only in real fullscreen (dialog stays at baseline). */
-const FULLSCREEN_SCALE = 1.45
+const DESKTOP_FULLSCREEN_SCALE = 1.45
+const MOBILE_OVERLAY_HEIGHT_RATIO = 0.4
 
 function lifeSecFor(ev: OverlayEvent): number {
   if (ev.kind === "gift") return GIFT_LIFE_SEC
@@ -34,11 +34,11 @@ interface ActiveItem {
   exiting: boolean
 }
 
-function activate(ev: OverlayEvent, videoSec: number): ActiveItem {
+function activate(ev: OverlayEvent, videoSec: number, startAtSec = videoSec): ActiveItem {
   return {
     event: ev,
-    startAtSec: videoSec,
-    hideAtSec: videoSec + lifeSecFor(ev),
+    startAtSec,
+    hideAtSec: startAtSec + lifeSecFor(ev),
     exiting: false,
   }
 }
@@ -95,20 +95,35 @@ interface EventOverlayLayerProps {
   seekEpoch: number
   /** Where on the stage to anchor the combined event zone. */
   overlayCorner?: OverlayCorner
-  /** True only when the stage element is in document fullscreen. */
-  fullscreen?: boolean
+  /** Display mode controls mobile sizing while preserving desktop fullscreen scale. */
+  overlayMode?: "none" | "mobile" | "desktop"
+  /** One-time mobile layout inset reserved for playback controls. */
+  mobileBottomInset?: number
   className?: string
 }
 
-function cornerStyle(corner: OverlayCorner): { className: string; origin: string } {
+function isBottomCorner(corner: OverlayCorner): boolean {
+  return corner === "bottom-left" || corner === "bottom-right"
+}
+
+function cornerStyle(
+  corner: OverlayCorner,
+  mobileLayout: boolean
+): { className: string; origin: string } {
   switch (corner) {
     case "top-right":
       return { className: "top-8 right-2", origin: "top right" }
     case "bottom-left":
-      // Leave room below the zone for the absolutely positioned toast lane.
-      return { className: "bottom-56 sm:bottom-60 left-2", origin: "bottom left" }
+      // Leave room below the complete event group for the playback controls.
+      return {
+        className: mobileLayout ? "left-2" : "bottom-56 sm:bottom-60 left-2",
+        origin: "bottom left",
+      }
     case "bottom-right":
-      return { className: "bottom-56 sm:bottom-60 right-2", origin: "bottom right" }
+      return {
+        className: mobileLayout ? "right-2" : "bottom-56 sm:bottom-60 right-2",
+        origin: "bottom right",
+      }
     case "top-left":
     default:
       return { className: "top-8 left-2", origin: "top left" }
@@ -169,25 +184,65 @@ export function EventOverlayLayer({
   hidden,
   seekEpoch,
   overlayCorner = "top-left",
-  fullscreen = false,
+  overlayMode = "none",
+  mobileBottomInset = 0,
   className,
 }: EventOverlayLayerProps) {
   const { t } = useTranslation()
   const cursorRef = useRef(0)
   const currentTimeRef = useRef(currentTime)
+  const zoneRef = useRef<HTMLDivElement>(null)
   currentTimeRef.current = currentTime
   const [hang, setHang] = useState<ActiveItem[]>([])
   const [toasts, setToasts] = useState<ActiveItem[]>([])
+  const [mobileLayoutScale, setMobileLayoutScale] = useState(1)
   const now = useWallClock()
 
   useEffect(() => {
-    setHang([])
-    setToasts([])
+    let frame = 0
+    if (overlayMode !== "mobile") {
+      setMobileLayoutScale((prev) => (prev === 1 ? prev : 1))
+      return () => undefined
+    }
+
+    // Measure once when entering mobile landscape / after control inset settles.
+    frame = requestAnimationFrame(() => {
+      const zone = zoneRef.current
+      const host = zone?.parentElement
+      const pictureHeight = host?.clientHeight ?? 0
+      const naturalHeight = zone?.offsetHeight ?? 0
+      const nextScale =
+        pictureHeight > 0 && naturalHeight > 0
+          ? Math.min(1, (pictureHeight * MOBILE_OVERLAY_HEIGHT_RATIO) / naturalHeight)
+          : 1
+      setMobileLayoutScale((prev) =>
+        Math.abs(prev - nextScale) < 0.001 ? prev : nextScale
+      )
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [overlayMode, mobileBottomInset])
+
+  useEffect(() => {
     const t0 = currentTimeRef.current
+    const activeAtCurrentTime = hidden
+      ? []
+      : events.filter((ev) => ev.ts <= t0 && ev.ts + lifeSecFor(ev) > t0)
+    setHang(
+      activeAtCurrentTime
+        .filter((ev) => ev.kind !== "gift")
+        .map((ev) => activate(ev, t0, ev.ts))
+        .slice(-MAX_HANG)
+    )
+    setToasts(
+      activeAtCurrentTime
+        .filter((ev) => ev.kind === "gift")
+        .map((ev) => activate(ev, t0, ev.ts))
+        .slice(-MAX_TOAST)
+    )
     let i = 0
-    while (i < events.length && events[i].ts < t0 - 0.05) i += 1
+    while (i < events.length && events[i].ts <= t0) i += 1
     cursorRef.current = i
-  }, [seekEpoch, events])
+  }, [seekEpoch, events, hidden])
 
   useEffect(() => {
     if (hidden || events.length === 0) return
@@ -222,34 +277,54 @@ export function EventOverlayLayer({
 
   const visibleHang = useMemo(() => (hidden ? [] : hang), [hang, hidden])
   const visibleToasts = useMemo(() => (hidden ? [] : toasts), [toasts, hidden])
+  const scale =
+    overlayMode === "desktop"
+      ? DESKTOP_FULLSCREEN_SCALE
+      : overlayMode === "mobile"
+        ? mobileLayoutScale
+        : 1
 
   if (hidden) return null
 
-  const corner = cornerStyle(overlayCorner)
-  const fsStyle = (origin: string): CSSProperties | undefined =>
-    fullscreen
-      ? { transform: `scale(${FULLSCREEN_SCALE})`, transformOrigin: origin }
-      : undefined
+  const mobileLayout = overlayMode === "mobile"
+  const rightAlignedCorner =
+    overlayCorner === "top-right" || overlayCorner === "bottom-right"
+  const mobileEffectWidthClass = mobileLayout
+    ? rightAlignedCorner
+      ? "w-3/5 self-end"
+      : "w-3/5 self-start"
+    : undefined
+  const corner = cornerStyle(overlayCorner, mobileLayout)
+  const safeMobileBottomInset =
+    Number.isFinite(mobileBottomInset) && mobileBottomInset > 0 ? mobileBottomInset : 0
 
   return (
     <div
       className={cn("pointer-events-none absolute inset-0 z-19 overflow-hidden", className)}
       aria-hidden
     >
-      {/* Combined event zone: hang (SC / guard) stays in normal flow at the top,
-          while the toast lane is absolutely positioned below it. Gifts therefore
-          do not change the zone height or move an existing hang card. */}
+      {/* Keep hang cards and gifts in one anchored group so scaling preserves
+          the position of the complete visual effect, including the gift lane. */}
       <div
-        className={cn("absolute flex flex-col gap-1.5 items-stretch", corner.className)}
+        ref={zoneRef}
+        className={cn("absolute", corner.className)}
         style={{
-          ...fsStyle(corner.origin),
+          ...(scale !== 1
+            ? { transform: `scale(${scale})`, transformOrigin: corner.origin }
+            : {}),
+          ...(mobileLayout && isBottomCorner(overlayCorner)
+            ? {
+                bottom: `calc(${safeMobileBottomInset}px + env(safe-area-inset-bottom, 0px))`,
+              }
+            : {}),
           // Give the flex column a real cross-axis width so toast rows cannot
           // collapse when the chosen corner is anchored with only one inset.
           width: "calc(100% - 1rem)",
           maxWidth: "24rem",
         }}
       >
-        <div className="flex flex-col items-stretch gap-1.5">
+        <div className="flex flex-col items-stretch gap-1">
+          <div className="flex flex-col items-stretch gap-1.5">
           {visibleHang.map((item) => {
             const { event, exiting } = item
             if (event.kind === "super_chat") {
@@ -260,7 +335,8 @@ export function EventOverlayLayer({
                   key={event.id}
                   className={cn(
                     "overflow-hidden rounded-md text-left shadow-md",
-                    overlayMotionClass(exiting, "hang")
+                    overlayMotionClass(exiting, "hang"),
+                    mobileEffectWidthClass
                   )}
                   style={{
                     backgroundColor: theme.body,
@@ -320,7 +396,8 @@ export function EventOverlayLayer({
                 key={event.id}
                 className={cn(
                   "relative overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm",
-                  overlayMotionClass(exiting, "hang")
+                  overlayMotionClass(exiting, "hang"),
+                  mobileEffectWidthClass
                 )}
                 style={{
                   border: `1px solid ${color}66`,
@@ -358,15 +435,16 @@ export function EventOverlayLayer({
               </div>
             )
           })}
-        </div>
+          </div>
 
-        <div className="absolute top-full left-0 right-0 mt-1 flex flex-col items-stretch gap-1">
+          <div className="flex flex-col items-stretch gap-1">
           {visibleToasts.map(({ event, exiting }) => (
             <div
               key={event.id}
               className={cn(
                 "rounded-md border border-pink-400/40 bg-black/65 px-2 py-1 text-[11px] sm:text-xs text-white shadow-sm backdrop-blur-sm truncate",
-                overlayMotionClass(exiting, "toast")
+                overlayMotionClass(exiting, "toast"),
+                mobileEffectWidthClass
               )}
             >
               <span aria-hidden>🎁 </span>
@@ -380,6 +458,7 @@ export function EventOverlayLayer({
               </span>
             </div>
           ))}
+          </div>
         </div>
       </div>
     </div>

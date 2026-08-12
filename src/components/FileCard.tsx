@@ -15,16 +15,16 @@ import { toast } from 'sonner'
 import { cn } from '../lib/utils';
 import { useRole } from '@/lib/role-context'
 import { useTranslation } from 'react-i18next'
-import { PlaybackPlayerDialog } from '@/components/playback/PlaybackPlayerDialog'
 
 interface FileCardProps {
   file: RecordFile
   onNavigate?: (fileName: string) => void
   onDelete?: () => void
+  onPlayback: (path: string, name: string) => void
   currentPath?: string
 }
 
-export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileCardProps) {
+export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath = '' }: FileCardProps) {
   const { t } = useTranslation()
   const { isReadOnly } = useRole()
   const [isDownloading, setIsDownloading] = useState(false)
@@ -110,8 +110,6 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
     }
   }
 
-  const [isPlaybackOpen, setIsPlaybackOpen] = useState(false)
-
   const handlePlayback = () => {
     if (isDir) return
 
@@ -120,7 +118,7 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
       return
     }
 
-    setIsPlaybackOpen(true)
+    onPlayback(fullPath, name)
   }
 
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false)
@@ -546,15 +544,6 @@ export function FileCard({ file, onNavigate, onDelete, currentPath = '' }: FileC
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            {isMp4 ? (
-              <PlaybackPlayerDialog
-                open={isPlaybackOpen}
-                onOpenChange={setIsPlaybackOpen}
-                path={fullPath}
-                name={name}
-              />
-            ) : null}
 
           </div>
         </div>

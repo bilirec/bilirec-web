@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useGridVirtualizer } from '@/hooks/use-grid-virtualizer'
 import { FileCard } from './FileCard'
 import { EmptyState } from './EmptyState'
+import { PlaybackPlayerDialog } from '@/components/playback/PlaybackPlayerDialog'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CaretLeftIcon } from '@phosphor-icons/react'
@@ -78,6 +79,11 @@ const GRID_GAP = 16
 const CONTENT_PADDING_X = 32
 const ESTIMATED_ROW_HEIGHT = 140
 
+type PlaybackFile = {
+  path: string
+  name: string
+}
+
 export function FilesView() {
   const { t } = useTranslation()
   const [currentPath, setCurrentPath] = useState('')
@@ -89,6 +95,7 @@ export function FilesView() {
   const [layoutConfig, setLayoutConfig] = useState<FilesLayoutConfig>(() =>
     getFilesLayoutConfig(window.innerWidth)
   )
+  const [playbackFile, setPlaybackFile] = useState<PlaybackFile | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null)
   const prevPathRef = useRef(currentPath)
@@ -161,7 +168,7 @@ export function FilesView() {
     })
   }, [currentPath, queryClient])
 
-  const { columnsCount, rows, fixedColumnsStyle, rowVirtualizer } = useGridVirtualizer<RecordFile | null>({
+  const { rows, fixedColumnsStyle, rowVirtualizer } = useGridVirtualizer<RecordFile | null>({
     scrollContainerRef,
     items: displayFiles,
     cardMinWidth: CARD_MIN_WIDTH,
@@ -275,6 +282,10 @@ export function FilesView() {
     setCurrentPath(path)
   }
 
+  const handlePlayback = useCallback((path: string, name: string) => {
+    setPlaybackFile({ path, name })
+  }, [])
+
   const handleBack = () => {
     const parts = currentPath.split('/').filter(Boolean)
     parts.pop()
@@ -378,10 +389,11 @@ export function FilesView() {
 
                         return (
                           <FileCard
-                            key={`${file.name}-${virtualRow.index * columnsCount + colIndex}`}
+                            key={file.path}
                             file={file}
                             onNavigate={handleNavigate}
                             onDelete={() => void queryClient.invalidateQueries({ queryKey })}
+                            onPlayback={handlePlayback}
                             currentPath={currentPath}
                           />
                         )
@@ -410,6 +422,16 @@ export function FilesView() {
           </div>
         </div>
       </div>
+      {playbackFile ? (
+        <PlaybackPlayerDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPlaybackFile(null)
+          }}
+          path={playbackFile.path}
+          name={playbackFile.name}
+        />
+      ) : null}
     </div>
   )
 }
