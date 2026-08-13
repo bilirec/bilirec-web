@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon } from '@phosphor-icons/react'
+import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon, FolderIcon } from '@phosphor-icons/react'
 import { formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
@@ -140,14 +140,30 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                            className="mt-0.5 shrink-0 rounded-full p-0.5 text-amber-600 transition-colors hover:bg-amber-500/15 dark:text-amber-400"
                             aria-label={t('recordCard.titleChangedAria')}
                           >
                             <WarningCircleIcon size={14} weight="fill" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[220px] text-xs text-center">
-                          {t('recordCard.titleChangedHint', { oldTitle: sessionTitle })}
+                        <TooltipContent
+                          side="top"
+                          arrowClassName="bg-popover fill-popover"
+                          className="max-w-72 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-lg"
+                        >
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5 font-semibold">
+                              <WarningCircleIcon size={14} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
+                              <span>{t('recordCard.titleChangedTitle')}</span>
+                            </div>
+                            <p className="text-[11px] leading-snug text-muted-foreground">
+                              {t('recordCard.titleChangedHint')}
+                            </p>
+                            <div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-secondary/50 px-2 py-1.5">
+                              <FolderIcon size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
+                              <span className="min-w-0 break-all font-medium">{sessionTitle}</span>
+                            </div>
+                          </div>
                         </TooltipContent>
                       </Tooltip>
                     )}

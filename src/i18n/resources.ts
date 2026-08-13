@@ -300,7 +300,8 @@ export const resources = {
         actualQuality: "實際畫質",
         actualStreamFormat: "實際流格式",
         audioOnlyBadge: "僅音頻",
-        titleChangedHint: "標題已在直播途中更改。檔案輸出路徑仍爲: {{oldTitle}}",
+        titleChangedTitle: "直播標題已更改",
+        titleChangedHint: "錄製檔案輸出路徑仍沿用原標題",
         titleChangedAria: "錄製標題已更改，點擊或滑鼠移過查看詳情"
       },
       convertsView: {
@@ -752,7 +753,8 @@ export const resources = {
         actualQuality: "实际画质",
         actualStreamFormat: "实际流格式",
         audioOnlyBadge: "仅音频",
-        titleChangedHint: "标题已在直播途中更改。文件输出路径仍为: {{oldTitle}}",
+        titleChangedTitle: "直播标题已更改",
+        titleChangedHint: "录制文件输出路径仍沿用原标题",
         titleChangedAria: "录制标题已更改，点击或鼠标移过查看详情"
       },
       convertsView: {
