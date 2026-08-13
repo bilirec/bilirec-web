@@ -91,6 +91,16 @@ export const resources = {
         upToDate: "已最新",
         updateAvailable: "可更新"
       },
+      analytics: {
+        title: "幫忙改進 Bilirec？",
+        description:
+          "如果你願意，我們只會匿名統計在線使用人數與後端版本，除此之外不會收集任何資訊，也不會觸碰你的錄製內容。你可以隨時在「版本資訊」關閉。",
+        accept: "好，幫忙統計",
+        decline: "不用了",
+        settingTitle: "匿名使用統計",
+        settingDescription:
+          "協助了解 Bilirec 的在線使用人數與版本分佈，全程匿名，除此之外不會收集任何資訊。"
+      },
       serverUpdate: {
         toastTitle: "bilirec 後端有新版本",
         toastAction: "查看 Release",
@@ -463,6 +473,16 @@ export const resources = {
         linkCommunity: "社群交流",
         upToDate: "已最新",
         updateAvailable: "可更新"
+      },
+      analytics: {
+        title: "帮忙改进 Bilirec？",
+        description:
+          "如果你愿意，我们只会匿名统计在线使用人数与后端版本，除此之外不会收集任何信息，也不会触碰你的录制内容。你可以随时在“版本信息”关闭。",
+        accept: "好，帮忙统计",
+        decline: "不用了",
+        settingTitle: "匿名使用统计",
+        settingDescription:
+          "协助了解 Bilirec 的在线使用人数与版本分布，全程匿名，除此之外不会收集任何信息。"
       },
       serverUpdate: {
         toastTitle: "bilirec 后端有新版本",

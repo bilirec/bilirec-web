@@ -13,9 +13,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { apiClient, parseVersionError } from "@/lib/api";
 import { getVersionCheckErrorMessage } from "@/lib/server-version";
+import {
+  ANALYTICS_ENABLED,
+  isReportableAnalyticsVersion,
+  type AnalyticsConsent
+} from "@/lib/analytics";
 import type { ServerVersionResult } from "@/lib/types";
 
 const CHANGELOG_URL = "https://github.com/bilirec/bilirec/releases";
@@ -28,6 +34,8 @@ interface AboutDialogProps {
   onOpenChange: (open: boolean) => void;
   version: ServerVersionResult | null;
   onVersionChange: (version: ServerVersionResult) => void;
+  analyticsConsent: AnalyticsConsent | null;
+  onAnalyticsConsentChange: (consent: AnalyticsConsent) => void;
 }
 
 function InfoGridRow({ label, value }: { label: string; value: string }) {
@@ -74,7 +82,9 @@ export function AboutDialog({
   open,
   onOpenChange,
   version,
-  onVersionChange
+  onVersionChange,
+  analyticsConsent,
+  onAnalyticsConsentChange
 }: AboutDialogProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
@@ -129,6 +139,10 @@ export function AboutDialog({
       ? version.latest
       : t("about.noVersion");
   const showStatus = version?.checked && !version.error;
+
+  const handleAnalyticsToggle = (enabled: boolean) => {
+    onAnalyticsConsentChange(enabled ? "granted" : "denied");
+  };
 
   const quickLinks: { href: string; label: string; icon: Icon }[] = [
     { href: CHANGELOG_URL, label: t("about.linkChangelog"), icon: ScrollIcon },
@@ -198,6 +212,28 @@ export function AboutDialog({
             </div>
           ) : null}
         </div>
+
+        {ANALYTICS_ENABLED && isReportableAnalyticsVersion(version?.current) ? (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <div className="min-w-0">
+              <label
+                htmlFor="analytics-consent-switch"
+                className="text-sm font-medium text-card-foreground"
+              >
+                {t("analytics.settingTitle")}
+              </label>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("analytics.settingDescription")}
+              </p>
+            </div>
+            <Switch
+              id="analytics-consent-switch"
+              checked={analyticsConsent === "granted"}
+              onCheckedChange={handleAnalyticsToggle}
+              aria-label={t("analytics.settingTitle")}
+            />
+          </div>
+        ) : null}
 
         <Button
           type="button"

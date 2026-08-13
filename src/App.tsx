@@ -8,6 +8,7 @@ import { ConvertsView } from "@/components/ConvertsView";
 import { SubscribesView } from "@/components/SubscribesView";
 import { BilibiliAuthDialog } from "@/components/BilibiliAuthDialog";
 import { AboutDialog } from "@/components/AboutDialog";
+import { AnalyticsConsentNotice } from "@/components/AnalyticsConsentNotice";
 import { NetworkStatusToaster } from "@/components/NetworkStatusToaster";
 import { BottomNav } from "@/components/BottomNav";
 import { LeftSidebar } from "@/components/LeftSidebar";
@@ -51,6 +52,15 @@ import {
   maybeAutoCheckVersion
 } from "@/lib/server-version";
 import { RoleContext } from "@/lib/role-context";
+import {
+  ANALYTICS_ENABLED,
+  disableAnalytics,
+  getAnalyticsConsent,
+  isReportableAnalyticsVersion,
+  setAnalyticsConsent as persistAnalyticsConsent,
+  setAnalyticsServerVersion,
+  type AnalyticsConsent
+} from "@/lib/analytics";
 
 type AppTab = "records" | "files" | "converts" | "subscribe";
 
@@ -101,6 +111,9 @@ function App() {
   const [isBilibiliDialogOpen, setIsBilibiliDialogOpen] = useState(false);
   const [serverVersion, setServerVersion] = useState<ServerVersionResult | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [analyticsConsent, setAnalyticsConsentState] =
+    useState<AnalyticsConsent | null>(() => getAnalyticsConsent());
+  const [isDocumentFullscreen, setIsDocumentFullscreen] = useState(false);
 
   const isReadOnly = userRole === "viewer";
   const showServerOutdatedBadge =
@@ -108,6 +121,19 @@ function App() {
 
   const handleServerVersionResult = (result: ServerVersionResult) => {
     setServerVersion(result);
+  };
+
+  const handleAnalyticsConsentChange = (consent: AnalyticsConsent) => {
+    if (!ANALYTICS_ENABLED) {
+      return;
+    }
+
+    persistAnalyticsConsent(consent);
+    setAnalyticsConsentState(consent);
+
+    if (consent !== "granted") {
+      disableAnalytics();
+    }
   };
 
   const isUnsupportedStatus = (statusCode: number | undefined) => statusCode === 400 || statusCode === 404 || statusCode === 403
@@ -200,6 +226,17 @@ function App() {
     if (tabFromUrl || pinnedRoom) {
       window.history.replaceState(null, "", window.location.pathname);
     }
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsDocumentFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () =>
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
   }, []);
 
   useEffect(() => {
@@ -437,6 +474,63 @@ function App() {
       unwatchPermission();
     };
   }, [isAuthenticated, userRole]);
+
+  useEffect(() => {
+    if (
+      !ANALYTICS_ENABLED ||
+      !isAuthenticated ||
+      analyticsConsent !== "granted"
+    ) {
+      if (ANALYTICS_ENABLED) {
+        disableAnalytics();
+      }
+    }
+  }, [analyticsConsent, isAuthenticated]);
+
+  useEffect(() => {
+    if (!ANALYTICS_ENABLED || !isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAnalyticsVersion = async () => {
+      try {
+        const result = await apiClient.getVersion();
+        if (cancelled) {
+          return;
+        }
+        setServerVersion(result);
+      } catch (error) {
+        if (!cancelled) {
+          console.debug("Failed to load server version for analytics:", error);
+        }
+      }
+    };
+
+    void loadAnalyticsVersion();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (
+      !ANALYTICS_ENABLED ||
+      !isAuthenticated ||
+      analyticsConsent !== "granted"
+    ) {
+      return;
+    }
+
+    const current = serverVersion?.current?.trim();
+    if (!current || current.toLowerCase() === "unknown") {
+      return;
+    }
+
+    setAnalyticsServerVersion(current);
+  }, [analyticsConsent, isAuthenticated, serverVersion?.current]);
 
   const handleLoginSuccess = (response: LoginResponse) => {
     const role = response.role || "admin";
@@ -789,7 +883,18 @@ function App() {
           onOpenChange={setIsAboutOpen}
           version={serverVersion}
           onVersionChange={setServerVersion}
+          analyticsConsent={analyticsConsent}
+          onAnalyticsConsentChange={handleAnalyticsConsentChange}
         />
+
+        {ANALYTICS_ENABLED &&
+        analyticsConsent === null &&
+        isReportableAnalyticsVersion(serverVersion?.current) &&
+        !isDocumentFullscreen ? (
+          <AnalyticsConsentNotice
+            onConsentChange={handleAnalyticsConsentChange}
+          />
+        ) : null}
 
         <div className="h-[calc(100vh-73px)] overflow-x-hidden flex">
           <LeftSidebar

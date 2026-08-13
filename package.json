@@ -12,7 +12,7 @@
         "lint": "eslint .",
         "check:sw": "node --check public/sw.js && tsc --noEmit --allowJs --checkJs --lib ES2022,WebWorker public/sw.js",
         "preview": "vite preview",
-        "deploy": "wrangler deploy"
+        "deploy": "wrangler deploy --keep-vars"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",

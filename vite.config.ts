@@ -4,7 +4,15 @@ import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig } from "vite";
 import { resolve } from 'path'
 
+const umamiUrl = process.env.UMAMI_URL?.trim() ?? "";
+const umamiWebsiteId = process.env.UMAMI_WEBSITE_ID?.trim() ?? "";
+
 export default defineConfig({
+  envPrefix: ["VITE_", "UMAMI_"],
+  define: {
+    "import.meta.env.UMAMI_URL": JSON.stringify(umamiUrl),
+    "import.meta.env.UMAMI_WEBSITE_ID": JSON.stringify(umamiWebsiteId),
+  },
   plugins: [
     react(),
     tailwindcss(),

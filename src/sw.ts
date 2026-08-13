@@ -146,6 +146,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // First-party analytics proxy — always hit the network, never cache.
+  if (url.pathname === "/m/s.js" || url.pathname.startsWith("/m/api/")) {
+    return;
+  }
+
   fetchEvent.respondWith(
     fetch(request)
       .then((response) => {
