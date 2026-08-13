@@ -13,12 +13,13 @@ export const DEFAULT_SEEK_OFFSET_SEC = 5
 export const DEFAULT_DANMAKU_OPACITY = 80
 export const DEFAULT_SCREEN_DANMAKU_VISIBLE = true
 
-export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right"
+export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
 export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
   "top-left",
   "top-right",
   "bottom-left",
   "bottom-right",
+  "hidden",
 ]
 export const DEFAULT_OVERLAY_CORNER: OverlayCorner = "bottom-left"
 

@@ -36,6 +36,8 @@ export function cornerLabelKey(corner: OverlayCorner): string {
       return "overlayCornerBottomLeft"
     case "bottom-right":
       return "overlayCornerBottomRight"
+    case "hidden":
+      return "overlayCornerHidden"
     case "top-left":
     default:
       return "overlayCornerTopLeft"

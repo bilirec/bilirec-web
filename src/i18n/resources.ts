@@ -231,11 +231,12 @@ export const resources = {
         giftFallback: "禮物",
         guardAction: "入列",
         overlayCornerLabel: "事件位置",
-        overlayCornerHint: "禮物與 SC、艦長等事件顯示的位置；SC／艦長恆置頂，禮物填於下方。",
+        overlayCornerHint: "禮物與 SC、艦長等事件顯示的位置；SC／艦長恆置頂，禮物填於下方。選擇「隱藏」可關閉這些事件特效。",
         overlayCornerTopLeft: "左上",
         overlayCornerTopRight: "右上",
         overlayCornerBottomLeft: "左下",
-        overlayCornerBottomRight: "右下"
+        overlayCornerBottomRight: "右下",
+        overlayCornerHidden: "隱藏"
       },
       recordsView: {
         title: "錄製管理",
@@ -682,11 +683,12 @@ export const resources = {
         giftFallback: "礼物",
         guardAction: "入列",
         overlayCornerLabel: "事件位置",
-        overlayCornerHint: "礼物与 SC、舰长等事件显示的位置；SC／舰长恒置顶，礼物填于下方。",
+        overlayCornerHint: "礼物与 SC、舰长等事件显示的位置；SC／舰长恒置顶，礼物填于下方。选择“隐藏”可关闭这些事件特效。",
         overlayCornerTopLeft: "左上",
         overlayCornerTopRight: "右上",
         overlayCornerBottomLeft: "左下",
-        overlayCornerBottomRight: "右下"
+        overlayCornerBottomRight: "右下",
+        overlayCornerHidden: "隐藏"
       },
       recordsView: {
         title: "录制管理",

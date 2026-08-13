@@ -284,7 +284,7 @@ export function EventOverlayLayer({
         ? mobileLayoutScale
         : 1
 
-  if (hidden) return null
+  if (hidden || overlayCorner === "hidden") return null
 
   const mobileLayout = overlayMode === "mobile"
   const rightAlignedCorner =
