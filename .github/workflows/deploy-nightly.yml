@@ -24,6 +24,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+        env:
+          UMAMI_URL: ${{ secrets.UMAMI_URL }}
+          UMAMI_WEBSITE_ID: ${{ secrets.UMAMI_WEBSITE_ID_NIGHTLY }}
 
       - name: Deploy nightly
         run: pnpm deploy:nightly
