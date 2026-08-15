@@ -1,6 +1,6 @@
 # bilirec-web
 
-Bilibili 直播录制管理 Web 界面（PWA），连接 [bilirec](https://github.com/bilirec/bilirec) 后端使用。
+Bilibili 直播录制管理 Web 界面（PWA），连接 [bilirec](https://github.com/bilirec/bilirec) 后端使用，并提供含礼物特效与弹幕滚动的录制回放。
 
 线上地址：[app.bilirec.org](https://app.bilirec.org/)
 
@@ -20,6 +20,7 @@ Bilibili 直播录制管理 Web 界面（PWA），连接 [bilirec](https://githu
 | 主题 | 链接 |
 | ---- | ---- |
 | 使用说明（功能、PWA、连接后端） | [guides/web-ui](https://www.bilirec.org/zh-cn/guides/web-ui/) |
+| 录制回放（礼物特效与弹幕滚动） | [guides/file-management](https://www.bilirec.org/zh-cn/guides/file-management/) |
 | 本地开发与自架部署 | [development/web](https://www.bilirec.org/zh-cn/development/web/) |
 | bilirec 后端 | [bilirec](https://github.com/bilirec/bilirec) |
 
