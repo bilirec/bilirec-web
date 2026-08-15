@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
 import {
@@ -47,12 +48,19 @@ import {
 } from "@/lib/danmaku"
 import {
   DEFAULT_DANMAKU_OPACITY,
+  DEFAULT_DANMAKU_FOLLOW_SCREEN,
+  DEFAULT_DANMAKU_SIZE,
   DEFAULT_FRAME_STEP_MS,
   DEFAULT_OVERLAY_CORNER,
   DEFAULT_PLAYBACK_RATES,
   DEFAULT_SEEK_OFFSET_SEC,
+  DANMAKU_SIZE_MAX,
+  DANMAKU_SIZE_MIN,
   OVERLAY_CORNERS,
+  clampDanmakuSize,
+  loadDanmakuFollowScreen,
   loadDanmakuOpacity,
+  loadDanmakuSize,
   loadFrameStepMs,
   loadOverlayCorner,
   loadPlaybackRates,
@@ -60,7 +68,9 @@ import {
   loadScreenDanmakuVisible,
   parsePositiveNumber,
   parseRatesInput,
+  saveDanmakuFollowScreen,
   saveDanmakuOpacity,
+  saveDanmakuSize,
   saveFrameStepMs,
   saveOverlayCorner,
   savePlaybackRates,
@@ -70,12 +80,12 @@ import {
 import type { OverlayCorner } from "@/lib/playback-settings"
 import {
   DANMAKU_LOAD_CHUNK_SIZE,
-  DANMAKU_SCALE_DESKTOP,
+  DANMAKU_RANGES,
   DANMAKU_TICK_INTERVAL_MS,
   DANMAKU_TICK_UNCERTAINTY_MS,
   cornerLabelKey,
   danmakuLifeForRate,
-  danmakuScaleForWidth,
+  resolveDanmakuFont,
   sameNumberList,
 } from "@/lib/playback-danmaku"
 import {
@@ -198,14 +208,25 @@ export function DanmakuVideoPlayer({
   const [frameStepMs, setFrameStepMs] = useState(() => loadFrameStepMs())
   const [seekOffsetSec, setSeekOffsetSec] = useState(() => loadSeekOffsetSec())
   const [danmakuOpacity, setDanmakuOpacity] = useState(() => loadDanmakuOpacity())
+  const [danmakuFollowScreen, setDanmakuFollowScreen] = useState(() =>
+    loadDanmakuFollowScreen()
+  )
+  const [danmakuSize, setDanmakuSize] = useState(() => loadDanmakuSize())
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
   const [overlayCornerDraft, setOverlayCornerDraft] = useState<OverlayCorner>(() => loadOverlayCorner())
-  const [danmakuScale, setDanmakuScale] = useState(DANMAKU_SCALE_DESKTOP)
+  const [danmakuScale, setDanmakuScale] = useState(
+    () => resolveDanmakuFont(0, loadDanmakuFollowScreen(), loadDanmakuSize()).scale
+  )
+  const [danmakuFontSize, setDanmakuFontSize] = useState<string | null>(
+    () => resolveDanmakuFont(0, loadDanmakuFollowScreen(), loadDanmakuSize()).size
+  )
   const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({ mode: "content" })
   const [ratesDraft, setRatesDraft] = useState(() => loadPlaybackRates().join(", "))
   const [frameDraft, setFrameDraft] = useState(() => String(loadFrameStepMs()))
   const [seekDraft, setSeekDraft] = useState(() => String(loadSeekOffsetSec()))
   const [opacityDraft, setOpacityDraft] = useState(() => loadDanmakuOpacity())
+  const [followScreenDraft, setFollowScreenDraft] = useState(() => loadDanmakuFollowScreen())
+  const [sizeDraft, setSizeDraft] = useState(() => loadDanmakuSize())
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const frameStepSec = frameStepMs / 1000
@@ -357,8 +378,9 @@ export function DanmakuVideoPlayer({
         }
       }
 
-      const nextScale = danmakuScaleForWidth(box.width)
-      setDanmakuScale((prev) => (prev === nextScale ? prev : nextScale))
+      const nextFont = resolveDanmakuFont(box.width, danmakuFollowScreen, danmakuSize)
+      setDanmakuScale((prev) => (prev === nextFont.scale ? prev : nextFont.scale))
+      setDanmakuFontSize((prev) => (prev === nextFont.size ? prev : nextFont.size))
 
       setOverlayLayout((prev) => {
         if (useLetterbox) {
@@ -410,6 +432,8 @@ export function DanmakuVideoPlayer({
     }
   }, [
     appFullscreen,
+    danmakuFollowScreen,
+    danmakuSize,
     mediaLang,
     objectFit,
     orientationLocked,
@@ -432,13 +456,7 @@ export function DanmakuVideoPlayer({
       dm.list.new("vod")
       dm.list.use("vod")
       dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
-      // n-danmaku ranges are percentages of the host height.
-      dm.ranges({
-        scroll: [2, 85],
-        top: [2, 35],
-        bottom: [2, 32],
-        random: [2, 85],
-      })
+      dm.ranges(DANMAKU_RANGES)
 
       // n-danmaku's addDm inserts each item by scanning its timeline. Loading
       // in batches keeps each synchronous section short enough for the browser
@@ -452,8 +470,9 @@ export function DanmakuVideoPlayer({
             styles: {
               ...b.styles,
               scale: danmakuScale,
+              size: danmakuFontSize,
               opacity: danmakuOpacity,
-              life: danmakuLifeForRate(playbackRate),
+              life: danmakuLifeForRate(playbackRate, b.styles?.type),
               pointer_events: false,
               custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
             },
@@ -486,8 +505,10 @@ export function DanmakuVideoPlayer({
   }, [
     bullets,
     danmakuStatus,
+    danmakuFollowScreen,
     danmakuOpacity,
     danmakuScale,
+    danmakuFontSize,
     playbackRate,
   ])
 
@@ -754,6 +775,7 @@ export function DanmakuVideoPlayer({
       return
     }
     const opacity = Math.min(100, Math.max(0, Math.round(opacityDraft)))
+    const size = clampDanmakuSize(sizeDraft)
 
     setRates(parsedRates)
     savePlaybackRates(parsedRates)
@@ -767,6 +789,11 @@ export function DanmakuVideoPlayer({
     setDanmakuOpacity(opacity)
     saveDanmakuOpacity(opacity)
     setOpacityDraft(opacity)
+    setDanmakuFollowScreen(followScreenDraft)
+    saveDanmakuFollowScreen(followScreenDraft)
+    setDanmakuSize(size)
+    saveDanmakuSize(size)
+    setSizeDraft(size)
     setOverlayCorner(overlayCornerDraft)
     saveOverlayCorner(overlayCornerDraft)
     setSettingsOpen(false)
@@ -778,6 +805,10 @@ export function DanmakuVideoPlayer({
     setFrameStepMs(DEFAULT_FRAME_STEP_MS)
     setSeekOffsetSec(DEFAULT_SEEK_OFFSET_SEC)
     setDanmakuOpacity(DEFAULT_DANMAKU_OPACITY)
+    setDanmakuFollowScreen(DEFAULT_DANMAKU_FOLLOW_SCREEN)
+    setFollowScreenDraft(DEFAULT_DANMAKU_FOLLOW_SCREEN)
+    setDanmakuSize(DEFAULT_DANMAKU_SIZE)
+    setSizeDraft(DEFAULT_DANMAKU_SIZE)
     setOverlayCorner(DEFAULT_OVERLAY_CORNER)
     setOverlayCornerDraft(DEFAULT_OVERLAY_CORNER)
     setRatesDraft(DEFAULT_PLAYBACK_RATES.join(", "))
@@ -788,6 +819,8 @@ export function DanmakuVideoPlayer({
     saveFrameStepMs(DEFAULT_FRAME_STEP_MS)
     saveSeekOffsetSec(DEFAULT_SEEK_OFFSET_SEC)
     saveDanmakuOpacity(DEFAULT_DANMAKU_OPACITY)
+    saveDanmakuFollowScreen(DEFAULT_DANMAKU_FOLLOW_SCREEN)
+    saveDanmakuSize(DEFAULT_DANMAKU_SIZE)
     saveOverlayCorner(DEFAULT_OVERLAY_CORNER)
   }
 
@@ -804,6 +837,7 @@ export function DanmakuVideoPlayer({
   const parsedFrameDraft = parsePositiveNumber(frameDraft, { min: 1, max: 5000 })
   const parsedSeekDraft = parsePositiveNumber(seekDraft, { min: 0.5, max: 600 })
   const normalizedOpacityDraft = Math.min(100, Math.max(0, Math.round(opacityDraft)))
+  const normalizedSizeDraft = clampDanmakuSize(sizeDraft)
   const settingsDraftInvalid =
     parsedRatesDraft == null || parsedFrameDraft == null || parsedSeekDraft == null
   const hasPendingSettings =
@@ -812,6 +846,8 @@ export function DanmakuVideoPlayer({
     parsedFrameDraft !== frameStepMs ||
     parsedSeekDraft !== seekOffsetSec ||
     normalizedOpacityDraft !== danmakuOpacity ||
+    followScreenDraft !== danmakuFollowScreen ||
+    normalizedSizeDraft !== danmakuSize ||
     overlayCornerDraft !== overlayCorner
 
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
@@ -1127,10 +1163,12 @@ export function DanmakuVideoPlayer({
                       </DialogTrigger>
                       <DialogContent
                         aria-describedby={undefined}
-                        className="max-h-[calc(100dvh-2rem)] w-80 max-w-[calc(100vw-1rem)] space-y-3 overflow-y-auto border-white/15 bg-zinc-900 p-4 text-zinc-50 shadow-xl"
+                        className="flex max-h-[min(34rem,calc(100dvh-2rem))] w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden border-white/15 bg-zinc-900 p-4 text-zinc-50 shadow-xl"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                       >
                         <DialogTitle className="sr-only">{t("playbackPlayer.settings")}</DialogTitle>
+                        <div className="min-h-0 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(255,255,255,0.35)_transparent]">
+                        <div className="flex flex-col gap-3">
                         <div className="space-y-1.5">
                           <Label htmlFor="playback-rates" className="text-zinc-200">
                             {t("playbackPlayer.ratesLabel")}
@@ -1208,6 +1246,49 @@ export function DanmakuVideoPlayer({
                           />
                           <p className="text-xs text-zinc-400">{t("playbackPlayer.danmakuOpacityHint")}</p>
                         </div>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor="playback-danmaku-follow" className="text-zinc-200">
+                              {t("playbackPlayer.danmakuFollowScreenLabel")}
+                            </Label>
+                            <Switch
+                              id="playback-danmaku-follow"
+                              checked={followScreenDraft}
+                              onCheckedChange={setFollowScreenDraft}
+                              className="data-[state=unchecked]:bg-white/25"
+                            />
+                          </div>
+                          <p className="text-xs text-zinc-400">
+                            {t("playbackPlayer.danmakuFollowScreenHint")}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label
+                              htmlFor="playback-danmaku-size"
+                              className={cn(
+                                "text-zinc-200",
+                                followScreenDraft && "text-zinc-500"
+                              )}
+                            >
+                              {t("playbackPlayer.danmakuSizeLabel")}
+                            </Label>
+                            <span className="tabular-nums text-xs text-zinc-400">{sizeDraft}%</span>
+                          </div>
+                          <Slider
+                            id="playback-danmaku-size"
+                            min={DANMAKU_SIZE_MIN}
+                            max={DANMAKU_SIZE_MAX}
+                            step={5}
+                            value={[sizeDraft]}
+                            disabled={followScreenDraft}
+                            onValueChange={(v) =>
+                              setSizeDraft(clampDanmakuSize(v[0] ?? DEFAULT_DANMAKU_SIZE))
+                            }
+                            className="w-full"
+                          />
+                          <p className="text-xs text-zinc-400">{t("playbackPlayer.danmakuSizeHint")}</p>
+                        </div>
                         <div className="space-y-1.5">
                           <Label className="text-zinc-200">
                             {t("playbackPlayer.overlayCornerLabel")}
@@ -1228,7 +1309,9 @@ export function DanmakuVideoPlayer({
                           </div>
                           <p className="text-xs text-zinc-400">{t("playbackPlayer.overlayCornerHint")}</p>
                         </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        </div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
                           <p
                             className={cn(
                               "text-xs",

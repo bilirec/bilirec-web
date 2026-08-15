@@ -2,6 +2,8 @@ const RATES_KEY = "bilirec.playback.rates"
 const FRAME_STEP_KEY = "bilirec.playback.frameStepMs"
 const SEEK_OFFSET_KEY = "bilirec.playback.seekOffsetSec"
 const DANMAKU_OPACITY_KEY = "bilirec.playback.danmakuOpacity"
+const DANMAKU_SIZE_KEY = "bilirec.playback.danmakuSize"
+const DANMAKU_FOLLOW_SCREEN_KEY = "bilirec.playback.danmakuFollowScreen"
 const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
 const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
 
@@ -11,6 +13,11 @@ export const DEFAULT_FRAME_STEP_MS = Math.round(1000 / 30)
 export const DEFAULT_SEEK_OFFSET_SEC = 5
 /** n-danmaku opacity 0–100 */
 export const DEFAULT_DANMAKU_OPACITY = 80
+/** Relative danmaku size 50–150 (% of the fixed desktop base). Used only when follow-screen is off. */
+export const DEFAULT_DANMAKU_SIZE = 100
+export const DANMAKU_SIZE_MIN = 50
+export const DANMAKU_SIZE_MAX = 150
+export const DEFAULT_DANMAKU_FOLLOW_SCREEN = true
 export const DEFAULT_SCREEN_DANMAKU_VISIBLE = true
 
 export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
@@ -95,6 +102,44 @@ export function loadDanmakuOpacity(): number {
 
 export function saveDanmakuOpacity(opacity: number) {
   writeNumber(DANMAKU_OPACITY_KEY, Math.min(100, Math.max(0, Math.round(opacity))))
+}
+
+export function clampDanmakuSize(size: number): number {
+  return Math.min(DANMAKU_SIZE_MAX, Math.max(DANMAKU_SIZE_MIN, Math.round(size)))
+}
+
+export function loadDanmakuSize(): number {
+  try {
+    const raw = localStorage.getItem(DANMAKU_SIZE_KEY)
+    if (raw == null || raw === "") return DEFAULT_DANMAKU_SIZE
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return DEFAULT_DANMAKU_SIZE
+    return clampDanmakuSize(n)
+  } catch {
+    return DEFAULT_DANMAKU_SIZE
+  }
+}
+
+export function saveDanmakuSize(size: number) {
+  writeNumber(DANMAKU_SIZE_KEY, clampDanmakuSize(size))
+}
+
+export function loadDanmakuFollowScreen(): boolean {
+  try {
+    const raw = localStorage.getItem(DANMAKU_FOLLOW_SCREEN_KEY)
+    if (raw == null || raw === "") return DEFAULT_DANMAKU_FOLLOW_SCREEN
+    return raw !== "false"
+  } catch {
+    return DEFAULT_DANMAKU_FOLLOW_SCREEN
+  }
+}
+
+export function saveDanmakuFollowScreen(follow: boolean) {
+  try {
+    localStorage.setItem(DANMAKU_FOLLOW_SCREEN_KEY, String(follow))
+  } catch {
+    /* ignore */
+  }
 }
 
 export function loadScreenDanmakuVisible(): boolean {
