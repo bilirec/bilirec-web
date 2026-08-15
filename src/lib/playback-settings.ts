@@ -4,6 +4,8 @@ const SEEK_OFFSET_KEY = "bilirec.playback.seekOffsetSec"
 const DANMAKU_OPACITY_KEY = "bilirec.playback.danmakuOpacity"
 const DANMAKU_SIZE_KEY = "bilirec.playback.danmakuSize"
 const DANMAKU_FOLLOW_SCREEN_KEY = "bilirec.playback.danmakuFollowScreen"
+const DANMAKU_SPEED_KEY = "bilirec.playback.danmakuSpeed"
+const DANMAKU_AREA_KEY = "bilirec.playback.danmakuArea"
 const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
 const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
 
@@ -20,6 +22,20 @@ export const DANMAKU_SIZE_MAX = 150
 export const DEFAULT_DANMAKU_FOLLOW_SCREEN = true
 export const DEFAULT_SCREEN_DANMAKU_VISIBLE = true
 
+/** Danmaku scrolling speed percent (50–200%, 100% is 1x normal speed). */
+export const DEFAULT_DANMAKU_SPEED = 100
+export const DANMAKU_SPEED_MIN = 50
+export const DANMAKU_SPEED_MAX = 200
+
+export type DanmakuArea = "quarter" | "half" | "three-quarters" | "full"
+export const DANMAKU_AREAS: readonly DanmakuArea[] = [
+  "quarter",
+  "half",
+  "three-quarters",
+  "full",
+]
+export const DEFAULT_DANMAKU_AREA: DanmakuArea = "full"
+
 export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
 export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
   "top-left",
@@ -29,6 +45,30 @@ export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
   "hidden",
 ]
 export const DEFAULT_OVERLAY_CORNER: OverlayCorner = "bottom-left"
+
+export type PlaybackSettingsValue = {
+  rates: number[]
+  frameStepMs: number
+  seekOffsetSec: number
+  danmakuOpacity: number
+  danmakuFollowScreen: boolean
+  danmakuSize: number
+  danmakuSpeed: number
+  danmakuArea: DanmakuArea
+  overlayCorner: OverlayCorner
+}
+
+export const DEFAULT_PLAYBACK_SETTINGS: PlaybackSettingsValue = {
+  rates: DEFAULT_PLAYBACK_RATES,
+  frameStepMs: DEFAULT_FRAME_STEP_MS,
+  seekOffsetSec: DEFAULT_SEEK_OFFSET_SEC,
+  danmakuOpacity: DEFAULT_DANMAKU_OPACITY,
+  danmakuFollowScreen: DEFAULT_DANMAKU_FOLLOW_SCREEN,
+  danmakuSize: DEFAULT_DANMAKU_SIZE,
+  danmakuSpeed: DEFAULT_DANMAKU_SPEED,
+  danmakuArea: DEFAULT_DANMAKU_AREA,
+  overlayCorner: DEFAULT_OVERLAY_CORNER,
+}
 
 function readNumber(key: string, fallback: number): number {
   try {
@@ -106,6 +146,46 @@ export function saveDanmakuOpacity(opacity: number) {
 
 export function clampDanmakuSize(size: number): number {
   return Math.min(DANMAKU_SIZE_MAX, Math.max(DANMAKU_SIZE_MIN, Math.round(size)))
+}
+
+export function clampDanmakuSpeed(speed: number): number {
+  return Math.min(DANMAKU_SPEED_MAX, Math.max(DANMAKU_SPEED_MIN, Math.round(speed)))
+}
+
+export function loadDanmakuSpeed(): number {
+  try {
+    const raw = localStorage.getItem(DANMAKU_SPEED_KEY)
+    if (raw == null || raw === "") return DEFAULT_DANMAKU_SPEED
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return DEFAULT_DANMAKU_SPEED
+    return clampDanmakuSpeed(n)
+  } catch {
+    return DEFAULT_DANMAKU_SPEED
+  }
+}
+
+export function saveDanmakuSpeed(speed: number) {
+  writeNumber(DANMAKU_SPEED_KEY, clampDanmakuSpeed(speed))
+}
+
+export function loadDanmakuArea(): DanmakuArea {
+  try {
+    const raw = localStorage.getItem(DANMAKU_AREA_KEY)
+    if (raw && (DANMAKU_AREAS as readonly string[]).includes(raw)) {
+      return raw as DanmakuArea
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_DANMAKU_AREA
+}
+
+export function saveDanmakuArea(area: DanmakuArea) {
+  try {
+    localStorage.setItem(DANMAKU_AREA_KEY, area)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function loadDanmakuSize(): number {
