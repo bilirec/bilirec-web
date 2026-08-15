@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, DatabaseIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon, FolderIcon } from '@phosphor-icons/react'
-import { formatFileSize, formatDuration } from '@/lib/utils'
+import { StopIcon, UserIcon, ClockIcon, VideoCameraIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon, FolderIcon } from '@phosphor-icons/react'
+import { cn, formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
@@ -112,7 +112,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
               </div>
             )}
 
-            <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex flex-col flex-1 min-w-0 w-full">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="inline-flex max-w-full items-center gap-1.5">
@@ -200,10 +200,14 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                     </div>
                   )}
 
-                  {/* status badge placed here to avoid covering the cover image (hidden on mobile) */}
-                  <div className="hidden sm:block">
+                  {/* status badge placed at the top-right */}
+                  <div className="sm:block hidden">
                     {getStatusBadge()}
                   </div>
+                </div>
+
+                <div className="sm:hidden flex items-end gap-2">
+                  {getStatusBadge()}
                 </div>
               </div>
 
@@ -214,50 +218,83 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
               )}
             </div>
           </div>
-
-          {/* viewers shown below on mobile */}
-          {task.roomInfo?.online !== undefined && (
-            <div className="mt-2 sm:hidden flex items-center gap-2 text-sm text-muted-foreground justify-between w-full">
-              <div className="flex items-center gap-2">
-                <UserIcon size={16} />
-                <span className="font-mono" title={t('recordCard.onlineCount')}>{(task.roomInfo.online ?? 0).toLocaleString()}</span>
-              </div>
-
-              {/* show badge on mobile row too (aligned right) */}
-              <div className="ml-2 shrink-0">
-                {getStatusBadge()}
-              </div>
-            </div>
-          )}
         </div>
 
+        {/* Recording stats: use two columns only when the card has enough width. */}
         {task.status === 'recording' && (
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="hidden gap-2 text-sm text-muted-foreground sm:grid min-[1100px]:grid-cols-2">
             {task.recordedTime !== undefined && (
-              <div className="flex items-center gap-2 text-muted-foreground" title={t('recordCard.estimatedDuration')}>
+              <div className="flex items-center gap-2" title={t('recordCard.estimatedDuration')}>
                 <ClockIcon size={16} />
                 <span className="font-mono">{formatDuration(task.recordedTime)}</span>
               </div>
             )}
             {task.fileSize !== undefined && (
-              <div className="flex items-center gap-2 text-muted-foreground" title={t('recordCard.estimatedSize')}>
-                <DatabaseIcon size={16} />
-                <span className="font-mono">{formatFileSize(task.fileSize)}</span>
-                {task.recordDanmaku && task.danmakuFileSize !== undefined && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" title={t('recordCard.estimatedSize')}>
+                  <VideoCameraIcon size={16} />
+                  <span className="font-mono">{formatFileSize(task.fileSize)}</span>
+                </div>
+                {task.recordDanmaku && task.danmakuFileSize !== undefined ? (
                   <>
-                    <span className="text-muted-foreground/50">
-                      <LineVerticalIcon size={16} className="rotate-[15deg]" />
+                    <span className="text-muted-foreground/50" aria-hidden>
+                      <LineVerticalIcon size={16} className="rotate-15" />
                     </span>
-                    <span className="flex items-center gap-1 font-mono" title={t('recordCard.estimatedDanmakuSize')}>
+                    <div className="flex items-center gap-2 font-mono" title={t('recordCard.estimatedDanmakuSize')}>
                       <ChatCircleDotsIcon size={16} />
                       {formatFileSize(task.danmakuFileSize)}
-                    </span>
+                    </div>
                   </>
-                )}
+                ) : null}
               </div>
             )}
           </div>
         )}
+
+        {/* Mobile stats (Scheme D-2: fixed slot 2x2 grid) */}
+        <div className="sm:hidden text-sm text-muted-foreground">
+          {task.status === 'recording' ? (
+            <div className="grid grid-cols-2 gap-2">
+              {task.roomInfo?.online !== undefined && (
+                <div
+                  className={cn(
+                    "flex items-center gap-2",
+                    !(task.recordDanmaku && task.danmakuFileSize !== undefined) && "col-span-2"
+                  )}
+                  title={t('recordCard.onlineCount')}
+                >
+                  <UserIcon size={16} />
+                  <span className="font-mono">{(task.roomInfo.online ?? 0).toLocaleString()}</span>
+                </div>
+              )}
+              {task.recordDanmaku && task.danmakuFileSize !== undefined && (
+                <div className="flex items-center gap-2" title={t('recordCard.estimatedDanmakuSize')}>
+                  <ChatCircleDotsIcon size={16} />
+                  <span className="font-mono">{formatFileSize(task.danmakuFileSize)}</span>
+                </div>
+              )}
+              {task.recordedTime !== undefined && (
+                <div className="flex items-center gap-2" title={t('recordCard.estimatedDuration')}>
+                  <ClockIcon size={16} />
+                  <span className="font-mono">{formatDuration(task.recordedTime)}</span>
+                </div>
+              )}
+              {task.fileSize !== undefined && (
+                <div className="flex items-center gap-2" title={t('recordCard.estimatedSize')}>
+                  <VideoCameraIcon size={16} />
+                  <span className="font-mono">{formatFileSize(task.fileSize)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            task.roomInfo?.online !== undefined && (
+              <div className="flex items-center gap-2" title={t('recordCard.onlineCount')}>
+                <UserIcon size={16} />
+                <span className="font-mono">{(task.roomInfo.online ?? 0).toLocaleString()}</span>
+              </div>
+            )
+          )}
+        </div>
 
         {task.error && (
           <p className="text-sm text-destructive">
