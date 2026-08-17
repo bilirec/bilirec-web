@@ -50,6 +50,7 @@ import {
   loadDanmakuSize,
   loadDanmakuSpeed,
   loadDanmakuArea,
+  loadDanmakuPreventOverlap,
   loadFrameStepMs,
   loadOverlayCorner,
   loadPlaybackRates,
@@ -60,6 +61,7 @@ import {
   saveDanmakuSize,
   saveDanmakuSpeed,
   saveDanmakuArea,
+  saveDanmakuPreventOverlap,
   saveFrameStepMs,
   saveOverlayCorner,
   savePlaybackRates,
@@ -73,6 +75,7 @@ import {
   danmakuLifeForRate,
   danmakuRangesForArea,
   resolveDanmakuFont,
+  attachDanmakuOverlapControl,
 } from "@/lib/playback-danmaku"
 import {
   exitDocumentFullscreen,
@@ -157,6 +160,7 @@ export function DanmakuVideoPlayer({
   const listReadyRef = useRef(false)
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
+  const danmakuPreventOverlapRef = useRef(loadDanmakuPreventOverlap())
   const touchDeviceRef = useRef(
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
   )
@@ -200,6 +204,9 @@ export function DanmakuVideoPlayer({
   const [danmakuSize, setDanmakuSize] = useState(() => loadDanmakuSize())
   const [danmakuSpeed, setDanmakuSpeed] = useState(() => loadDanmakuSpeed())
   const [danmakuArea, setDanmakuArea] = useState<DanmakuArea>(() => loadDanmakuArea())
+  const [danmakuPreventOverlap, setDanmakuPreventOverlap] = useState(() =>
+    loadDanmakuPreventOverlap()
+  )
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
   const [danmakuScale, setDanmakuScale] = useState(
     () => resolveDanmakuFont(0, loadDanmakuFollowScreen(), loadDanmakuSize()).scale
@@ -209,6 +216,8 @@ export function DanmakuVideoPlayer({
   )
   const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({ mode: "content" })
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  danmakuPreventOverlapRef.current = danmakuPreventOverlap
 
   const settingsValue = useMemo<PlaybackSettingsValue>(
     () => ({
@@ -220,6 +229,7 @@ export function DanmakuVideoPlayer({
       danmakuSize,
       danmakuSpeed,
       danmakuArea,
+      danmakuPreventOverlap,
       overlayCorner,
     }),
     [
@@ -231,6 +241,7 @@ export function DanmakuVideoPlayer({
       danmakuSize,
       danmakuSpeed,
       danmakuArea,
+      danmakuPreventOverlap,
       overlayCorner,
     ]
   )
@@ -316,6 +327,7 @@ export function DanmakuVideoPlayer({
     // Host is sized to the video picture box; layer fills the host
     const instance = new NDanmaku(host, "bilirec", "1")
     instance.dmLayer.style.pointerEvents = "none"
+    attachDanmakuOverlapControl(instance, () => danmakuPreventOverlapRef.current)
     danmakuRef.current = instance
     listReadyRef.current = false
     instance.pause()
@@ -788,6 +800,9 @@ export function DanmakuVideoPlayer({
     saveDanmakuSpeed(next.danmakuSpeed)
     setDanmakuArea(next.danmakuArea)
     saveDanmakuArea(next.danmakuArea)
+    setDanmakuPreventOverlap(next.danmakuPreventOverlap)
+    saveDanmakuPreventOverlap(next.danmakuPreventOverlap)
+    danmakuPreventOverlapRef.current = next.danmakuPreventOverlap
     setOverlayCorner(next.overlayCorner)
     saveOverlayCorner(next.overlayCorner)
   }, [])

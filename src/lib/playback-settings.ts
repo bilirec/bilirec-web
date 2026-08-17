@@ -6,6 +6,7 @@ const DANMAKU_SIZE_KEY = "bilirec.playback.danmakuSize"
 const DANMAKU_FOLLOW_SCREEN_KEY = "bilirec.playback.danmakuFollowScreen"
 const DANMAKU_SPEED_KEY = "bilirec.playback.danmakuSpeed"
 const DANMAKU_AREA_KEY = "bilirec.playback.danmakuArea"
+const DANMAKU_PREVENT_OVERLAP_KEY = "bilirec.playback.danmakuPreventOverlap"
 const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
 const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
 
@@ -35,6 +36,8 @@ export const DANMAKU_AREAS: readonly DanmakuArea[] = [
   "full",
 ]
 export const DEFAULT_DANMAKU_AREA: DanmakuArea = "full"
+/** Drop new scroll/top/bottom danmaku when no lane is free instead of stacking. */
+export const DEFAULT_DANMAKU_PREVENT_OVERLAP = true
 
 export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
 export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
@@ -55,6 +58,7 @@ export type PlaybackSettingsValue = {
   danmakuSize: number
   danmakuSpeed: number
   danmakuArea: DanmakuArea
+  danmakuPreventOverlap: boolean
   overlayCorner: OverlayCorner
 }
 
@@ -67,6 +71,7 @@ export const DEFAULT_PLAYBACK_SETTINGS: PlaybackSettingsValue = {
   danmakuSize: DEFAULT_DANMAKU_SIZE,
   danmakuSpeed: DEFAULT_DANMAKU_SPEED,
   danmakuArea: DEFAULT_DANMAKU_AREA,
+  danmakuPreventOverlap: DEFAULT_DANMAKU_PREVENT_OVERLAP,
   overlayCorner: DEFAULT_OVERLAY_CORNER,
 }
 
@@ -183,6 +188,24 @@ export function loadDanmakuArea(): DanmakuArea {
 export function saveDanmakuArea(area: DanmakuArea) {
   try {
     localStorage.setItem(DANMAKU_AREA_KEY, area)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDanmakuPreventOverlap(): boolean {
+  try {
+    const raw = localStorage.getItem(DANMAKU_PREVENT_OVERLAP_KEY)
+    if (raw == null || raw === "") return DEFAULT_DANMAKU_PREVENT_OVERLAP
+    return raw !== "false"
+  } catch {
+    return DEFAULT_DANMAKU_PREVENT_OVERLAP
+  }
+}
+
+export function saveDanmakuPreventOverlap(prevent: boolean) {
+  try {
+    localStorage.setItem(DANMAKU_PREVENT_OVERLAP_KEY, String(prevent))
   } catch {
     /* ignore */
   }

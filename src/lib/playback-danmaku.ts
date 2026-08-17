@@ -1,4 +1,5 @@
-import type { DanmakuType } from "n-danmaku"
+import type NDanmaku from "n-danmaku"
+import type { DanmakuAttrs, DanmakuType } from "n-danmaku"
 import {
   clampDanmakuSize,
   clampDanmakuSpeed,
@@ -198,5 +199,77 @@ export function cornerLabelKey(corner: OverlayCorner): string {
     case "top-left":
     default:
       return "overlayCornerTopLeft"
+  }
+}
+
+type NDanmakuHitBox = {
+  target?: HTMLElement
+  hitSets?: Record<string, { to: number }[]>
+  danmakuAnchor: (element: HTMLElement, attrs: DanmakuAttrs, retry?: boolean) => number
+  setDanmakuPos: (element: HTMLElement, attrs: DanmakuAttrs) => void
+  refreshHitSets: (type?: string) => void
+}
+
+const ANCHOR_TYPES = new Set<DanmakuType>(["scroll", "top", "bottom"])
+const DISCARD_ATTR = "data-bilirec-danmaku-discard"
+
+/**
+ * When lanes are full, n-danmaku resets hitSets and places the new item at 0.
+ * Replace that with a discard: skip refreshHitSets and remove the element.
+ *
+ * ranges() often runs while the layer is display:none, so lanes are built at
+ * height 0. Rebuild once the layer has a real size; otherwise every item is discarded.
+ */
+export function attachDanmakuOverlapControl(
+  dm: NDanmaku,
+  isPreventOverlapEnabled: () => boolean
+): void {
+  const hitBox = (dm as unknown as { hitBox?: NDanmakuHitBox }).hitBox
+  if (!hitBox?.danmakuAnchor || !hitBox.setDanmakuPos || !hitBox.refreshHitSets) return
+
+  const originalAnchor = hitBox.danmakuAnchor.bind(hitBox)
+  hitBox.danmakuAnchor = (element, attrs, retry = false) => {
+    if (!isPreventOverlapEnabled()) return originalAnchor(element, attrs, retry)
+    if (retry) return -1
+
+    const originalRefresh = hitBox.refreshHitSets.bind(hitBox)
+    const height = hitBox.target?.offsetHeight ?? 0
+    const lanes = attrs.type ? hitBox.hitSets?.[attrs.type] : undefined
+    const laneTo = lanes?.[lanes.length - 1]?.to ?? 0
+    if (height > 0 && laneTo === 0) originalRefresh(attrs.type)
+
+    hitBox.refreshHitSets = () => undefined
+    try {
+      return originalAnchor(element, attrs, false)
+    } finally {
+      hitBox.refreshHitSets = originalRefresh
+    }
+  }
+
+  const originalSetPos = hitBox.setDanmakuPos.bind(hitBox)
+  hitBox.setDanmakuPos = (element, attrs) => {
+    originalSetPos(element, attrs)
+    if (!isPreventOverlapEnabled()) return
+    const type = attrs.type
+    if (!type || !ANCHOR_TYPES.has(type)) return
+    const pos = type === "bottom" ? element.style.bottom : element.style.top
+    if (pos === "-1px") {
+      element.setAttribute(DISCARD_ATTR, "1")
+    }
+  }
+
+  const originalCreate = dm.create.bind(dm)
+  dm.create = (text, created, callback) => {
+    return originalCreate(
+      text,
+      (element, id) => {
+        if (element.getAttribute(DISCARD_ATTR) === "1") {
+          dm.clear(id)
+          return
+        }
+        created?.(element, id)
+      },
+      callback
+    )
   }
 }

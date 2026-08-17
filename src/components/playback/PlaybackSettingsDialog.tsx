@@ -58,6 +58,7 @@ export function PlaybackSettingsDialog({
   const [sizeDraft, setSizeDraft] = useState(() => value.danmakuSize)
   const [speedDraft, setSpeedDraft] = useState(() => value.danmakuSpeed)
   const [areaDraft, setAreaDraft] = useState<DanmakuArea>(() => value.danmakuArea)
+  const [preventOverlapDraft, setPreventOverlapDraft] = useState(() => value.danmakuPreventOverlap)
   const [overlayCornerDraft, setOverlayCornerDraft] = useState<OverlayCorner>(() => value.overlayCorner)
 
   const prevOpenRef = useRef(open)
@@ -73,6 +74,7 @@ export function PlaybackSettingsDialog({
       setSizeDraft(value.danmakuSize)
       setSpeedDraft(value.danmakuSpeed)
       setAreaDraft(value.danmakuArea)
+      setPreventOverlapDraft(value.danmakuPreventOverlap)
       setOverlayCornerDraft(value.overlayCorner)
     }
     prevOpenRef.current = open
@@ -98,6 +100,7 @@ export function PlaybackSettingsDialog({
     normalizedSizeDraft !== value.danmakuSize ||
     normalizedSpeedDraft !== value.danmakuSpeed ||
     areaDraft !== value.danmakuArea ||
+    preventOverlapDraft !== value.danmakuPreventOverlap ||
     overlayCornerDraft !== value.overlayCorner
 
   const handleApply = () => {
@@ -123,6 +126,7 @@ export function PlaybackSettingsDialog({
       danmakuSize: normalizedSizeDraft,
       danmakuSpeed: normalizedSpeedDraft,
       danmakuArea: areaDraft,
+      danmakuPreventOverlap: preventOverlapDraft,
       overlayCorner: overlayCornerDraft,
     }
 
@@ -140,6 +144,7 @@ export function PlaybackSettingsDialog({
     setSizeDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuSize)
     setSpeedDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuSpeed)
     setAreaDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuArea)
+    setPreventOverlapDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuPreventOverlap)
     setOverlayCornerDraft(DEFAULT_PLAYBACK_SETTINGS.overlayCorner)
 
     onApply(DEFAULT_PLAYBACK_SETTINGS)
@@ -180,7 +185,7 @@ export function PlaybackSettingsDialog({
             </TabsTrigger>
           </TabsList>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(255,255,255,0.35)_transparent]">
+          <div className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 [scrollbar-color:rgba(255,255,255,0.35)_transparent]">
             <TabsContent value="playback" className="mt-0 flex min-h-[240px] flex-col gap-3 outline-none">
               <div className="space-y-1.5">
                 <Label htmlFor="playback-rates" className="text-zinc-200">
@@ -319,6 +324,23 @@ export function PlaybackSettingsDialog({
                   })}
                 </div>
                 <p className="text-xs text-zinc-400">{t("playbackPlayer.danmakuAreaHint")}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="playback-danmaku-prevent-overlap" className="text-zinc-200">
+                    {t("playbackPlayer.danmakuPreventOverlapLabel")}
+                  </Label>
+                  <Switch
+                    id="playback-danmaku-prevent-overlap"
+                    checked={preventOverlapDraft}
+                    onCheckedChange={setPreventOverlapDraft}
+                    className="data-[state=unchecked]:bg-white/25"
+                  />
+                </div>
+                <p className="text-xs text-zinc-400">
+                  {t("playbackPlayer.danmakuPreventOverlapHint")}
+                </p>
               </div>
 
               <div className="flex flex-col gap-2">
