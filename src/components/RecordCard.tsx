@@ -10,6 +10,7 @@ import { cn, formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { toast } from 'sonner'
 
 interface RecordCardProps {
@@ -23,6 +24,8 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const { isReadOnly } = useRole()
   const [isLoading, setIsLoading] = useState(false)
   const [isStopDialogOpen, setIsStopDialogOpen] = useState(false)
+  const isMobile = useIsMobile()
+  const [isTitleInfoOpen, setIsTitleInfoOpen] = useState(false)
   const roomId = task.roomInfo?.room_id ?? task.roomId
 
   const handleCopyRoomId = async () => {
@@ -50,6 +53,32 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const streamFormatLabel = getRecordStreamFormatLabel(task.actualStreamFormat)
   const showStreamBadge = canControlRecording
     && (task.isAudioOnly || qualityLabel !== undefined || streamFormatLabel !== undefined)
+
+  const titleInfoContent = (compact = true) => (
+    <div className="flex flex-col gap-2">
+      <p className={cn(
+        "leading-snug text-muted-foreground",
+        compact ? "text-[11px]" : "text-sm"
+      )}>
+        {t('recordCard.titleChangedHint')}
+      </p>
+      <div className={cn(
+        "flex items-center rounded-md border border-border/60 bg-secondary/50",
+        compact ? "gap-1.5 px-2 py-1.5" : "gap-2 px-3 py-2"
+      )}>
+        <FolderIcon
+          size={compact ? 12 : 18}
+          className="shrink-0 text-muted-foreground"
+        />
+        <span className={cn(
+          "min-w-0 break-all font-medium leading-snug",
+          !compact && "text-sm"
+        )}>
+          {sessionTitle}
+        </span>
+      </div>
+    </div>
+  )
 
   const confirmStop = async () => {
     setIsStopDialogOpen(false)
@@ -131,43 +160,61 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                       <CopySimpleIcon size={12} />
                     </Button>
                   </div>
-                  <div className="flex items-start gap-1.5">
-                    <p className="text-sm text-muted-foreground truncate flex-1 min-w-0">
+                  <div className="flex w-fit max-w-full items-center gap-1.5">
+                    <p className="min-w-0 truncate text-sm text-muted-foreground">
                       {task.roomInfo?.title || t('recordCard.loadingTitle')}
                     </p>
                     {titleMismatched && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="mt-0.5 shrink-0 rounded-full p-0.5 text-amber-600 transition-colors hover:bg-amber-500/15 dark:text-amber-400"
-                            aria-label={t('recordCard.titleChangedAria')}
-                          >
-                            <WarningCircleIcon size={14} weight="fill" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          arrowClassName="bg-popover fill-popover"
-                          className="max-w-72 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-lg"
+                      isMobile ? (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-full p-0.5 text-amber-600 transition-colors hover:bg-amber-500/15 dark:text-amber-400"
+                          aria-label={t('recordCard.titleChangedAria')}
+                          onClick={() => setIsTitleInfoOpen(true)}
                         >
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5 font-semibold">
-                              <WarningCircleIcon size={14} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
-                              <span>{t('recordCard.titleChangedTitle')}</span>
+                          <WarningCircleIcon size={14} weight="fill" />
+                        </button>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-full p-0.5 text-amber-600 transition-colors hover:bg-amber-500/15 dark:text-amber-400"
+                              aria-label={t('recordCard.titleChangedAria')}
+                            >
+                              <WarningCircleIcon size={14} weight="fill" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            arrowClassName="bg-popover fill-popover"
+                            className="max-w-72 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-lg"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-1.5 font-semibold leading-none">
+                                <WarningCircleIcon size={14} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
+                                <span>{t('recordCard.titleChangedTitle')}</span>
+                              </div>
+                              {titleInfoContent(true)}
                             </div>
-                            <p className="text-[11px] leading-snug text-muted-foreground">
-                              {t('recordCard.titleChangedHint')}
-                            </p>
-                            <div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-secondary/50 px-2 py-1.5">
-                              <FolderIcon size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
-                              <span className="min-w-0 break-all font-medium">{sessionTitle}</span>
-                            </div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
+                          </TooltipContent>
+                        </Tooltip>
+                      )
                     )}
                   </div>
+                  {titleMismatched && isMobile && (
+                    <Dialog open={isTitleInfoOpen} onOpenChange={setIsTitleInfoOpen}>
+                      <DialogContent className="w-[90vw] max-w-sm">
+                        <DialogHeader className="text-left">
+                          <DialogTitle className="inline-flex items-center gap-1.5 self-start text-left leading-snug">
+                            <WarningCircleIcon size={20} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span>{t('recordCard.titleChangedTitle')}</span>
+                          </DialogTitle>
+                        </DialogHeader>
+                        {titleInfoContent(false)}
+                      </DialogContent>
+                    </Dialog>
+                  )}
                   {showStreamBadge && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {task.isAudioOnly ? (
