@@ -57,6 +57,7 @@ export const resources = {
         errorNeedCredential: "伺服器需要登入，請提供憑證",
         errorLoginInvalid: "登入失敗，請檢查用戶名和密碼",
         errorConnect: "連線失敗，請檢查伺服器地址",
+        errorNotBackend: "無法確認這是 bilirec 後端，請填入實際的錄製服務地址",
         errorLoginGeneral: "登入失敗，請檢查伺服器地址和憑證"
       },
       bilibiliAuth: {
@@ -527,6 +528,7 @@ export const resources = {
         errorNeedCredential: "服务器需要登录，请提供凭据",
         errorLoginInvalid: "登录失败，请检查用户名和密码",
         errorConnect: "连接失败，请检查服务器地址",
+        errorNotBackend: "无法确认这是 bilirec 后端，请填入实际的录制服务地址",
         errorLoginGeneral: "登录失败，请检查服务器地址和凭据"
       },
       bilibiliAuth: {

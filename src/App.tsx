@@ -157,7 +157,10 @@ function App() {
         const serverUrl = await storage.get<string>("server-url");
         if (serverUrl) {
           apiClient.setBaseURL(serverUrl);
-          await apiClient.getRecords();
+          const version = await apiClient.probeBackend();
+          if (version) {
+            setServerVersion(version);
+          }
           setIsAuthenticated(true);
           // Restore role from localStorage (already initialised in useState)
           // Fetch initial disk usage
@@ -532,13 +535,19 @@ function App() {
     setAnalyticsServerVersion(current);
   }, [analyticsConsent, isAuthenticated, serverVersion?.current]);
 
-  const handleLoginSuccess = (response: LoginResponse) => {
+  const handleLoginSuccess = (
+    response: LoginResponse,
+    version: ServerVersionResult | null
+  ) => {
     const role = response.role || "admin";
     const user = response.user || "";
     localStorage.setItem("user-role", role);
     if (user) localStorage.setItem("user-name", user);
     setUserRole(role);
     setUserName(user);
+    if (version) {
+      setServerVersion(version);
+    }
     setIsAuthenticated(true);
     maybeAutoCheckVersion(handleServerVersionResult, t);
     if (user) {

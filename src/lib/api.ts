@@ -24,6 +24,13 @@ import type {
   ServerVersionResult
 } from "./types";
 import { sharedStore } from "./shared-store";
+import {
+  BackendUnreachableError,
+  isLoginResponse,
+  isMissingVersionEndpoint,
+  isRoomIdList,
+  isServerVersionResult
+} from "./backend";
 
 /** Encode each path segment for /files/* routes. */
 export function encodeFilePath(path: string): string {
@@ -37,6 +44,7 @@ export function encodeFilePath(path: string): string {
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string = "";
+  private unauthorizedSuppressed = 0;
 
   constructor() {
     this.client = axios.create({
@@ -51,12 +59,24 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        if (
+          this.unauthorizedSuppressed === 0 &&
+          (error.response?.status === 401 || error.response?.status === 403)
+        ) {
           window.dispatchEvent(new Event("api:unauthorized"));
         }
         return Promise.reject(error);
       }
     );
+  }
+
+  async runWithoutUnauthorizedEvent<T>(fn: () => Promise<T>): Promise<T> {
+    this.unauthorizedSuppressed += 1;
+    try {
+      return await fn();
+    } finally {
+      this.unauthorizedSuppressed -= 1;
+    }
   }
 
   setBaseURL(url: string) {
@@ -94,7 +114,7 @@ class ApiClient {
     try {
       // withCredentials:true makes browser include cookies and accept Set-Cookie from server
       const response = await this.client.post("/login", data);
-      return response.data;
+      return isLoginResponse(response.data) ? response.data : null;
     } catch (error) {
       return null;
     }
@@ -111,7 +131,31 @@ class ApiClient {
   // Server returns an array of room IDs at /record/list per swagger.
   async getRecords(): Promise<number[]> {
     const response = await this.client.get<number[]>("/record/list");
-    return Array.isArray(response.data) ? response.data : [];
+    if (!isRoomIdList(response.data)) {
+      throw new BackendUnreachableError();
+    }
+    return response.data;
+  }
+
+  /**
+   * Confirms the configured URL is a working bilirec API before treating the
+   * session as authenticated. GET /version fingerprints the backend; GET
+   * /record/list proves the session can call a protected JSON endpoint.
+   * Older builds without /version are accepted if /record/list is a number[].
+   */
+  async probeBackend(): Promise<ServerVersionResult | null> {
+    return this.runWithoutUnauthorizedEvent(async () => {
+      let version: ServerVersionResult | null = null;
+      try {
+        version = await this.getVersion();
+      } catch (error) {
+        if (!isMissingVersionEndpoint(error)) {
+          throw error;
+        }
+      }
+      await this.getRecords();
+      return version;
+    });
   }
 
   async getRecordStats(roomIds: number[]): Promise<Record<string, RecorderStats>> {
@@ -439,6 +483,9 @@ class ApiClient {
 
   async getVersion(): Promise<ServerVersionResult> {
     const response = await this.client.get<ServerVersionResult>("/version");
+    if (!isServerVersionResult(response.data)) {
+      throw new BackendUnreachableError();
+    }
     return response.data;
   }
 

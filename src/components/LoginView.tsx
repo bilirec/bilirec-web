@@ -5,15 +5,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { apiClient } from '@/lib/api'
+import { BackendUnreachableError, getHttpStatus } from '@/lib/backend'
 import { storage } from '@/lib/storage'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon } from '@phosphor-icons/react'
-import type { LoginResponse } from '@/lib/types'
+import type { LoginResponse, ServerVersionResult } from '@/lib/types'
 import { isValidServerUrl } from '@/lib/utils'
 
 interface LoginViewProps {
-  onLoginSuccess: (response: LoginResponse) => void
+  onLoginSuccess: (response: LoginResponse, version: ServerVersionResult | null) => void
 }
 
 export function LoginView({ onLoginSuccess }: LoginViewProps) {
@@ -30,6 +31,28 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
     }
     loadServerUrl()
   }, [])
+
+  const toastProbeError = (
+    err: unknown,
+    context: 'no-credentials' | 'after-login' | 'login-fallback'
+  ) => {
+    const status = getHttpStatus(err)
+    if (status === 401) {
+      if (context === 'no-credentials') {
+        toast.error(t('login.errorNeedCredential'))
+      } else if (context === 'after-login') {
+        toast.error(t('login.errorLoginGeneral'))
+      } else {
+        toast.error(t('login.errorLoginInvalid'))
+      }
+      return
+    }
+    if (err instanceof BackendUnreachableError) {
+      toast.error(t('login.errorNotBackend'))
+      return
+    }
+    toast.error(t('login.errorConnect'))
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,50 +79,53 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
     setIsLoading(true)
 
     try {
-      // Always set base URL and persist it so the app can attempt unauthenticated access
-      apiClient.setBaseURL(url)
-      await storage.set('server-url', url)
+      await apiClient.runWithoutUnauthorizedEvent(async () => {
+        // Always set base URL and persist it so the app can attempt unauthenticated access
+        apiClient.setBaseURL(url)
+        await storage.set('server-url', url)
 
-      // If no credentials provided, just try accessing a protected endpoint to see if auth is required
-      if (!username.trim() && !password.trim()) {
-        try {
-          await apiClient.getRecords()
-          toast.success(t('login.connectNoAuth'))
-          onLoginSuccess({ user: '', role: 'admin' })
-        } catch (err: any) {
-          console.error('Unauthenticated access failed:', err)
-          if (err?.status === 401) {
-            toast.error(t('login.errorNeedCredential'))
-          } else {
-            toast.error(err?.message || t('login.errorConnect'))
+        // If no credentials provided, just try accessing a protected endpoint to see if auth is required
+        if (!username.trim() && !password.trim()) {
+          try {
+            const version = await apiClient.probeBackend()
+            toast.success(t('login.connectNoAuth'))
+            onLoginSuccess({ user: '', role: 'admin' }, version)
+          } catch (err: unknown) {
+            console.error('Unauthenticated access failed:', err)
+            toastProbeError(err, 'no-credentials')
           }
+          return
         }
-        return
-      }
 
-      // Credentials provided – try login
-      const result = await apiClient.login({ user: username, pass: password })
-      if (result) {
-        // Server should set an HttpOnly cookie on successful login
-        onLoginSuccess(result)
-      } else {
+        // Credentials provided – try login
+        const result = await apiClient.login({ user: username, pass: password })
+        if (result) {
+          try {
+            const version = await apiClient.probeBackend()
+            onLoginSuccess(result, version)
+          } catch (err: unknown) {
+            console.error('Backend probe after login failed:', err)
+            toastProbeError(err, 'after-login')
+          }
+          return
+        }
+
         // If login failed, fallback to try unauthenticated access (in case server does not require auth)
         try {
-          await apiClient.getRecords()
+          const version = await apiClient.probeBackend()
           toast.success(t('login.connectNoAuth'))
-          onLoginSuccess({ user: '', role: 'admin' })
-        } catch (err: any) {
+          onLoginSuccess({ user: '', role: 'admin' }, version)
+        } catch (err: unknown) {
           console.error('Unauthenticated access failed:', err)
-          if (err?.status === 401) {
-            toast.error(t('login.errorLoginInvalid'))
-          } else {
-            toast.error(err?.message || t('login.errorConnect'))
-          }
+            toastProbeError(err, 'login-fallback')
         }
-      }
-    } catch (error: any) {
+      })
+    } catch (error: unknown) {
       console.error('Login error:', error)
-      toast.error(error.response?.data || t('login.errorLoginGeneral'))
+      const axiosData = (error as { response?: { data?: string } }).response?.data
+      toast.error(
+        typeof axiosData === 'string' ? axiosData : t('login.errorLoginGeneral')
+      )
     } finally {
       setIsLoading(false)
     }
