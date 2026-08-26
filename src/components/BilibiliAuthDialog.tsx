@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ArrowSquareOutIcon, CircleNotchIcon } from '@phosphor-icons/react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { usePageVisibility } from '@/hooks/use-visibility'
 import { apiClient } from '@/lib/api'
 import type { BilibiliAuthInitResponse, BilibiliAuthStatus } from '@/lib/types'
-import { toast } from 'sonner'
-import { useTranslation } from 'react-i18next'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 interface BilibiliAuthDialogProps {
   open: boolean
@@ -13,6 +14,92 @@ interface BilibiliAuthDialogProps {
   initialStatus: BilibiliAuthStatus | null
   onStatusChange: (status: BilibiliAuthStatus | null) => void
   onControllerUnsupported: () => void
+}
+
+const AWAITING_STATES = new Set(['awaiting_qr', 'authenticating'])
+const CONFIRM_DONE_DELAY_MS = 15_000
+
+function isUnsupportedStatus(statusCode: number | undefined) {
+  return statusCode === 400 || statusCode === 404 || statusCode === 403
+}
+
+function DesktopQrPanel({
+  qrUrl,
+  qrImageUrl,
+  qrLinkLabel,
+}: {
+  qrUrl: string
+  qrImageUrl: string
+  qrLinkLabel: string
+}) {
+  return (
+    <div className="flex justify-center">
+      <a href={qrUrl} target="_blank" rel="noreferrer" className="inline-block">
+        <img
+          src={qrImageUrl}
+          alt={qrLinkLabel}
+          referrerPolicy="no-referrer"
+          className="h-56 w-56 rounded-md border border-border bg-white object-contain p-2"
+          loading="lazy"
+        />
+      </a>
+    </div>
+  )
+}
+
+function MobileLoginPanel({
+  qrUrl,
+  showConfirmDone,
+  isChecking,
+  onOpenedClient,
+  onCheckDone,
+}: {
+  qrUrl: string
+  showConfirmDone: boolean
+  isChecking: boolean
+  onOpenedClient: () => void
+  onCheckDone: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+        <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm text-foreground">
+          <li>{t('bilibiliAuth.mobileStepOpen')}</li>
+          <li>{t('bilibiliAuth.mobileStepReturn')}</li>
+          <li>{t('bilibiliAuth.mobileStepAuto')}</li>
+        </ol>
+      </div>
+
+      <Button asChild className="w-full">
+        <a href={qrUrl} target="_blank" rel="noreferrer" onClick={onOpenedClient}>
+          <ArrowSquareOutIcon data-icon="inline-start" />
+          {t('bilibiliAuth.openScanLink')}
+        </a>
+      </Button>
+
+      {showConfirmDone ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={isChecking}
+          aria-busy={isChecking}
+          onClick={onCheckDone}
+        >
+          {isChecking ? (
+            <>
+              <CircleNotchIcon className="animate-spin" data-icon="inline-start" />
+              {t('bilibiliAuth.confirmChecking')}
+            </>
+          ) : (
+            t('bilibiliAuth.confirmDone')
+          )}
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 export function BilibiliAuthDialog({
@@ -23,34 +110,49 @@ export function BilibiliAuthDialog({
   onControllerUnsupported,
 }: BilibiliAuthDialogProps) {
   const { t } = useTranslation()
+  const isVisible = usePageVisibility()
   const [status, setStatus] = useState<BilibiliAuthStatus | null>(initialStatus)
   const [qrUrl, setQrUrl] = useState(initialStatus?.qr?.url ?? '')
   const [isStarting, setIsStarting] = useState(false)
-  const isMobile = useIsMobile()
+  const [hasOpenedClient, setHasOpenedClient] = useState(false)
+  const [showConfirmDone, setShowConfirmDone] = useState(false)
+  const [isChecking, setIsChecking] = useState(false)
+  const statusRef = useRef(status)
+  const qrUrlRef = useRef(qrUrl)
+  const isCheckingRef = useRef(false)
+  const openedClientAtRef = useRef<number | null>(null)
+  const wasVisibleRef = useRef(isVisible)
+
+  statusRef.current = status
+  qrUrlRef.current = qrUrl
 
   const syncStatus = (next: BilibiliAuthStatus | BilibiliAuthInitResponse | null) => {
     if (!next) {
       setStatus(null)
+      setQrUrl('')
       onStatusChange(null)
       return
     }
 
     const isFullStatus = 'state' in next
-    const nextAccount = isFullStatus ? next.account ?? status?.account : status?.account
-    const nextQrUrl = next.qr?.url ?? qrUrl
-    if (next.qr?.url) {
-      setQrUrl(next.qr.url)
-    }
+    const prev = statusRef.current
+    const prevQrUrl = qrUrlRef.current
+    const nextAccount = isFullStatus ? next.account ?? prev?.account : prev?.account
+    const nextQrUrl = isFullStatus
+      ? next.qr?.url ?? ''
+      : next.qr?.url ?? prevQrUrl
+
+    setQrUrl(nextQrUrl)
 
     const merged: BilibiliAuthStatus = {
-      authenticated: isFullStatus ? next.authenticated : status?.authenticated ?? false,
+      authenticated: isFullStatus ? next.authenticated : prev?.authenticated ?? false,
       state: isFullStatus
         ? next.state
         : next.error
           ? 'failed'
           : nextQrUrl
             ? 'awaiting_qr'
-            : status?.state ?? 'idle',
+            : prev?.state ?? 'idle',
       lastError: isFullStatus ? next.lastError : next.error,
       ...(nextAccount ? { account: nextAccount } : {}),
       ...(nextQrUrl ? { qr: { url: nextQrUrl } } : {}),
@@ -63,10 +165,15 @@ export function BilibiliAuthDialog({
   const qrImageUrl = qrUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrUrl)}`
     : ''
-  const statusMessage = status?.state === 'qr_expired' ? '二维码已失效，请关闭窗口并重新点击登录' : status?.lastError
-  const isUnsupportedStatus = (statusCode: number | undefined) => statusCode === 400 || statusCode === 404 || statusCode === 403
+  const isExpired = status?.state === 'qr_expired'
+  const statusMessage = isExpired ? t('bilibiliAuth.qrExpired') : status?.lastError
+  const isAwaiting = Boolean(status && AWAITING_STATES.has(status.state))
+
   const startAuth = async () => {
     setIsStarting(true)
+    setHasOpenedClient(false)
+    setShowConfirmDone(false)
+    openedClientAtRef.current = null
     try {
       const next = await apiClient.initBilibiliAuth()
       syncStatus(next)
@@ -84,13 +191,56 @@ export function BilibiliAuthDialog({
     }
   }
 
+  const pollStatus = async (): Promise<'authenticated' | 'pending' | 'error'> => {
+    try {
+      const next = await apiClient.getBilibiliAuthStatus()
+      syncStatus(next)
+      if (next.state === 'authenticated') {
+        onOpenChange(false)
+        toast.success(t('bilibiliAuth.loginSuccess'))
+        return 'authenticated'
+      }
+      return 'pending'
+    } catch (error: any) {
+      if (isUnsupportedStatus(error?.response?.status)) {
+        onControllerUnsupported()
+        onOpenChange(false)
+      }
+      return 'error'
+    }
+  }
+
   useEffect(() => {
     if (!open) {
+      setHasOpenedClient(false)
+      setShowConfirmDone(false)
+      openedClientAtRef.current = null
       return
     }
 
     void startAuth()
   }, [open])
+
+  useEffect(() => {
+    if (!open || !hasOpenedClient) {
+      wasVisibleRef.current = isVisible
+      return
+    }
+
+    if (openedClientAtRef.current === null) {
+      openedClientAtRef.current = Date.now()
+    }
+
+    const justReturned = !wasVisibleRef.current && isVisible
+    wasVisibleRef.current = isVisible
+
+    if (
+      justReturned &&
+      Date.now() - openedClientAtRef.current >= CONFIRM_DONE_DELAY_MS
+    ) {
+      setShowConfirmDone(true)
+    }
+  }, [open, hasOpenedClient, isVisible])
 
   useEffect(() => {
     setStatus(initialStatus)
@@ -100,87 +250,119 @@ export function BilibiliAuthDialog({
   }, [initialStatus])
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !isVisible || !isAwaiting) {
       return
     }
 
-    if (!status || !['awaiting_qr', 'authenticating'].includes(status.state)) {
-      return
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const next = await apiClient.getBilibiliAuthStatus()
+        if (cancelled) {
+          return
+        }
+        syncStatus(next)
+        if (next.state === 'authenticated') {
+          onOpenChange(false)
+          toast.success(t('bilibiliAuth.loginSuccess'))
+        }
+      } catch (error: any) {
+        if (cancelled) {
+          return
+        }
+        if (isUnsupportedStatus(error?.response?.status)) {
+          onControllerUnsupported()
+          onOpenChange(false)
+        }
+      }
     }
 
+    void poll()
     const timer = window.setInterval(() => {
-      void apiClient.getBilibiliAuthStatus()
-        .then((next) => {
-          syncStatus(next)
-          if (next.state == 'authenticated') {
-            onOpenChange(false)
-            toast.success(t('bilibiliAuth.loginSuccess'))
-          }
-        })
-        .catch((error: any) => {
-          if (isUnsupportedStatus(error?.response?.status)) {
-            onControllerUnsupported()
-            onOpenChange(false)
-          }
-        })
+      void poll()
     }, 2000)
 
-    return () => window.clearInterval(timer)
-  }, [open, status?.state])
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [open, isVisible, isAwaiting])
+
+  const handleCheckDone = async () => {
+    if (isCheckingRef.current) {
+      return
+    }
+
+    isCheckingRef.current = true
+    setIsChecking(true)
+    try {
+      const result = await pollStatus()
+      if (result === 'pending') {
+        toast.info(t('bilibiliAuth.confirmNotReady'))
+      }
+    } finally {
+      isCheckingRef.current = false
+      setIsChecking(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="py-6">
         <DialogHeader>
           <DialogTitle>{t('bilibiliAuth.title')}</DialogTitle>
-          <DialogDescription>{t('bilibiliAuth.description')}</DialogDescription>
+          <DialogDescription>
+            <span className="hidden md:inline">{t('bilibiliAuth.description')}</span>
+            <span className="md:hidden">{t('bilibiliAuth.mobileDescription')}</span>
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 text-sm">
-          {isStarting && (
+        <div className="flex flex-col gap-4 text-sm">
+          {isStarting ? (
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-muted-foreground">
-              {t('bilibiliAuth.generatingQr')}
+              <span className="hidden md:block">{t('bilibiliAuth.generatingQr')}</span>
+              <span className="md:hidden">{t('bilibiliAuth.preparingLogin')}</span>
             </div>
-          )}
+          ) : null}
 
-          {!isStarting && statusMessage && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm text-center">
+          {!isStarting && statusMessage ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-center text-sm text-destructive">
               {statusMessage}
             </div>
-          )}
+          ) : null}
 
-          {qrUrl && (
-            <div className="flex justify-center">
-              <a href={qrUrl} target="_blank" rel="noreferrer" className="inline-block">
-                <img
-                  src={qrImageUrl}
-                  alt={t('bilibiliAuth.qrLink')}
-                  referrerPolicy="no-referrer"
-                  className="h-56 w-56 rounded-md border border-border bg-white object-contain p-2"
-                  loading="lazy"
-                />
-              </a>
-            </div>
-          )}
-
-          {qrUrl && isMobile && (
-            <Button
-              onClick={() => {
-                if (qrUrl) {
-                  window.open(qrUrl, '_blank')
-                }
-              }}
-              className="w-full"
-            >
-              {t('bilibiliAuth.openScanLink')}
+          {isExpired && !isStarting ? (
+            <Button type="button" className="w-full" onClick={() => void startAuth()}>
+              {t('bilibiliAuth.retryLogin')}
             </Button>
-          )}
-        </div>
+          ) : null}
 
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t('roomConfig.cancel')}
-          </Button>
+          {!isStarting && !isExpired && qrUrl ? (
+            <>
+              <div className="hidden md:block">
+                <DesktopQrPanel
+                  qrUrl={qrUrl}
+                  qrImageUrl={qrImageUrl}
+                  qrLinkLabel={t('bilibiliAuth.qrLink')}
+                />
+              </div>
+              <div className="md:hidden">
+                <MobileLoginPanel
+                  qrUrl={qrUrl}
+                  showConfirmDone={showConfirmDone}
+                  isChecking={isChecking}
+                  onOpenedClient={() => {
+                    if (openedClientAtRef.current === null) {
+                      openedClientAtRef.current = Date.now()
+                    }
+                    setHasOpenedClient(true)
+                  }}
+                  onCheckDone={() => void handleCheckDone()}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
