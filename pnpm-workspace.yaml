@@ -2,3 +2,26 @@ allowBuilds:
   '@swc/core': true
   esbuild: true
   workerd: true
+
+# pnpm 11 ignores package.json#pnpm.overrides; keep these here.
+# Replacement ranges are capped to the intended major so `>=x` cannot resolve to the next major.
+overrides:
+  lodash: 4.18.1
+  postcss: '>=8.5.23 <9.0.0'
+  nanoid@3: '>=3.3.18 <4.0.0'
+  picomatch: '>=4.0.4 <5.0.0'
+  rollup@4: '>=4.59.0 <5.0.0'
+  form-data: '>=4.0.6 <5.0.0'
+  follow-redirects: '>=1.16.0 <2.0.0'
+  serialize-javascript: '>=7.1.0 <8.0.0'
+  minimatch@3: '>=3.1.4 <4.0.0'
+  minimatch@9: '>=9.0.7 <10.0.0'
+  brace-expansion@1: '>=1.1.18 <2.0.0'
+  brace-expansion@2: '>=2.1.4 <3.0.0'
+  brace-expansion@5: '>=5.0.9 <6.0.0'
+  flatted: '>=3.4.2 <4.0.0'
+  js-yaml: '>=4.3.1 <5.0.0'
+  fast-uri: '>=3.1.5 <4.0.0'
+  '@babel/core': '>=7.29.1 <8.0.0'
+  '@babel/plugin-transform-modules-systemjs': '>=7.29.4 <8.0.0'
+  ajv@6: '>=6.14.0 <7.0.0'
