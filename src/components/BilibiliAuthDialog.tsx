@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowSquareOutIcon, CircleNotchIcon } from '@phosphor-icons/react'
+import { ArrowSquareOutIcon, CircleNotchIcon, CopyIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { usePageVisibility } from '@/hooks/use-visibility'
 import { apiClient } from '@/lib/api'
 import type { BilibiliAuthInitResponse, BilibiliAuthStatus } from '@/lib/types'
+
+type MobileLoginMode = 'app' | 'qr'
 
 interface BilibiliAuthDialogProps {
   open: boolean
@@ -39,7 +42,7 @@ function DesktopQrPanel({
           src={qrImageUrl}
           alt={qrLinkLabel}
           referrerPolicy="no-referrer"
-          className="h-56 w-56 rounded-md border border-border bg-white object-contain p-2"
+          className="size-56 rounded-md border border-border bg-white object-contain p-2"
           loading="lazy"
         />
       </a>
@@ -102,6 +105,37 @@ function MobileLoginPanel({
   )
 }
 
+function MobileQrPanel({
+  qrImageUrl,
+  qrLinkLabel,
+  onCopyLink,
+}: {
+  qrImageUrl: string
+  qrLinkLabel: string
+  onCopyLink: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-center">
+        <img
+          src={qrImageUrl}
+          alt={qrLinkLabel}
+          referrerPolicy="no-referrer"
+          className="size-40 rounded-md border border-border bg-white object-contain p-2"
+          loading="lazy"
+        />
+      </div>
+
+      <Button type="button" variant="outline" className="w-full" onClick={onCopyLink}>
+        <CopyIcon data-icon="inline-start" />
+        {t('bilibiliAuth.copyLoginLink')}
+      </Button>
+    </div>
+  )
+}
+
 export function BilibiliAuthDialog({
   open,
   onOpenChange,
@@ -117,6 +151,7 @@ export function BilibiliAuthDialog({
   const [hasOpenedClient, setHasOpenedClient] = useState(false)
   const [showConfirmDone, setShowConfirmDone] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
+  const [mobileMode, setMobileMode] = useState<MobileLoginMode>('app')
   const statusRef = useRef(status)
   const qrUrlRef = useRef(qrUrl)
   const isCheckingRef = useRef(false)
@@ -168,12 +203,18 @@ export function BilibiliAuthDialog({
   const isExpired = status?.state === 'qr_expired'
   const statusMessage = isExpired ? t('bilibiliAuth.qrExpired') : status?.lastError
   const isAwaiting = Boolean(status && AWAITING_STATES.has(status.state))
+  const showLoginContent = !isStarting && !isExpired && Boolean(qrUrl)
+
+  const resetSessionUi = () => {
+    setHasOpenedClient(false)
+    setShowConfirmDone(false)
+    setMobileMode('app')
+    openedClientAtRef.current = null
+  }
 
   const startAuth = async () => {
     setIsStarting(true)
-    setHasOpenedClient(false)
-    setShowConfirmDone(false)
-    openedClientAtRef.current = null
+    resetSessionUi()
     try {
       const next = await apiClient.initBilibiliAuth()
       syncStatus(next)
@@ -212,9 +253,7 @@ export function BilibiliAuthDialog({
 
   useEffect(() => {
     if (!open) {
-      setHasOpenedClient(false)
-      setShowConfirmDone(false)
-      openedClientAtRef.current = null
+      resetSessionUi()
       return
     }
 
@@ -222,7 +261,7 @@ export function BilibiliAuthDialog({
   }, [open])
 
   useEffect(() => {
-    if (!open || !hasOpenedClient) {
+    if (!open || !hasOpenedClient || mobileMode !== 'app') {
       wasVisibleRef.current = isVisible
       return
     }
@@ -240,7 +279,7 @@ export function BilibiliAuthDialog({
     ) {
       setShowConfirmDone(true)
     }
-  }, [open, hasOpenedClient, isVisible])
+  }, [open, hasOpenedClient, isVisible, mobileMode])
 
   useEffect(() => {
     setStatus(initialStatus)
@@ -307,14 +346,51 @@ export function BilibiliAuthDialog({
     }
   }
 
+  const handleCopyLoginLink = async () => {
+    if (!qrUrl) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(qrUrl)
+      toast.success(t('bilibiliAuth.copyLoginLinkSuccess'))
+    } catch {
+      toast.error(t('bilibiliAuth.copyLoginLinkFailed'))
+    }
+  }
+
+  const handleMobileModeChange = (value: string) => {
+    if (value === 'app' || value === 'qr') {
+      setMobileMode(value)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="py-6">
         <DialogHeader>
           <DialogTitle>{t('bilibiliAuth.title')}</DialogTitle>
+          {showLoginContent ? (
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={mobileMode}
+              onValueChange={handleMobileModeChange}
+              className="w-full md:hidden"
+              aria-label={t('bilibiliAuth.mobileModeGroup')}
+            >
+              <ToggleGroupItem value="app">{t('bilibiliAuth.mobileModeApp')}</ToggleGroupItem>
+              <ToggleGroupItem value="qr">{t('bilibiliAuth.mobileModeQr')}</ToggleGroupItem>
+            </ToggleGroup>
+          ) : null}
           <DialogDescription>
             <span className="hidden md:inline">{t('bilibiliAuth.description')}</span>
-            <span className="md:hidden">{t('bilibiliAuth.mobileDescription')}</span>
+            <span className="md:hidden">
+              {mobileMode === 'qr'
+                ? t('bilibiliAuth.otherDeviceDescription')
+                : t('bilibiliAuth.mobileDescription')}
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -338,7 +414,7 @@ export function BilibiliAuthDialog({
             </Button>
           ) : null}
 
-          {!isStarting && !isExpired && qrUrl ? (
+          {showLoginContent ? (
             <>
               <div className="hidden md:block">
                 <DesktopQrPanel
@@ -348,18 +424,26 @@ export function BilibiliAuthDialog({
                 />
               </div>
               <div className="md:hidden">
-                <MobileLoginPanel
-                  qrUrl={qrUrl}
-                  showConfirmDone={showConfirmDone}
-                  isChecking={isChecking}
-                  onOpenedClient={() => {
-                    if (openedClientAtRef.current === null) {
-                      openedClientAtRef.current = Date.now()
-                    }
-                    setHasOpenedClient(true)
-                  }}
-                  onCheckDone={() => void handleCheckDone()}
-                />
+                {mobileMode === 'qr' ? (
+                  <MobileQrPanel
+                    qrImageUrl={qrImageUrl}
+                    qrLinkLabel={t('bilibiliAuth.qrLink')}
+                    onCopyLink={() => void handleCopyLoginLink()}
+                  />
+                ) : (
+                  <MobileLoginPanel
+                    qrUrl={qrUrl}
+                    showConfirmDone={showConfirmDone}
+                    isChecking={isChecking}
+                    onOpenedClient={() => {
+                      if (openedClientAtRef.current === null) {
+                        openedClientAtRef.current = Date.now()
+                      }
+                      setHasOpenedClient(true)
+                    }}
+                    onCheckDone={() => void handleCheckDone()}
+                  />
+                )}
               </div>
             </>
           ) : null}
