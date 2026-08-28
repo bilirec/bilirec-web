@@ -377,7 +377,7 @@ export function BilibiliAuthDialog({
               size="sm"
               value={mobileMode}
               onValueChange={handleMobileModeChange}
-              className="w-full md:hidden"
+              className="hidden w-full [@media(pointer:coarse)]:flex"
               aria-label={t('bilibiliAuth.mobileModeGroup')}
             >
               <ToggleGroupItem value="app">{t('bilibiliAuth.mobileModeApp')}</ToggleGroupItem>
@@ -385,8 +385,8 @@ export function BilibiliAuthDialog({
             </ToggleGroup>
           ) : null}
           <DialogDescription>
-            <span className="hidden md:inline">{t('bilibiliAuth.description')}</span>
-            <span className="md:hidden">
+            <span className="[@media(pointer:coarse)]:hidden">{t('bilibiliAuth.description')}</span>
+            <span className="hidden [@media(pointer:coarse)]:inline">
               {mobileMode === 'qr'
                 ? t('bilibiliAuth.otherDeviceDescription')
                 : t('bilibiliAuth.mobileDescription')}
@@ -397,8 +397,8 @@ export function BilibiliAuthDialog({
         <div className="flex flex-col gap-4 text-sm">
           {isStarting ? (
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-muted-foreground">
-              <span className="hidden md:block">{t('bilibiliAuth.generatingQr')}</span>
-              <span className="md:hidden">{t('bilibiliAuth.preparingLogin')}</span>
+              <span className="[@media(pointer:coarse)]:hidden">{t('bilibiliAuth.generatingQr')}</span>
+              <span className="hidden [@media(pointer:coarse)]:inline">{t('bilibiliAuth.preparingLogin')}</span>
             </div>
           ) : null}
 
@@ -416,14 +416,14 @@ export function BilibiliAuthDialog({
 
           {showLoginContent ? (
             <>
-              <div className="hidden md:block">
+              <div className="[@media(pointer:coarse)]:hidden">
                 <DesktopQrPanel
                   qrUrl={qrUrl}
                   qrImageUrl={qrImageUrl}
                   qrLinkLabel={t('bilibiliAuth.qrLink')}
                 />
               </div>
-              <div className="md:hidden">
+              <div className="hidden [@media(pointer:coarse)]:block">
                 {mobileMode === 'qr' ? (
                   <MobileQrPanel
                     qrImageUrl={qrImageUrl}
