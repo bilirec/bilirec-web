@@ -40,7 +40,7 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
     isLoading,
     mutate,
   } = useSWR<RecordTask[]>(
-    isVisible ? 'record/tasks' : null,
+    'record/tasks',
     async () => {
       const recordTasks = await apiClient.getRecordTasks()
       const roomIds = Array.from(new Set(recordTasks.map((task) => task.roomId)))
@@ -57,9 +57,10 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
       }))
     },
     {
-      refreshInterval: 5000,
-      revalidateOnFocus: false,
-      fallbackData: [],
+      refreshInterval: isVisible ? 5000 : 0,
+      refreshWhenHidden: true,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
       onSuccess: () => markOnline(),
       onError: (err) => {
         if (isNetworkError(err)) {

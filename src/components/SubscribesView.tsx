@@ -54,17 +54,18 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   const isVisible = usePageVisibility()
 
   const {
-    data: subscribedRoomIds = [],
+    data: subscribedRoomIds,
     error: subscribedRoomsError,
     isLoading: isSubscribedRoomsLoading,
     mutate: mutateSubscribedRoomIds,
   } = useSWR<number[]>(
-    isVisible ? 'subscribe/room-ids' : null,
+    'subscribe/room-ids',
     () => apiClient.getSubscribedRooms(),
     {
-      refreshInterval: 5000,
-      revalidateOnFocus: false,
-      fallbackData: [],
+      refreshInterval: isVisible ? 5000 : 0,
+      refreshWhenHidden: true,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
       onSuccess: () => markOnline(),
       onError: (err) => {
         if (isNetworkError(err)) {
@@ -74,8 +75,10 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     }
   )
 
+  const roomIds = subscribedRoomIds ?? []
+
   const roomInfoKey =
-    subscribedRoomIds.length > 0 ? `subscribe/details/${subscribedRoomIds.join(',')}` : null
+    roomIds.length > 0 ? `subscribe/details/${roomIds.join(',')}` : null
 
   const {
     data: details = { roomInfos: {}, recordStatuses: [] },
@@ -85,11 +88,11 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     roomInfoKey,
     async () => {
       const [roomInfos, recordStatusesMap] = await Promise.all([
-        apiClient.getRoomInfos(subscribedRoomIds),
-        apiClient.getRecordStatuses(subscribedRoomIds).catch((): Record<string, RecordStatus> => ({}))
+        apiClient.getRoomInfos(roomIds),
+        apiClient.getRecordStatuses(roomIds).catch((): Record<string, RecordStatus> => ({}))
       ])
 
-      const recordStatuses = subscribedRoomIds.map((id) => ({
+      const recordStatuses = roomIds.map((id) => ({
         room_id: id,
         status: recordStatusesMap[id.toString()] ?? 'idle',
       }))
@@ -97,9 +100,10 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
       return { roomInfos, recordStatuses }
     },
     {
-      refreshInterval: 5000,
-      revalidateOnFocus: false,
-      fallbackData: { roomInfos: {}, recordStatuses: [] },
+      refreshInterval: isVisible ? 5000 : 0,
+      refreshWhenHidden: true,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
     }
   )
 
@@ -231,7 +235,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     minScore: 1,
   })
 
-  const isLoading = isSubscribedRoomsLoading || (subscribedRoomIds.length > 0 && isDetailsLoading)
+  const isLoading = isSubscribedRoomsLoading || (roomIds.length > 0 && isDetailsLoading)
 
   useEffect(() => {
     if (!subscribedRoomsError || isNetworkError(subscribedRoomsError)) {
