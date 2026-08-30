@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,11 +26,6 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
   const [isUnsubDialogOpen, setIsUnsubDialogOpen] = useState(false)
   const [isStartRecordDialogOpen, setIsStartRecordDialogOpen] = useState(false)
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
-  const [isImageLoaded, setIsImageLoaded] = useState(false)
-
-  useEffect(() => {
-    setIsImageLoaded(false)
-  }, [roomInfo.cover])
 
   const cleanTitle = normalizeText(roomInfo.title) || t('subscribeCard.loadingTitle')
   const cleanDescription = normalizeText(roomInfo.description)
@@ -96,17 +91,11 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
       <div className="flex h-full flex-col gap-3">
         <div className="relative grow">
           <div className="flex flex-col sm:flex-row items-start gap-3">
-            {roomInfo.cover ? (
-              <RoomCover
-                src={roomInfo.cover}
-                alt={cleanTitle || roomInfo.uid.toString()}
-                className="w-full sm:w-40 shrink-0"
-              />
-            ) : (
-              <div className="w-full h-24 sm:w-40 sm:h-24 shrink-0 bg-muted rounded-md flex items-center justify-center p-4">
-                <UserIcon size={20} />
-              </div>
-            )}
+            <RoomCover
+              src={roomInfo.cover}
+              alt={cleanTitle || roomInfo.uid.toString()}
+              className="w-full sm:w-40 shrink-0"
+            />
 
             <div className="flex flex-col flex-1 min-w-0 w-full">
               <div className="flex items-start gap-3 w-full">

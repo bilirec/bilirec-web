@@ -128,18 +128,12 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
       <div className="flex h-full flex-col gap-3">
         <div className="relative grow">
           <div className="flex flex-col sm:flex-row items-start gap-3">
-            {task.roomInfo?.cover ? (
-              <RoomCover
-                src={task.roomInfo.cover}
-                alt={task.roomInfo.title ?? task.roomInfo.uid.toString()}
-                className="w-full sm:w-40 shrink-0"
-                fallbackIconSize={20}
-              />
-            ) : (
-              <div className="w-full h-24 sm:w-40 sm:h-24 shrink-0 bg-muted rounded-md flex items-center justify-center p-4">
-                <UserIcon size={20} />
-              </div>
-            )}
+            <RoomCover
+              src={task.roomInfo?.cover}
+              alt={task.roomInfo?.title ?? task.roomInfo?.uid.toString()}
+              className="w-full sm:w-40 shrink-0"
+              fallbackIconSize={20}
+            />
 
             <div className="flex flex-col flex-1 min-w-0 w-full">
               <div className="flex items-start justify-between gap-3">

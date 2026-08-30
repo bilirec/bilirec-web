@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ImageIcon } from '@phosphor-icons/react'
+import { ImageIcon, UserIcon } from '@phosphor-icons/react'
 
 interface RoomCoverProps {
   src?: string
@@ -26,8 +26,13 @@ export function RoomCover({
 
   if (!src) {
     return (
-      <div className={cn('flex items-center justify-center bg-muted rounded-md', className)}>
-        <ImageIcon size={fallbackIconSize} />
+      <div
+        className={cn(
+          'flex aspect-video items-center justify-center overflow-hidden rounded-md bg-muted',
+          className,
+        )}
+      >
+        <UserIcon size={fallbackIconSize} className="text-muted-foreground" />
       </div>
     )
   }
