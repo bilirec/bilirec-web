@@ -5,12 +5,15 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, VideoCameraIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon, FolderIcon } from '@phosphor-icons/react'
+import { StopIcon, UserIcon, ClockIcon, VideoCameraIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon } from '@phosphor-icons/react'
 import { cn, formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { StreamHealthIndicator, StreamHealthLoading } from '@/components/record/StreamHealthIndicator'
+import { canComputeStreamIoRate } from '@/lib/stream-io-rates'
+import { TitleChangedDetails } from '@/components/record/TitleChangedDetails'
 import { toast } from 'sonner'
 
 interface RecordCardProps {
@@ -54,32 +57,6 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const showStreamBadge = canControlRecording
     && (task.isAudioOnly || qualityLabel !== undefined || streamFormatLabel !== undefined)
 
-  const titleInfoContent = (compact = true) => (
-    <div className="flex flex-col gap-2">
-      <p className={cn(
-        "leading-snug text-muted-foreground",
-        compact ? "text-[11px]" : "text-sm"
-      )}>
-        {t('recordCard.titleChangedHint')}
-      </p>
-      <div className={cn(
-        "flex items-center rounded-md border border-border/60 bg-secondary/50",
-        compact ? "gap-1.5 px-2 py-1.5" : "gap-2 px-3 py-2"
-      )}>
-        <FolderIcon
-          size={compact ? 12 : 18}
-          className="shrink-0 text-muted-foreground"
-        />
-        <span className={cn(
-          "min-w-0 break-all font-medium leading-snug",
-          !compact && "text-sm"
-        )}>
-          {sessionTitle}
-        </span>
-      </div>
-    </div>
-  )
-
   const confirmStop = async () => {
     setIsStopDialogOpen(false)
     setIsLoading(true)
@@ -95,6 +72,11 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const handleStop = () => {
     setIsStopDialogOpen(true)
   }
+
+  const ioRate = task.ioRate
+  const canShowStreamHealth = canComputeStreamIoRate(task)
+  const showStreamHealth = canShowStreamHealth && ioRate
+  const showStreamHealthLoading = canShowStreamHealth && !ioRate
 
   const getStatusBadge = () => {
     switch (task.status) {
@@ -189,7 +171,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                                 <WarningCircleIcon size={14} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
                                 <span>{t('recordCard.titleChangedTitle')}</span>
                               </div>
-                              {titleInfoContent(true)}
+                              <TitleChangedDetails sessionTitle={sessionTitle!} compact />
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -205,7 +187,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                             <span>{t('recordCard.titleChangedTitle')}</span>
                           </DialogTitle>
                         </DialogHeader>
-                        {titleInfoContent(false)}
+                        <TitleChangedDetails sessionTitle={sessionTitle!} compact={false} />
                       </DialogContent>
                     </Dialog>
                   )}
@@ -237,18 +219,19 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                   {task.roomInfo?.online !== undefined && (
                     <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
                       <UserIcon size={16} />
-                      <span className="font-mono" title={t('recordCard.onlineCount')}>{(task.roomInfo.online ?? 0).toLocaleString()}</span>
+                      <span className="font-mono" title={t('recordCard.onlineCount')}>
+                        {(task.roomInfo.online ?? 0).toLocaleString()}
+                      </span>
                     </div>
                   )}
 
-                  {/* status badge placed at the top-right */}
-                  <div className="sm:block hidden">
+                  <div className="flex items-end gap-2">
+                    {showStreamHealth && (
+                      <StreamHealthIndicator ioRate={ioRate} />
+                    )}
+                    {showStreamHealthLoading && <StreamHealthLoading />}
                     {getStatusBadge()}
                   </div>
-                </div>
-
-                <div className="sm:hidden flex items-end gap-2">
-                  {getStatusBadge()}
                 </div>
               </div>
 

@@ -192,6 +192,7 @@ class ApiClient {
         roomId: id,
         status,
         fileSize: roomStats?.bytes_written,
+        bytesRead: roomStats?.bytes_read,
         recordDanmaku: roomStats?.record_danmaku,
         danmakuFileSize: roomStats?.danmaku_bytes_written,
         recordedTime: roomStats?.elapsed_seconds,

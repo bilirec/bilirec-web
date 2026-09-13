@@ -40,6 +40,8 @@ export interface RecordTask {
   status: 'recording' | 'recovering' | 'idle'
   fileName?: string
   fileSize?: number
+  /** Cumulative bytes downloaded from the stream in this session (backend >= with bytes_read). */
+  bytesRead?: number
   recordDanmaku?: boolean
   danmakuFileSize?: number
   recordedTime?: number
@@ -48,11 +50,38 @@ export interface RecordTask {
   actualStreamFormat?: string
   isAudioOnly?: boolean
   sessionTitle?: string
+  /** Recent download/write rates sampled between polls; absent until the second sample. */
+  ioRate?: StreamIoRate
   error?: string
   roomInfo?: RoomInfo
 }
 
+/** Stream write health derived from cumulative lag and recent write/download rates. */
+export type StreamIoHealth = 'healthy' | 'warning' | 'unhealthy'
+
+/**
+ * Recent stream I/O rates derived from consecutive stats polls (delta bytes / delta time).
+ * Never derived from elapsed_seconds: both byte counters are session-cumulative and
+ * survive segment rotation, so deltas stay correct across rotates.
+ */
+export interface StreamIoRate {
+  /** Recent download rate in bytes/sec. */
+  readBps: number
+  /** Recent disk write rate in bytes/sec. */
+  writeBps: number
+  /** Cumulative in-session lag: bytes_read - bytes_written. */
+  lagBytes: number
+  /** True when the write rate has lagged behind the read rate for consecutive windows. */
+  backpressure: boolean
+  /** healthy → warning → unhealthy, from sustained write lag — not absolute buffer size. */
+  health: StreamIoHealth
+  /** Recent write/read rate ratio (0–100), aligned with the 75% lag threshold. */
+  healthScorePercent: number
+}
+
 export interface RecorderStats {
+  /** Cumulative bytes downloaded from the stream. Absent on older backends. */
+  bytes_read?: number
   bytes_written: number
   danmaku_bytes_written?: number
   record_danmaku?: boolean

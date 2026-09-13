@@ -29,6 +29,15 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 
+/** Format a 0–100 health score for display. */
+export function formatHealthScorePercent(pct: number): string {
+  if (pct >= 100) return '100%'
+  if (pct >= 99.99) return `${pct.toFixed(3)}%`
+  if (pct >= 99) return `${pct.toFixed(2)}%`
+  if (pct >= 10) return `${pct.toFixed(1)}%`
+  return `${pct.toFixed(0)}%`
+}
+
 export function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)

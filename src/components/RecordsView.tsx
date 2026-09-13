@@ -10,6 +10,7 @@ import {
   type RecordStartConfig,
 } from '@/lib/room-config'
 import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
+import { applyStreamIoRates } from '@/lib/stream-io-rates'
 import { toast } from 'sonner'
 import type { RecordTask, RoomInfo } from '@/lib/types'
 import { LoadingScreen } from './LoadingScreen'
@@ -51,10 +52,12 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
 
       const roomInfoMap = await apiClient.getRoomInfos(roomIds)
 
-      return recordTasks.map((task) => ({
-        ...task,
-        roomInfo: roomInfoMap[String(task.roomId)],
-      }))
+      return applyStreamIoRates(
+        recordTasks.map((task) => ({
+          ...task,
+          roomInfo: roomInfoMap[String(task.roomId)],
+        }))
+      )
     },
     {
       refreshInterval: isVisible ? 5000 : 0,
