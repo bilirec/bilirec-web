@@ -386,7 +386,7 @@ export function BilibiliAuthDialog({
           ) : null}
           <DialogDescription>
             <span className="[@media(pointer:coarse)]:hidden">{t('bilibiliAuth.description')}</span>
-            <span className="hidden [@media(pointer:coarse)]:inline">
+            <span className="hidden whitespace-pre-line [@media(pointer:coarse)]:inline">
               {mobileMode === 'qr'
                 ? t('bilibiliAuth.otherDeviceDescription')
                 : t('bilibiliAuth.mobileDescription')}
