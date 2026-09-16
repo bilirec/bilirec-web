@@ -356,6 +356,7 @@ async function buildLiveNotification(payload: PushPayload) {
   const titleKey = (() => {
     switch (true) {
       case eventType === "live_auto_record_started":
+      case eventType === "live_auto_record_retry_started":
         return "sw.titleAutoRecord";
       case eventType === "live_auto_record_failed":
         return "sw.titleAutoRecordFailed";
