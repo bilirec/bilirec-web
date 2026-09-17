@@ -16,7 +16,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { apiClient, parseVersionError } from "@/lib/api";
-import { getVersionCheckErrorMessage } from "@/lib/server-version";
+import {
+  getVersionCheckErrorMessage,
+  rememberVersionCheck
+} from "@/lib/server-version";
 import {
   ANALYTICS_ENABLED,
   isReportableAnalyticsVersion,
@@ -113,6 +116,7 @@ export function AboutDialog({
     setIsChecking(true);
     try {
       const result = await apiClient.checkVersion();
+      await rememberVersionCheck();
       onVersionChange(result);
       if (result.error) {
         toast.error(getVersionCheckErrorMessage(result, t));
@@ -120,6 +124,7 @@ export function AboutDialog({
     } catch (error) {
       const parsed = parseVersionError(error);
       if (parsed) {
+        await rememberVersionCheck();
         onVersionChange(parsed);
         toast.error(getVersionCheckErrorMessage(parsed, t));
       } else {

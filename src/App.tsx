@@ -48,7 +48,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { DiskUsage, LoginResponse, ServerVersionResult } from "@/lib/types";
 import type { BilibiliAuthStatus } from "@/lib/types";
 import {
-  clearVersionAutoCheckGate,
   maybeAutoCheckVersion
 } from "@/lib/server-version";
 import { RoleContext } from "@/lib/role-context";
@@ -199,6 +198,14 @@ function App() {
     window.addEventListener("api:unauthorized", onUnauthorized);
     return () => window.removeEventListener("api:unauthorized", onUnauthorized);
   }, [t]);
+
+  useEffect(() => {
+    if (isCheckingAuth || !isAuthenticated) {
+      return;
+    }
+
+    maybeAutoCheckVersion(handleServerVersionResult, t);
+  }, [isCheckingAuth, isAuthenticated, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,7 +556,6 @@ function App() {
       setServerVersion(version);
     }
     setIsAuthenticated(true);
-    maybeAutoCheckVersion(handleServerVersionResult, t);
     if (user) {
       toast.success(t("toast.welcomeBack", { user }));
     } else {
@@ -562,7 +568,6 @@ function App() {
       // Notify server to clear HttpOnly cookie
       await apiClient.logout();
       await stopLiveNotifications();
-      clearVersionAutoCheckGate();
       setIsAuthenticated(false);
       setServerVersion(null);
       localStorage.removeItem("user-role");
