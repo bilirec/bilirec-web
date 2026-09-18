@@ -23,15 +23,35 @@ interface DanmakuWorkerRequest {
   text: string
 }
 
-interface DanmakuWorkerResponse {
-  id: number
-  result?: ParsedDanmaku
-  error?: string
+type DanmakuWorkerResponse =
+  | { id: number; type: "progress"; ratio: number }
+  | { id: number; type: "chunk"; bullets: DanmakuListItem[] }
+  | {
+      id: number
+      type: "done"
+      meta?: DanmakuMeta
+      overlays: OverlayEvent[]
+      chatItems: PlaybackChatItem[]
+      bulletCount: number
+    }
+  | { id: number; type: "error"; error: string }
+
+export interface ParsedDanmakuSummary {
+  meta?: DanmakuMeta
+  overlays: OverlayEvent[]
+  chatItems: PlaybackChatItem[]
+  bulletCount: number
 }
 
-interface PendingDanmakuParse {
-  resolve: (result: ParsedDanmaku) => void
+export interface ParseDanmakuCallbacks {
+  onProgress?: (ratio: number) => void
+  onChunk?: (bullets: DanmakuListItem[]) => void
+}
+
+interface PendingDanmakuParse extends ParseDanmakuCallbacks {
+  resolve: (result: ParsedDanmakuSummary) => void
   reject: (error: Error) => void
+  signal?: AbortSignal
 }
 
 class DanmakuWorkerUnavailableError extends Error {
@@ -60,18 +80,32 @@ function getDanmakuWorker(): Worker {
   }
 
   worker.onmessage = (event: MessageEvent<DanmakuWorkerResponse>) => {
-    const pending = pendingDanmakuParses.get(event.data.id)
+    const data = event.data
+    const pending = pendingDanmakuParses.get(data.id)
     if (!pending) return
-    pendingDanmakuParses.delete(event.data.id)
-    if (event.data.error) {
-      pending.reject(new Error(event.data.error))
+
+    if (data.type === "progress") {
+      pending.onProgress?.(data.ratio)
       return
     }
-    if (!event.data.result) {
-      pending.reject(new Error("Danmaku worker returned no result"))
+    if (data.type === "chunk") {
+      pending.onChunk?.(data.bullets)
       return
     }
-    pending.resolve(event.data.result)
+    if (data.type === "error") {
+      pendingDanmakuParses.delete(data.id)
+      pending.reject(new Error(data.error))
+      return
+    }
+    if (data.type === "done") {
+      pendingDanmakuParses.delete(data.id)
+      pending.resolve({
+        meta: data.meta,
+        overlays: data.overlays,
+        chatItems: data.chatItems,
+        bulletCount: data.bulletCount,
+      })
+    }
   }
 
   worker.onerror = (event) => {
@@ -88,15 +122,66 @@ function getDanmakuWorker(): Worker {
   return worker
 }
 
-function parseJsonlInWorker(text: string): Promise<ParsedDanmaku> {
+function parseJsonlOnMainThread(
+  text: string,
+  callbacks?: ParseDanmakuCallbacks
+): ParsedDanmakuSummary {
+  const result = parseJsonlDanmaku(text, {
+    onProgress: callbacks?.onProgress,
+    onBulletChunk: callbacks?.onChunk,
+  })
+  if ("bulletCount" in result && !("bullets" in result)) {
+    return {
+      meta: result.meta,
+      overlays: result.overlays,
+      chatItems: result.chatItems,
+      bulletCount: result.bulletCount,
+    }
+  }
+  const full = result as ParsedDanmaku
+  return {
+    meta: full.meta,
+    overlays: full.overlays,
+    chatItems: full.chatItems,
+    bulletCount: full.bullets.length,
+  }
+}
+
+function parseJsonlInWorker(
+  text: string,
+  callbacks?: ParseDanmakuCallbacks & { signal?: AbortSignal }
+): Promise<ParsedDanmakuSummary> {
   const worker = getDanmakuWorker()
   const id = ++danmakuWorkerRequestId
   return new Promise((resolve, reject) => {
-    pendingDanmakuParses.set(id, { resolve, reject })
+    const onAbort = () => {
+      pendingDanmakuParses.delete(id)
+      reject(new DOMException("Aborted", "AbortError"))
+    }
+    if (callbacks?.signal?.aborted) {
+      onAbort()
+      return
+    }
+    callbacks?.signal?.addEventListener("abort", onAbort, { once: true })
+
+    pendingDanmakuParses.set(id, {
+      resolve: (result) => {
+        callbacks?.signal?.removeEventListener("abort", onAbort)
+        resolve(result)
+      },
+      reject: (error) => {
+        callbacks?.signal?.removeEventListener("abort", onAbort)
+        reject(error)
+      },
+      onProgress: callbacks?.onProgress,
+      onChunk: callbacks?.onChunk,
+      signal: callbacks?.signal,
+    })
     try {
       worker.postMessage({ id, text } satisfies DanmakuWorkerRequest)
     } catch (error) {
       pendingDanmakuParses.delete(id)
+      callbacks?.signal?.removeEventListener("abort", onAbort)
       reject(error instanceof Error ? error : new Error(String(error)))
     }
   })
@@ -174,7 +259,17 @@ export function resolveSuperChatTheme(
 
 export type DanmakuFetchResult =
   | { kind: "none"; reason: "missing" | "xml" | "error"; message?: string }
-  | { kind: "jsonl"; meta?: DanmakuMeta; bullets: DanmakuListItem[]; overlays: OverlayEvent[]; chatItems: PlaybackChatItem[] }
+  | {
+      kind: "jsonl"
+      meta?: DanmakuMeta
+      overlays: OverlayEvent[]
+      chatItems: PlaybackChatItem[]
+      bulletCount: number
+    }
+
+export interface FetchDanmakuOptions extends ParseDanmakuCallbacks {
+  signal?: AbortSignal
+}
 
 /** Last index with ts <= t (+epsilon), assuming items sorted by ts ascending. */
 export function chatItemsVisibleEnd(items: PlaybackChatItem[], t: number): number {
@@ -195,8 +290,9 @@ export function chatItemsVisibleEnd(items: PlaybackChatItem[], t: number): numbe
  */
 export async function fetchDanmakuForVideo(
   path: string,
-  signal?: AbortSignal
+  options?: FetchDanmakuOptions
 ): Promise<DanmakuFetchResult> {
+  const signal = options?.signal
   const url = apiClient.getDanmakuUrl(path)
   try {
     const res = await fetch(url, {
@@ -219,12 +315,22 @@ export async function fetchDanmakuForVideo(
     if (trimmed.startsWith("<") && !trimmed.startsWith("{")) {
       return { kind: "none", reason: "xml" }
     }
-    let parsed: ParsedDanmaku
+    if (signal?.aborted) {
+      return { kind: "none", reason: "error", message: "aborted" }
+    }
+    let parsed: ParsedDanmakuSummary
+    const parseCallbacks: ParseDanmakuCallbacks = {
+      onProgress: options?.onProgress,
+      onChunk: options?.onChunk,
+    }
     try {
-      parsed = await parseJsonlInWorker(text)
+      parsed = await parseJsonlInWorker(text, { ...parseCallbacks, signal })
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return { kind: "none", reason: "error", message: "aborted" }
+      }
       if (!(error instanceof DanmakuWorkerUnavailableError)) throw error
-      parsed = parseJsonlDanmaku(text)
+      parsed = parseJsonlOnMainThread(text, parseCallbacks)
     }
     if (signal?.aborted) {
       return { kind: "none", reason: "error", message: "aborted" }

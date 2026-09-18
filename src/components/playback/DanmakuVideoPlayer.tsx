@@ -35,6 +35,7 @@ import {
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
 import { PlaybackSettingsDialog } from "@/components/playback/PlaybackSettingsDialog"
+import { Progress } from "@/components/ui/progress"
 import {
   fetchDanmakuForVideo,
   type DanmakuMeta,
@@ -69,11 +70,12 @@ import {
   saveScreenDanmakuVisible,
 } from "@/lib/playback-settings"
 import {
-  DANMAKU_LOAD_CHUNK_SIZE,
   DANMAKU_TICK_INTERVAL_MS,
   DANMAKU_TICK_UNCERTAINTY_MS,
-  danmakuLifeForRate,
-  danmakuRangesForArea,
+  injectDanmakuBullets,
+  prepareDanmakuVodList,
+  styleDanmakuItems,
+  type DanmakuInjectStyleOptions,
   resolveDanmakuFont,
   attachDanmakuOverlapControl,
 } from "@/lib/playback-danmaku"
@@ -91,6 +93,14 @@ import {
   getObjectFitContentBox,
   type ObjectFitMode,
 } from "@/lib/playback-layout"
+import {
+  DANMAKU_LOAD_TIMEOUT_MS,
+  getDanmakuStageProgress,
+  hasDanmakuLoadTimedOut,
+  isDanmakuPipelineBusy,
+  shouldBlockPlayback,
+  type DanmakuPipelineStatus,
+} from "@/lib/playback-loading"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { DanmakuListItem } from "n-danmaku"
@@ -142,6 +152,22 @@ function TextChipButton({
 /** Shared muted label style for 跳幀 / 縮放 / 倍速 */
 const ADV_LABEL = "text-xs font-medium text-white/55 shrink-0"
 
+const PROGRESS_THROTTLE_MS = 100
+
+function buildInjectStyleKey(
+  opts: DanmakuInjectStyleOptions,
+  area: DanmakuArea
+): string {
+  return JSON.stringify({
+    danmakuScale: opts.danmakuScale,
+    danmakuFontSize: opts.danmakuFontSize,
+    danmakuOpacity: opts.danmakuOpacity,
+    danmakuSpeed: opts.danmakuSpeed,
+    playbackRate: opts.playbackRate,
+    danmakuArea: area,
+  })
+}
+
 export function DanmakuVideoPlayer({
   playbackUrl,
   videoPath,
@@ -157,6 +183,14 @@ export function DanmakuVideoPlayer({
   const controlsHostRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const danmakuRef = useRef<NDanmaku | null>(null)
+  const bulletsRef = useRef<DanmakuListItem[]>([])
+  const appliedInjectKeyRef = useRef<string | null>(null)
+  const danmakuLoadGenerationRef = useRef(0)
+  const injectPumpRafRef = useRef(0)
+  const bulletsLoadedCountRef = useRef(0)
+  const expectedBulletCountRef = useRef(0)
+  const vodListPreparedRef = useRef(false)
+  const loadProgressThrottleRef = useRef(0)
   const listReadyRef = useRef(false)
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
@@ -179,6 +213,8 @@ export function DanmakuVideoPlayer({
   const [currentTime, setCurrentTime] = useState(0)
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
+  const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
+  const [loadIndicatorDocked, setLoadIndicatorDocked] = useState(false)
   const [seekEpoch, setSeekEpoch] = useState(0)
   const [stageFullscreen, setStageFullscreen] = useState(false)
   const [appFullscreen, setAppFullscreen] = useState(false)
@@ -187,12 +223,12 @@ export function DanmakuVideoPlayer({
     typeof window !== "undefined" && window.innerWidth > window.innerHeight
   )
   const [mobileOverlayBottomInset, setMobileOverlayBottomInset] = useState(0)
-  const [bullets, setBullets] = useState<DanmakuListItem[]>([])
   const [loadedDanmakuCount, setLoadedDanmakuCount] = useState<number | null>(null)
+  const [loadProgressPercent, setLoadProgressPercent] = useState<number | null>(null)
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
   const [chatItems, setChatItems] = useState<PlaybackChatItem[]>([])
   const [meta, setMeta] = useState<DanmakuMeta | undefined>()
-  const [danmakuStatus, setDanmakuStatus] = useState<"loading" | "ready" | "none" | "xml">("loading")
+  const [danmakuStatus, setDanmakuStatus] = useState<DanmakuPipelineStatus>("fetching")
   const [rates, setRates] = useState<number[]>(() => loadPlaybackRates())
   const [playbackRate, setPlaybackRate] = useState(1)
   const [frameStepMs, setFrameStepMs] = useState(() => loadFrameStepMs())
@@ -296,30 +332,251 @@ export function DanmakuVideoPlayer({
     return () => unlockScreenOrientation()
   }, [unlockScreenOrientation])
 
+  const getInjectStyleOptions = useCallback(
+    (): DanmakuInjectStyleOptions => ({
+      danmakuScale,
+      danmakuFontSize,
+      danmakuOpacity,
+      danmakuSpeed,
+      playbackRate,
+    }),
+    [danmakuScale, danmakuFontSize, danmakuOpacity, danmakuSpeed, playbackRate]
+  )
+
+  const injectStyleRef = useRef(getInjectStyleOptions())
+  injectStyleRef.current = getInjectStyleOptions()
+  const danmakuAreaRef = useRef(danmakuArea)
+  danmakuAreaRef.current = danmakuArea
+
+  const setLoadProgressThrottled = useCallback((percent: number) => {
+    const now = Date.now()
+    const clamped = Math.min(100, Math.max(0, Math.round(percent)))
+    if (
+      now - loadProgressThrottleRef.current < PROGRESS_THROTTLE_MS &&
+      clamped < 100
+    ) {
+      return
+    }
+    loadProgressThrottleRef.current = now
+    setLoadProgressPercent(clamped)
+  }, [])
+
+  const activateDanmakuAfterInject = useCallback(() => {
+    const dm = danmakuRef.current
+    if (!dm) return
+    dm.clear()
+    const list = dm.list as unknown as { lastTickRange: [number, number] }
+    list.lastTickRange = [0, 0]
+    lastDanmakuTickMsRef.current = null
+    const video = videoRef.current
+    if (video && !video.paused) {
+      const videoMs = Math.round(video.currentTime * 1000)
+      dm.list.tick(videoMs)
+      lastDanmakuTickMsRef.current = videoMs
+      dm.resume()
+    }
+  }, [])
+
   useEffect(() => {
     const ac = new AbortController()
-    setDanmakuStatus("loading")
+    const generation = ++danmakuLoadGenerationRef.current
+
+    setDanmakuStatus("fetching")
+    setDanmakuLoadTimedOut(false)
+    setLoadIndicatorDocked(false)
+    setLoadProgressPercent(null)
+    loadProgressThrottleRef.current = 0
     setDanmakuHidden(true)
-    setBullets([])
+    bulletsRef.current = []
+    appliedInjectKeyRef.current = null
+    bulletsLoadedCountRef.current = 0
+    expectedBulletCountRef.current = 0
+    vodListPreparedRef.current = false
+    listReadyRef.current = false
     setLoadedDanmakuCount(null)
     setOverlays([])
     setChatItems([])
     setMeta(undefined)
-    fetchDanmakuForVideo(videoPath, ac.signal).then((res) => {
-      if (ac.signal.aborted) return
-      if (res.kind === "none") {
-        setDanmakuStatus(res.reason === "xml" ? "xml" : "none")
+
+    const chunkQueue: DanmakuListItem[][] = []
+    let parseDone = false
+    let pendingJsonl: Extract<
+      Awaited<ReturnType<typeof fetchDanmakuForVideo>>,
+      { kind: "jsonl" }
+    > | null = null
+
+    const stopInjectPump = () => {
+      if (injectPumpRafRef.current !== 0) {
+        cancelAnimationFrame(injectPumpRafRef.current)
+        injectPumpRafRef.current = 0
+      }
+    }
+
+    const reportInjectProgress = () => {
+      const total = expectedBulletCountRef.current
+      if (total <= 0) return
+      const loaded = bulletsLoadedCountRef.current
+      setDanmakuStatus("injecting")
+      setLoadProgressThrottled(getDanmakuStageProgress(loaded / total))
+    }
+
+    const loadOneChunkIntoEngine = (chunk: DanmakuListItem[]) => {
+      const dm = danmakuRef.current
+      if (!dm || chunk.length === 0) return false
+      if (!vodListPreparedRef.current) {
+        prepareDanmakuVodList(dm, danmakuAreaRef.current)
+        vodListPreparedRef.current = true
+        appliedInjectKeyRef.current = buildInjectStyleKey(
+          injectStyleRef.current,
+          danmakuAreaRef.current
+        )
+      }
+      dm.list.load(styleDanmakuItems(chunk, injectStyleRef.current))
+      bulletsLoadedCountRef.current += chunk.length
+      return true
+    }
+
+    const tryFinalize = async () => {
+      if (!parseDone || chunkQueue.length > 0) return
+      if (generation !== danmakuLoadGenerationRef.current || !pendingJsonl) return
+
+      const res = pendingJsonl
+      const dm = danmakuRef.current
+
+      if (dm && res.bulletCount === 0 && !vodListPreparedRef.current) {
+        prepareDanmakuVodList(dm, danmakuAreaRef.current)
+        vodListPreparedRef.current = true
+        appliedInjectKeyRef.current = buildInjectStyleKey(
+          injectStyleRef.current,
+          danmakuAreaRef.current
+        )
+      }
+
+      const currentKey = buildInjectStyleKey(injectStyleRef.current, danmakuAreaRef.current)
+      if (
+        dm &&
+        bulletsRef.current.length > 0 &&
+        appliedInjectKeyRef.current !== null &&
+        appliedInjectKeyRef.current !== currentKey
+      ) {
+        listReadyRef.current = false
+        dm.clear()
+        vodListPreparedRef.current = false
+        prepareDanmakuVodList(dm, danmakuAreaRef.current)
+        vodListPreparedRef.current = true
+        bulletsLoadedCountRef.current = 0
+        await injectDanmakuBullets(dm, bulletsRef.current, injectStyleRef.current, {
+          isCancelled: () => generation !== danmakuLoadGenerationRef.current,
+        })
+        if (generation !== danmakuLoadGenerationRef.current) return
+        bulletsLoadedCountRef.current = bulletsRef.current.length
+        appliedInjectKeyRef.current = currentKey
+      }
+
+      if (generation !== danmakuLoadGenerationRef.current) return
+      listReadyRef.current = true
+      setLoadedDanmakuCount(res.bulletCount)
+      setDanmakuHidden(res.bulletCount === 0 && res.overlays.length === 0)
+      setLoadProgressPercent(100)
+      setDanmakuStatus("ready")
+      activateDanmakuAfterInject()
+    }
+
+    const runInjectPump = () => {
+      injectPumpRafRef.current = 0
+      if (generation !== danmakuLoadGenerationRef.current) return
+
+      const dm = danmakuRef.current
+      if (!dm) {
+        if (chunkQueue.length > 0 || (parseDone && pendingJsonl)) {
+          injectPumpRafRef.current = requestAnimationFrame(runInjectPump)
+        }
         return
       }
+
+      if (chunkQueue.length > 0) {
+        const chunk = chunkQueue.shift()!
+        if (loadOneChunkIntoEngine(chunk)) {
+          reportInjectProgress()
+        } else {
+          chunkQueue.unshift(chunk)
+        }
+        injectPumpRafRef.current = requestAnimationFrame(runInjectPump)
+        return
+      }
+
+      void tryFinalize()
+    }
+
+    const scheduleInjectPump = () => {
+      if (injectPumpRafRef.current !== 0) return
+      injectPumpRafRef.current = requestAnimationFrame(runInjectPump)
+    }
+
+    void fetchDanmakuForVideo(videoPath, {
+      signal: ac.signal,
+      onProgress: (ratio) => {
+        if (generation !== danmakuLoadGenerationRef.current) return
+        setDanmakuStatus("parsing")
+        setLoadProgressThrottled(getDanmakuStageProgress(ratio))
+      },
+      onChunk: (chunk) => {
+        if (generation !== danmakuLoadGenerationRef.current) return
+        bulletsRef.current.push(...chunk)
+        chunkQueue.push(chunk)
+        scheduleInjectPump()
+      },
+    }).then((res) => {
+      if (ac.signal.aborted || generation !== danmakuLoadGenerationRef.current) return
+      if (res.kind === "none") {
+        stopInjectPump()
+        chunkQueue.length = 0
+        setDanmakuStatus(
+          res.reason === "xml" ? "xml" : res.reason === "error" ? "error" : "none"
+        )
+        setLoadProgressPercent(null)
+        return
+      }
+
+      pendingJsonl = res
+      parseDone = true
+      expectedBulletCountRef.current = res.bulletCount
       setMeta(res.meta)
-      setBullets(res.bullets)
       setOverlays(res.overlays)
       setChatItems(res.chatItems)
-      setDanmakuHidden(res.bullets.length === 0 && res.overlays.length === 0)
-      setDanmakuStatus("ready")
+      scheduleInjectPump()
     })
-    return () => ac.abort()
-  }, [videoPath])
+
+    return () => {
+      ac.abort()
+      stopInjectPump()
+      chunkQueue.length = 0
+    }
+  }, [videoPath, setLoadProgressThrottled, activateDanmakuAfterInject])
+
+  useEffect(() => {
+    if (!isDanmakuPipelineBusy(danmakuStatus)) {
+      setDanmakuLoadTimedOut(false)
+      setLoadIndicatorDocked(false)
+      return
+    }
+
+    const activityStartedAt = performance.now()
+    const timeoutId = window.setTimeout(() => {
+      if (
+        hasDanmakuLoadTimedOut(
+          performance.now(),
+          activityStartedAt,
+          danmakuStatus,
+          DANMAKU_LOAD_TIMEOUT_MS
+        )
+      ) {
+        setDanmakuLoadTimedOut(true)
+      }
+    }, DANMAKU_LOAD_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [danmakuStatus, loadProgressPercent])
 
   useEffect(() => {
     const host = danmakuHostRef.current
@@ -467,74 +724,46 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     const dm = danmakuRef.current
     if (!dm || danmakuStatus !== "ready") return
+    if (bulletsRef.current.length === 0) return
+
+    const nextKey = buildInjectStyleKey(getInjectStyleOptions(), danmakuArea)
+    if (appliedInjectKeyRef.current === nextKey) return
+
     let cancelled = false
 
-    const loadDanmaku = async () => {
+    const reloadStyledDanmaku = async () => {
       listReadyRef.current = false
-      try {
-        dm.list.del("vod")
-      } catch {
-        /* ignore */
-      }
-      dm.list.new("vod")
-      dm.list.use("vod")
-      dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
-      dm.ranges(danmakuRangesForArea(danmakuArea))
+      dm.clear()
+      vodListPreparedRef.current = false
+      prepareDanmakuVodList(dm, danmakuArea)
+      vodListPreparedRef.current = true
+      bulletsLoadedCountRef.current = 0
 
-      // n-danmaku's addDm inserts each item by scanning its timeline. Loading
-      // in batches keeps each synchronous section short enough for the browser
-      // to paint between batches.
-      for (let start = 0; start < bullets.length; start += DANMAKU_LOAD_CHUNK_SIZE) {
-        if (cancelled) return
-        const chunk = bullets
-          .slice(start, start + DANMAKU_LOAD_CHUNK_SIZE)
-          .map((b) => ({
-            ...b,
-            styles: {
-              ...b.styles,
-              scale: danmakuScale,
-              size: danmakuFontSize,
-              opacity: danmakuOpacity,
-              life: danmakuLifeForRate(playbackRate, b.styles?.type, danmakuSpeed),
-              pointer_events: false,
-              custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
-            },
-          }))
-        dm.list.load(chunk)
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      }
+      await injectDanmakuBullets(dm, bulletsRef.current, getInjectStyleOptions(), {
+        isCancelled: () => cancelled,
+      })
 
       if (cancelled) return
+      bulletsLoadedCountRef.current = bulletsRef.current.length
+      appliedInjectKeyRef.current = nextKey
       listReadyRef.current = true
-      setLoadedDanmakuCount(bullets.length)
-      dm.clear()
-      const list = dm.list as unknown as { lastTickRange: [number, number] }
-      list.lastTickRange = [0, 0]
-      lastDanmakuTickMsRef.current = null
-      const video = videoRef.current
-      if (video && !video.paused) {
-        const videoMs = Math.round(video.currentTime * 1000)
-        dm.list.tick(videoMs)
-        lastDanmakuTickMsRef.current = videoMs
-        dm.resume()
-      }
+      activateDanmakuAfterInject()
     }
 
-    void loadDanmaku()
+    void reloadStyledDanmaku()
     return () => {
       cancelled = true
       listReadyRef.current = false
     }
   }, [
-    bullets,
-    danmakuStatus,
-    danmakuFollowScreen,
     danmakuOpacity,
     danmakuScale,
     danmakuFontSize,
     danmakuSpeed,
     danmakuArea,
     playbackRate,
+    getInjectStyleOptions,
+    activateDanmakuAfterInject,
   ])
 
   const touchDevice = touchDeviceRef.current
@@ -550,11 +779,12 @@ export function DanmakuVideoPlayer({
   // Flying danmaku is optional only while the portrait chat list is on screen.
   // Landscape desktop/mobile has no chat panel, so ignore that hide preference.
   const screenDanmakuActive = chatLayout == null || screenDanmakuVisible
+  const effectsReady = danmakuStatus === "ready"
 
   useEffect(() => {
     const layer = danmakuHostRef.current?.querySelector(".N-dmLayer") as HTMLElement | null
     if (!layer) return
-    const visible = !danmakuHidden && screenDanmakuActive
+    const visible = effectsReady && !danmakuHidden && screenDanmakuActive
     layer.style.display = visible ? "block" : "none"
     if (!visible) {
       danmakuRef.current?.clear()
@@ -572,7 +802,7 @@ export function DanmakuVideoPlayer({
       lastDanmakuTickMsRef.current = videoMs
       dm.resume()
     }
-  }, [danmakuHidden, screenDanmakuActive])
+  }, [danmakuHidden, effectsReady, screenDanmakuActive])
 
   const stepFrame = useCallback(
     (dir: -1 | 1) => {
@@ -599,6 +829,7 @@ export function DanmakuVideoPlayer({
     const tickDanmaku = (force = false) => {
       if (!force && danmakuSeekingRef.current) return
       if (
+        effectsReady &&
         !danmakuHidden &&
         screenDanmakuActive &&
         listReadyRef.current &&
@@ -642,8 +873,23 @@ export function DanmakuVideoPlayer({
       setVideoMetadataReady(true)
     }
     const onPlay = () => {
+      const playbackBlocked = shouldBlockPlayback({
+        videoMetadataReady,
+        danmakuStatus,
+        danmakuLoadTimedOut,
+      })
+      if (playbackBlocked) {
+        video.pause()
+        return
+      }
+
+      if (isDanmakuPipelineBusy(danmakuStatus)) {
+        setLoadIndicatorDocked(true)
+      }
       setPaused(false)
-      danmakuRef.current?.resume()
+      if (effectsReady) {
+        danmakuRef.current?.resume()
+      }
       startDanmakuTicker()
     }
     const onPause = () => {
@@ -670,6 +916,7 @@ export function DanmakuVideoPlayer({
         list.lastTickRange = [0, 0]
       }
       if (
+        effectsReady &&
         !danmakuHidden &&
         screenDanmakuActive &&
         listReadyRef.current &&
@@ -705,7 +952,15 @@ export function DanmakuVideoPlayer({
       video.removeEventListener("seeking", onSeeking)
       video.removeEventListener("seeked", onSeeked)
     }
-  }, [danmakuHidden, playbackUrl, screenDanmakuActive])
+  }, [
+    danmakuHidden,
+    danmakuLoadTimedOut,
+    danmakuStatus,
+    effectsReady,
+    playbackUrl,
+    screenDanmakuActive,
+    videoMetadataReady,
+  ])
 
   const cycleFit = () => {
     setObjectFit((prev) => FIT_CYCLE[(FIT_CYCLE.indexOf(prev) + 1) % FIT_CYCLE.length])
@@ -809,12 +1064,45 @@ export function DanmakuVideoPlayer({
 
   const fitLabel = t(`playbackPlayer.fit.${objectFit}`)
 
+  const danmakuPipelineBusy = isDanmakuPipelineBusy(danmakuStatus)
+  const playbackBlocked = shouldBlockPlayback({
+    videoMetadataReady,
+    danmakuStatus,
+    danmakuLoadTimedOut,
+  })
+  const showCentralLoadOverlay =
+    !loadIndicatorDocked && (!videoMetadataReady || danmakuPipelineBusy)
+  const showDockedLoadIndicator =
+    loadIndicatorDocked && videoMetadataReady && danmakuPipelineBusy
+  const loadProgressAccentClass =
+    danmakuStatus === "parsing"
+      ? "bg-sky-300"
+      : danmakuStatus === "injecting"
+        ? "bg-violet-300"
+        : "bg-amber-300"
+  const loadProgressIndicatorClass =
+    danmakuStatus === "parsing"
+      ? "**:data-[slot=progress-indicator]:bg-sky-300"
+      : danmakuStatus === "injecting"
+        ? "**:data-[slot=progress-indicator]:bg-violet-300"
+        : "**:data-[slot=progress-indicator]:bg-amber-300"
+
+  const loadProgressLabel =
+    loadProgressPercent != null &&
+    (danmakuStatus === "parsing" || danmakuStatus === "injecting")
+      ? danmakuStatus === "parsing"
+        ? t("playbackPlayer.danmakuParsing", { percent: loadProgressPercent })
+        : t("playbackPlayer.danmakuInjecting", { percent: loadProgressPercent })
+      : null
+
   const statusHint =
     danmakuStatus === "xml" || danmakuStatus === "none"
       ? t("playbackPlayer.danmakuXmlSkipped")
-      : danmakuStatus === "loading"
-        ? t("playbackPlayer.danmakuLoading")
-        : null
+      : danmakuStatus === "error"
+        ? t("playbackPlayer.danmakuLoadError")
+        : danmakuStatus === "fetching"
+        ? t("playbackPlayer.danmakuFetching")
+        : loadProgressLabel
 
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
   const loadedDanmakuHint =
@@ -1147,14 +1435,95 @@ export function DanmakuVideoPlayer({
           </div>
         </MediaController>
 
-        {!videoMetadataReady || danmakuStatus === "loading" ? (
+        {showCentralLoadOverlay ? (
           <div
-            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-black/20"
+            className={cn(
+              "absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 px-8",
+              playbackBlocked
+                ? "pointer-events-auto bg-black/60 backdrop-blur-[2px]"
+                : "pointer-events-none"
+            )}
             role="status"
             aria-live="polite"
-            aria-label={t("playbackPlayer.videoLoading")}
+            aria-busy="true"
+            aria-valuenow={
+              danmakuStatus === "parsing" || danmakuStatus === "injecting"
+                ? loadProgressPercent ?? undefined
+                : undefined
+            }
+            aria-label={
+              !videoMetadataReady
+                ? t("playbackPlayer.videoLoading")
+                : loadProgressLabel ?? t("playbackPlayer.danmakuFetching")
+            }
           >
             <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
+            {danmakuPipelineBusy ? (
+              <div className="w-full max-w-xs space-y-1.5">
+                {danmakuStatus === "fetching" || loadProgressPercent == null ? (
+                  <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                    <div
+                      className={cn(
+                        "progress-indeterminate absolute inset-y-0 rounded-full",
+                        loadProgressAccentClass
+                      )}
+                    />
+                  </div>
+                ) : (
+                  <Progress
+                    value={loadProgressPercent}
+                    className={cn(
+                      "h-1.5 bg-white/15",
+                      loadProgressIndicatorClass
+                    )}
+                  />
+                )}
+                {loadProgressLabel ? (
+                  <p className="text-center text-[11px] text-white/85">{loadProgressLabel}</p>
+                ) : danmakuStatus === "fetching" ? (
+                  <p className="text-center text-[11px] text-white/85">
+                    {t("playbackPlayer.danmakuFetching")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showDockedLoadIndicator ? (
+          <div
+            className="pointer-events-none absolute right-3 bottom-24 z-40 flex items-center gap-2 rounded-md bg-black/70 px-2.5 py-2 text-white/90 shadow-lg backdrop-blur-sm sm:bottom-20"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            aria-valuenow={
+              danmakuStatus === "parsing" || danmakuStatus === "injecting"
+                ? loadProgressPercent ?? undefined
+                : undefined
+            }
+            aria-label={loadProgressLabel ?? t("playbackPlayer.danmakuFetching")}
+          >
+            <CircleNotchIcon className="size-4 animate-spin" weight="bold" aria-hidden />
+            <div className="w-20 space-y-1">
+              <div className="relative h-1 overflow-hidden rounded-full bg-white/20">
+                {danmakuStatus === "fetching" || loadProgressPercent == null ? (
+                  <div
+                    className={cn(
+                      "progress-indeterminate absolute inset-y-0 rounded-full",
+                      loadProgressAccentClass
+                    )}
+                  />
+                ) : (
+                  <div
+                    className="h-full rounded-full bg-amber-300 transition-[width]"
+                    style={{ width: `${loadProgressPercent}%` }}
+                  />
+                )}
+              </div>
+              <p className="text-[10px] leading-none text-white/75">
+                {loadProgressLabel ?? t("playbackPlayer.danmakuFetching")}
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -1174,14 +1543,14 @@ export function DanmakuVideoPlayer({
             <PlaybackChatList
               items={chatItems}
               currentTime={currentTime}
-              hidden={danmakuHidden}
+              hidden={danmakuHidden || !effectsReady}
               layout={chatLayout}
             />
           ) : (
             <EventOverlayLayer
               events={overlays}
               currentTime={currentTime}
-              hidden={danmakuHidden}
+              hidden={danmakuHidden || !effectsReady}
               seekEpoch={seekEpoch}
               overlayCorner={overlayCorner}
               overlayMode={

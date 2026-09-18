@@ -1,5 +1,5 @@
 import type NDanmaku from "n-danmaku"
-import type { DanmakuAttrs, DanmakuType } from "n-danmaku"
+import type { DanmakuAttrs, DanmakuListItem, DanmakuType } from "n-danmaku"
 import {
   clampDanmakuSize,
   clampDanmakuSpeed,
@@ -273,3 +273,64 @@ export function attachDanmakuOverlapControl(
     )
   }
 }
+
+export interface DanmakuInjectStyleOptions {
+  danmakuScale: number
+  danmakuFontSize: string | null
+  danmakuOpacity: number
+  danmakuSpeed: number
+  playbackRate: number
+}
+
+export function styleDanmakuItems(
+  items: DanmakuListItem[],
+  opts: DanmakuInjectStyleOptions
+): DanmakuListItem[] {
+  return items.map((b) => ({
+    ...b,
+    styles: {
+      ...b.styles,
+      scale: opts.danmakuScale,
+      size: opts.danmakuFontSize,
+      opacity: opts.danmakuOpacity,
+      life: danmakuLifeForRate(opts.playbackRate, b.styles?.type, opts.danmakuSpeed),
+      pointer_events: false,
+      custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
+    },
+  }))
+}
+
+export function prepareDanmakuVodList(dm: NDanmaku, danmakuArea: DanmakuArea): void {
+  try {
+    dm.list.del("vod")
+  } catch {
+    /* ignore */
+  }
+  dm.list.new("vod")
+  dm.list.use("vod")
+  dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
+  dm.ranges(danmakuRangesForArea(danmakuArea))
+}
+
+export async function injectDanmakuBullets(
+  dm: NDanmaku,
+  bullets: DanmakuListItem[],
+  opts: DanmakuInjectStyleOptions,
+  callbacks?: {
+    isCancelled?: () => boolean
+    onChunkLoaded?: (loadedCount: number, total: number) => void
+  }
+): Promise<void> {
+  const total = bullets.length
+  for (let start = 0; start < total; start += DANMAKU_LOAD_CHUNK_SIZE) {
+    if (callbacks?.isCancelled?.()) return
+    const chunk = styleDanmakuItems(
+      bullets.slice(start, start + DANMAKU_LOAD_CHUNK_SIZE),
+      opts
+    )
+    dm.list.load(chunk)
+    callbacks?.onChunkLoaded?.(Math.min(start + chunk.length, total), total)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+}
+
