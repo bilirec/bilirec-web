@@ -45,6 +45,41 @@ export function getObjectFitContentBox(
   return { top: 0, left: (elW - width) / 2, width, height: elH }
 }
 
+/** Controls sit in stage letterbox below the picture (not overlapping it). */
+export const PICTURE_BOTTOM_BAR_LETTERBOX_PX = 40
+export const DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX = 12
+/** Windowed desktop when controls overlap the picture (above subtitle band, not the control bar). */
+export const WINDOWED_EVENT_OVERLAY_OVER_PICTURE_PX = 176
+/** Max width for gift / event stack in desktop windowed mode. */
+export const WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX = 270
+
+export function resolveWindowedBottomCornerPx(pictureBottomBar: number): number {
+  return pictureBottomBar >= PICTURE_BOTTOM_BAR_LETTERBOX_PX
+    ? DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX
+    : WINDOWED_EVENT_OVERLAY_OVER_PICTURE_PX
+}
+
+/** Distance from picture bottom to control chrome top (px), for bottom-corner event overlays. */
+export function measureEventOverlayBottomInset(
+  hostRect: Pick<DOMRectReadOnly, "bottom" | "height">,
+  controlsRect: Pick<DOMRectReadOnly, "top">,
+  controlsPaddingTopPx: number,
+  options?: { maxHeightRatio?: number; padPx?: number }
+): number {
+  const pad = options?.padPx ?? 6
+  const gapBelowPicture = controlsRect.top - hostRect.bottom
+  if (gapBelowPicture >= PICTURE_BOTTOM_BAR_LETTERBOX_PX) {
+    return DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX
+  }
+  const raw = Math.round(hostRect.bottom - controlsRect.top - controlsPaddingTopPx)
+  const minInset = DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX
+  const maxByScreen =
+    options?.maxHeightRatio != null
+      ? Math.max(40, Math.round(hostRect.height * options.maxHeightRatio))
+      : Number.POSITIVE_INFINITY
+  return Math.min(Math.max(minInset, raw + pad), maxByScreen)
+}
+
 /** media-chrome CSS variables shared by the playback controller. */
 export const MEDIA_CHROME_VARS: Record<string, string> = {
   "--media-primary-color": "#fff",

@@ -4,6 +4,10 @@ import { cn } from "@/lib/utils"
 import type { OverlayEvent } from "@/lib/danmaku"
 import { guardLevelColor, guardLevelIcon, guardLevelLabel, resolveSuperChatTheme } from "@/lib/danmaku"
 import type { OverlayCorner } from "@/lib/playback-settings"
+import {
+  DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX,
+  resolveWindowedBottomCornerPx,
+} from "@/lib/playback-layout"
 
 const SC_FALLBACK_SEC = 4.5
 const GUARD_LIFE_SEC = 10
@@ -73,7 +77,7 @@ function pruneActive(items: ActiveItem[], videoSec: number, wallMs: number): Act
 
 /** Portrait chat-list layout: letterbox bars, or translucent dock on the picture. */
 export type OverlayLayout =
-  | { mode: "content" }
+  | { mode: "content"; /** Letterbox below the picture (px), within the stage. */ bottomBar: number }
   | {
       mode: "letterbox"
       topBar: number
@@ -97,8 +101,12 @@ interface EventOverlayLayerProps {
   overlayCorner?: OverlayCorner
   /** Display mode controls mobile sizing while preserving desktop fullscreen scale. */
   overlayMode?: "none" | "mobile" | "desktop"
-  /** One-time mobile layout inset reserved for playback controls. */
-  mobileBottomInset?: number
+  /** Measured inset above overlapping playback controls (mobile landscape / desktop fullscreen). */
+  chromeBottomInset?: number
+  /** Letterbox height below the picture; used for windowed bottom-corner placement. */
+  pictureBottomBar?: number
+  /** Narrower event stack in desktop windowed mode (px). */
+  maxZoneWidthPx?: number
   className?: string
 }
 
@@ -106,24 +114,34 @@ function isBottomCorner(corner: OverlayCorner): boolean {
   return corner === "bottom-left" || corner === "bottom-right"
 }
 
-function cornerStyle(
+function resolveBottomCornerInset(
   corner: OverlayCorner,
-  mobileLayout: boolean
-): { className: string; origin: string } {
+  overlayMode: "none" | "mobile" | "desktop",
+  pictureBottomBar: number,
+  chromeBottomInset: number
+): number | string | undefined {
+  if (!isBottomCorner(corner)) return undefined
+
+  const measuredInset =
+    Number.isFinite(chromeBottomInset) && chromeBottomInset > 0 ? chromeBottomInset : 0
+
+  if (overlayMode === "mobile") {
+    return `min(calc(${measuredInset}px + env(safe-area-inset-bottom, 0px)), 22%)`
+  }
+  if (overlayMode === "desktop") {
+    return Math.max(measuredInset, DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX)
+  }
+  return resolveWindowedBottomCornerPx(pictureBottomBar)
+}
+
+function cornerAnchor(corner: OverlayCorner): { className: string; origin: string } {
   switch (corner) {
     case "top-right":
       return { className: "top-8 right-2", origin: "top right" }
     case "bottom-left":
-      // Leave room below the complete event group for the playback controls.
-      return {
-        className: mobileLayout ? "left-2" : "bottom-56 sm:bottom-60 left-2",
-        origin: "bottom left",
-      }
+      return { className: "left-2", origin: "bottom left" }
     case "bottom-right":
-      return {
-        className: mobileLayout ? "right-2" : "bottom-56 sm:bottom-60 right-2",
-        origin: "bottom right",
-      }
+      return { className: "right-2", origin: "bottom right" }
     case "top-left":
     default:
       return { className: "top-8 left-2", origin: "top left" }
@@ -185,7 +203,9 @@ export function EventOverlayLayer({
   seekEpoch,
   overlayCorner = "top-left",
   overlayMode = "none",
-  mobileBottomInset = 0,
+  chromeBottomInset = 0,
+  pictureBottomBar = 0,
+  maxZoneWidthPx,
   className,
 }: EventOverlayLayerProps) {
   const { t } = useTranslation()
@@ -220,7 +240,7 @@ export function EventOverlayLayer({
       )
     })
     return () => cancelAnimationFrame(frame)
-  }, [overlayMode, mobileBottomInset])
+  }, [overlayMode, chromeBottomInset])
 
   useEffect(() => {
     const t0 = currentTimeRef.current
@@ -294,9 +314,17 @@ export function EventOverlayLayer({
       ? "w-3/5 self-end"
       : "w-3/5 self-start"
     : undefined
-  const corner = cornerStyle(overlayCorner, mobileLayout)
-  const safeMobileBottomInset =
-    Number.isFinite(mobileBottomInset) && mobileBottomInset > 0 ? mobileBottomInset : 0
+  const windowedOverlay = maxZoneWidthPx != null
+  const scMessageClass = windowedOverlay
+    ? "overflow-hidden px-2.5 py-1.5 text-xs leading-snug line-clamp-4 wrap-break-word"
+    : "overflow-hidden px-2.5 py-1.5 text-xs sm:text-sm leading-snug line-clamp-3 wrap-break-word"
+  const corner = cornerAnchor(overlayCorner)
+  const zoneBottom = resolveBottomCornerInset(
+    overlayCorner,
+    overlayMode,
+    pictureBottomBar,
+    chromeBottomInset
+  )
 
   return (
     <div
@@ -312,17 +340,12 @@ export function EventOverlayLayer({
           ...(scale !== 1
             ? { transform: `scale(${scale})`, transformOrigin: corner.origin }
             : {}),
-          ...(mobileLayout && isBottomCorner(overlayCorner)
-            ? {
-                // Cap with a picture-height % so short landscape screens keep
-                // bottom-corner gifts near the lower edge, not mid-frame.
-                bottom: `min(calc(${safeMobileBottomInset}px + env(safe-area-inset-bottom, 0px)), 22%)`,
-              }
-            : {}),
+          ...(zoneBottom != null ? { bottom: zoneBottom } : {}),
           // Give the flex column a real cross-axis width so toast rows cannot
           // collapse when the chosen corner is anchored with only one inset.
           width: "calc(100% - 1rem)",
-          maxWidth: "24rem",
+          maxWidth:
+            maxZoneWidthPx != null ? `${maxZoneWidthPx}px` : "24rem",
         }}
       >
         <div className="flex flex-col items-stretch gap-1">
@@ -381,10 +404,7 @@ export function EventOverlayLayer({
                       }}
                     />
                   </div>
-                  <p
-                    className="px-2.5 py-1.5 text-xs sm:text-sm leading-snug line-clamp-3 wrap-break-word"
-                    style={{ color: theme.message }}
-                  >
+                  <p className={scMessageClass} style={{ color: theme.message }}>
                     {event.text}
                   </p>
                 </div>

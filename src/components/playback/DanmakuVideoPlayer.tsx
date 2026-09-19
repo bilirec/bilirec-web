@@ -92,6 +92,8 @@ import {
   PORTRAIT_LANDSCAPE_OBJECT_POSITION,
   PORTRAIT_LANDSCAPE_VIDEO_ALIGNMENT,
   getObjectFitContentBox,
+  measureEventOverlayBottomInset,
+  WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX,
   type ObjectFitMode,
 } from "@/lib/playback-layout"
 import {
@@ -226,7 +228,7 @@ export function DanmakuVideoPlayer({
   const [viewportLandscape, setViewportLandscape] = useState(() =>
     typeof window !== "undefined" && window.innerWidth > window.innerHeight
   )
-  const [mobileOverlayBottomInset, setMobileOverlayBottomInset] = useState(0)
+  const [overlayChromeBottomInset, setOverlayChromeBottomInset] = useState(0)
   const [loadedDanmakuCount, setLoadedDanmakuCount] = useState<number | null>(null)
   const [loadProgressPercent, setLoadProgressPercent] = useState<number | null>(null)
   const [overlays, setOverlays] = useState<OverlayEvent[]>([])
@@ -254,7 +256,10 @@ export function DanmakuVideoPlayer({
   const [danmakuFontSize, setDanmakuFontSize] = useState<string | null>(
     () => resolveDanmakuFont(0, loadDanmakuFollowScreen(), loadDanmakuSize()).size
   )
-  const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({ mode: "content" })
+  const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({
+    mode: "content",
+    bottomBar: 0,
+  })
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
@@ -712,7 +717,11 @@ export function DanmakuVideoPlayer({
           }
           return next
         }
-        return prev.mode === "content" ? prev : { mode: "content" }
+        const next: OverlayLayout = { mode: "content", bottomBar }
+        if (prev.mode === "content" && prev.bottomBar === next.bottomBar) {
+          return prev
+        }
+        return next
       })
 
     }
@@ -1265,33 +1274,52 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     let frame = 0
     let nestedFrame = 0
-    if (!mobileLandscapeLayout) {
-      setMobileOverlayBottomInset((prev) => (prev === 0 ? prev : 0))
+    const measureChromeInset = mobileLandscapeLayout || (!touchDevice && stageFullscreen)
+    if (!measureChromeInset) {
+      setOverlayChromeBottomInset((prev) => (prev === 0 ? prev : 0))
       return () => undefined
     }
 
-    // Measure after layout settles. Exclude the controls gradient padding so
-    // bottom-corner overlays sit in the fade zone (near the real chrome), and
-    // cap by picture height so short landscape phones do not push them mid-screen.
-    frame = requestAnimationFrame(() => {
-      nestedFrame = requestAnimationFrame(() => {
-        const host = overlayHostRef.current
-        const controls = controlsHostRef.current
-        if (!host || !controls) return
-        const hostRect = host.getBoundingClientRect()
-        const controlsRect = controls.getBoundingClientRect()
-        const padTop = Number.parseFloat(getComputedStyle(controls).paddingTop) || 0
-        const raw = Math.round(hostRect.bottom - controlsRect.top - padTop)
-        const maxByScreen = Math.max(40, Math.round(hostRect.height * 0.22))
-        const inset = Math.min(Math.max(0, raw + 6), maxByScreen)
-        setMobileOverlayBottomInset((prev) => (prev === inset ? prev : inset))
+    const runMeasure = () => {
+      const host = overlayHostRef.current
+      const controls = controlsHostRef.current
+      if (!host || !controls) return
+      const hostRect = host.getBoundingClientRect()
+      const controlsRect = controls.getBoundingClientRect()
+      const padTop = Number.parseFloat(getComputedStyle(controls).paddingTop) || 0
+      const inset = measureEventOverlayBottomInset(hostRect, controlsRect, padTop, {
+        maxHeightRatio: mobileLandscapeLayout ? 0.22 : undefined,
       })
+      setOverlayChromeBottomInset((prev) => (prev === inset ? prev : inset))
+    }
+
+    // Measure after layout settles. Exclude the controls gradient padding so
+    // bottom-corner overlays sit in the fade zone (near the real chrome).
+    frame = requestAnimationFrame(() => {
+      nestedFrame = requestAnimationFrame(runMeasure)
     })
+
+    const stage = stageRef.current
+    let ro: ResizeObserver | null = null
+    if (stage) {
+      ro = new ResizeObserver(() => runMeasure())
+      ro.observe(stage)
+    }
+
     return () => {
       cancelAnimationFrame(frame)
       cancelAnimationFrame(nestedFrame)
+      ro?.disconnect()
     }
-  }, [mobileLandscapeLayout, advancedOpen])
+  }, [
+    advancedOpen,
+    mobileLandscapeLayout,
+    objectFit,
+    playbackUrl,
+    showAudioOnlyPlayback,
+    stageFullscreen,
+    touchDevice,
+  ])
 
   return (
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
@@ -1735,7 +1763,15 @@ export function DanmakuVideoPlayer({
                     ? "desktop"
                     : "none"
               }
-              mobileBottomInset={mobileOverlayBottomInset}
+              maxZoneWidthPx={
+                !touchDevice && !stageFullscreen
+                  ? WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX
+                  : undefined
+              }
+              chromeBottomInset={overlayChromeBottomInset}
+              pictureBottomBar={
+                overlayLayout.mode === "content" ? overlayLayout.bottomBar : 0
+              }
             />
           )}
         </div>
