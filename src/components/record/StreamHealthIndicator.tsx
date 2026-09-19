@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { StreamHealthDetails } from '@/components/record/StreamHealthDetails'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { streamHealthIconClass, streamHealthUsesFillIcon } from '@/lib/stream-io-health'
+import { streamHealthIconClass } from '@/lib/stream-io-health'
 import { cn } from '@/lib/utils'
 import type { StreamIoRate } from '@/lib/types'
 
@@ -33,7 +33,6 @@ export function StreamHealthIndicator({ ioRate }: StreamHealthIndicatorProps) {
   const [open, setOpen] = useState(false)
 
   const iconClass = cn('shrink-0', streamHealthIconClass(ioRate.health))
-  const filled = streamHealthUsesFillIcon(ioRate.health)
 
   const triggerClass =
     'rounded-full p-0.5 transition-colors hover:bg-secondary active:bg-secondary'
@@ -41,14 +40,13 @@ export function StreamHealthIndicator({ ioRate }: StreamHealthIndicatorProps) {
   const icon = (
     <PulseIcon
       size={16}
-      weight={filled ? 'fill' : 'regular'}
       className={cn(iconClass, ioRate.health === 'unhealthy' && 'animate-pulse')}
     />
   )
 
   const panelHeader = (
     <div className="flex items-center gap-1.5 font-semibold leading-none">
-      <PulseIcon size={14} weight={filled ? 'fill' : 'regular'} className={iconClass} />
+      <PulseIcon size={14} className={iconClass} />
       <span>{t('recordCard.streamHealthTitle')}</span>
     </div>
   )
@@ -68,7 +66,7 @@ export function StreamHealthIndicator({ ioRate }: StreamHealthIndicatorProps) {
           <DialogContent className="w-[90vw] max-w-sm">
             <DialogHeader className="text-left">
               <DialogTitle className="inline-flex items-center gap-1.5 self-start text-left leading-snug">
-                <PulseIcon size={20} weight={filled ? 'fill' : 'regular'} className={iconClass} />
+                <PulseIcon size={20} className={iconClass} />
                 <span>{t('recordCard.streamHealthTitle')}</span>
               </DialogTitle>
             </DialogHeader>

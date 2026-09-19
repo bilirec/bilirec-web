@@ -24,7 +24,3 @@ export function streamHealthIconClass(health: StreamIoHealth): string {
       return 'text-red-600 dark:text-red-400'
   }
 }
-
-export function streamHealthUsesFillIcon(health: StreamIoHealth): boolean {
-  return health !== 'healthy'
-}
