@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { MoreVerticalIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon } from '@phosphor-icons/react'
+import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon, FileAudioIcon } from '@phosphor-icons/react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
 import { formatFileSize, isConvertibleVideoFile, isDanmakuSidecarFile } from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
@@ -38,6 +38,8 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
   const sizeVal = typeof file.size === 'number' ? file.size : Number((file as any).size) || 0
   const extension = file.name.split('.').pop()?.toUpperCase()
   const isMp4 = extension?.toLowerCase() === 'mp4'
+  const isM4a = extension?.toLowerCase() === 'm4a'
+  const canPlayback = isMp4 || isM4a
   const isDanmakuSidecar = isDanmakuSidecarFile(name)
   const canConvert = isConvertibleVideoFile(name)
 
@@ -286,7 +288,9 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
     <Card className="h-full p-4 file-card transition-all hover:shadow-lg">
       <div className="flex h-full gap-3">
         <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-secondary-foreground">
-          {isDanmakuSidecar ? (
+          {isM4a ? (
+            <FileAudioIcon weight="fill" size={24} />
+          ) : isDanmakuSidecar ? (
             <FileTextIcon weight="fill" size={24} />
           ) : (
             <FileVideoIcon weight="fill" size={24} />
@@ -339,9 +343,9 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
                 </span>
               </Button>
 
-              {/* Desktop actions: show playback (mp4), share, convert (ts/fmp4/flv) & delete on sm+ */}
+              {/* Desktop actions: show playback (mp4/m4a), share, convert (ts/fmp4/flv) & delete on sm+ */}
               <div className="hidden sm:flex items-center gap-2">
-                {isMp4 && (
+                {canPlayback && (
                   <Button
                     size="icon"
                     variant="outline"
@@ -417,7 +421,7 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {isMp4 && (
+                    {canPlayback && (
                       <DropdownMenuItem onSelect={() => { handlePlayback(); }} disabled={isDeleting || isDownloading || isRecording}>
                         {t('fileCard.playback')}
                       </DropdownMenuItem>

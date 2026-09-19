@@ -8,7 +8,7 @@ export const DEFAULT_VIDEO_OBJECT_POSITION = "50% 50%"
 export const PORTRAIT_LANDSCAPE_OBJECT_POSITION = "50% 25%"
 
 export function getObjectFitContentBox(
-  video: HTMLVideoElement,
+  video: Pick<HTMLVideoElement, "clientWidth" | "clientHeight" | "videoWidth" | "videoHeight">,
   fit: ObjectFitMode,
   portraitLandscapeAlignment = 0.5
 ): { top: number; left: number; width: number; height: number } {

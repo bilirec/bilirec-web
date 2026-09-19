@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import NDanmaku from "n-danmaku"
 import {
@@ -29,6 +29,7 @@ import {
   CornersOutIcon,
   CircleNotchIcon,
   GearSixIcon,
+  MusicNoteIcon,
   SubtitlesIcon,
   SubtitlesSlashIcon,
 } from "@phosphor-icons/react"
@@ -175,9 +176,11 @@ export function DanmakuVideoPlayer({
   className,
 }: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
+  const audioOnlyFileByName = fileName.toLowerCase().endsWith(".m4a")
   // Keep media-chrome tooltips in sync with app i18n (zh-CN / zh-TW)
   const mediaLang = getCurrentLanguage()
   const stageRef = useRef<HTMLDivElement>(null)
+  const audioPictureRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
   const overlayHostRef = useRef<HTMLDivElement>(null)
   const controlsHostRef = useRef<HTMLDivElement>(null)
@@ -213,6 +216,7 @@ export function DanmakuVideoPlayer({
   const [currentTime, setCurrentTime] = useState(0)
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
+  const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
   const [loadIndicatorDocked, setLoadIndicatorDocked] = useState(false)
   const [seekEpoch, setSeekEpoch] = useState(0)
@@ -252,6 +256,8 @@ export function DanmakuVideoPlayer({
   )
   const [overlayLayout, setOverlayLayout] = useState<OverlayLayout>({ mode: "content" })
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
 
@@ -600,7 +606,7 @@ export function DanmakuVideoPlayer({
   }, [])
 
   // Keep danmaku on the picture box; portrait stage uses chat list (letterbox or docked).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const stage = stageRef.current
     const host = danmakuHostRef.current
     const overlayHost = overlayHostRef.current
@@ -610,12 +616,22 @@ export function DanmakuVideoPlayer({
     const sync = () => {
       const stageW = stage.clientWidth
       const stageH = stage.clientHeight
+      const portraitStage = stageH > stageW
+      const audioPicture = showAudioOnlyPlayback ? audioPictureRef.current : null
+      // Audio-only: pretend 16:9 so overlays match landscape MP4 on a portrait stage.
+      const layoutFit = showAudioOnlyPlayback ? "contain" : objectFit
       const box = getObjectFitContentBox(
-        video,
-        objectFit,
+        {
+          clientWidth: video.clientWidth,
+          clientHeight: video.clientHeight,
+          videoWidth: showAudioOnlyPlayback ? 16 : video.videoWidth,
+          videoHeight: showAudioOnlyPlayback ? 9 : video.videoHeight,
+        },
+        layoutFit,
         PORTRAIT_LANDSCAPE_VIDEO_ALIGNMENT
       )
       const nextObjectPosition =
+        !showAudioOnlyPlayback &&
         objectFit === "contain" &&
         stageH > stageW &&
         video.videoWidth > video.videoHeight
@@ -632,15 +648,15 @@ export function DanmakuVideoPlayer({
         el.style.width = `${box.width}px`
         el.style.height = `${box.height}px`
       }
+      if (audioPicture) applyBox(audioPicture)
       applyBox(host)
 
       const topBar = Math.max(0, top)
       const bottomBar = Math.max(0, stageH - top - box.height)
-      const portraitStage = stageH > stageW
       // Landscape VOD on portrait phone → black bars. Vertical VOD → translucent dock on picture.
       const useLetterbox =
-        objectFit === "contain" && portraitStage && topBar >= 40 && bottomBar >= 40
-      const useDocked = objectFit === "contain" && portraitStage && !useLetterbox
+        layoutFit === "contain" && portraitStage && topBar >= 40 && bottomBar >= 40
+      const useDocked = layoutFit === "contain" && portraitStage && !useLetterbox
 
       if (overlayHost) {
         if (useLetterbox) {
@@ -718,6 +734,7 @@ export function DanmakuVideoPlayer({
     objectFit,
     orientationLocked,
     playbackUrl,
+    showAudioOnlyPlayback,
     viewportLandscape,
   ])
 
@@ -768,6 +785,7 @@ export function DanmakuVideoPlayer({
 
   const touchDevice = touchDeviceRef.current
   const landscapeVideo =
+    showAudioOnlyPlayback ||
     (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
   const mobileLandscapeLayout =
     touchDevice && landscapeVideo && (orientationLocked || viewportLandscape)
@@ -868,9 +886,13 @@ export function DanmakuVideoPlayer({
     }
     const onLoadStart = () => {
       setVideoMetadataReady(false)
+      setAudioOnlyPlayback(audioOnlyFileByName)
     }
     const onLoadedMetadata = () => {
       setVideoMetadataReady(true)
+      setAudioOnlyPlayback(
+        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+      )
     }
     const onPlay = () => {
       const playbackBlocked = shouldBlockPlayback({
@@ -938,7 +960,13 @@ export function DanmakuVideoPlayer({
     setPaused(video.paused)
     setCurrentTime(video.currentTime)
     setPlaybackRate(video.playbackRate)
-    setVideoMetadataReady(video.readyState >= HTMLMediaElement.HAVE_METADATA)
+    const metadataReady = video.readyState >= HTMLMediaElement.HAVE_METADATA
+    setVideoMetadataReady(metadataReady)
+    if (metadataReady) {
+      setAudioOnlyPlayback(
+        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+      )
+    }
     if (!video.paused) startDanmakuTicker()
 
     return () => {
@@ -953,6 +981,7 @@ export function DanmakuVideoPlayer({
       video.removeEventListener("seeked", onSeeked)
     }
   }, [
+    audioOnlyFileByName,
     danmakuHidden,
     danmakuLoadTimedOut,
     danmakuStatus,
@@ -961,6 +990,115 @@ export function DanmakuVideoPlayer({
     screenDanmakuActive,
     videoMetadataReady,
   ])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (
+      !video ||
+      !showAudioOnlyPlayback ||
+      typeof navigator === "undefined" ||
+      !("mediaSession" in navigator)
+    ) {
+      return
+    }
+
+    const mediaSession = navigator.mediaSession
+    const setActionHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+      try {
+        mediaSession.setActionHandler(action, handler)
+      } catch {
+        // Ignore unsupported actions.
+      }
+    }
+    const syncPlaybackState = () => {
+      mediaSession.playbackState = video.ended
+        ? "none"
+        : video.paused
+          ? "paused"
+          : "playing"
+    }
+    const syncPositionState = () => {
+      const duration = video.duration
+      const position = video.currentTime
+      if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return
+      try {
+        mediaSession.setPositionState({
+          duration,
+          playbackRate: video.playbackRate > 0 ? video.playbackRate : 1,
+          position: Math.max(0, Math.min(position, duration)),
+        })
+      } catch {
+        // Ignore browsers that reject incomplete position state.
+      }
+    }
+    const seekBy = (offset: number) => {
+      const duration = video.duration
+      const max = Number.isFinite(duration) && duration > 0 ? duration : video.currentTime
+      video.currentTime = Math.max(0, Math.min(max, video.currentTime + offset))
+    }
+
+    setActionHandler("play", () => {
+      void video.play().catch(() => {})
+    })
+    setActionHandler("pause", () => {
+      video.pause()
+    })
+    setActionHandler("seekbackward", (details) => {
+      seekBy(-(details.seekOffset ?? 10))
+    })
+    setActionHandler("seekforward", (details) => {
+      seekBy(details.seekOffset ?? 10)
+    })
+    setActionHandler("seekto", (details) => {
+      if (details.seekTime == null) return
+      const duration = video.duration
+      const max = Number.isFinite(duration) && duration > 0 ? duration : details.seekTime
+      video.currentTime = Math.max(0, Math.min(max, details.seekTime))
+    })
+
+    mediaSession.metadata = new MediaMetadata({
+      title: fileName,
+      artist: meta?.name || "BiliRec",
+      album: meta?.title || t("playbackPlayer.audioAlbumFallback"),
+    })
+    let lastPositionAt = 0
+    const onTimeUpdate = () => {
+      const now = performance.now()
+      if (now - lastPositionAt < 1000) return
+      lastPositionAt = now
+      syncPositionState()
+    }
+    video.addEventListener("play", syncPlaybackState)
+    video.addEventListener("pause", syncPlaybackState)
+    video.addEventListener("ended", syncPlaybackState)
+    video.addEventListener("timeupdate", onTimeUpdate)
+    video.addEventListener("durationchange", syncPositionState)
+    video.addEventListener("ratechange", syncPositionState)
+    video.addEventListener("seeked", syncPositionState)
+    syncPlaybackState()
+    syncPositionState()
+
+    return () => {
+      video.removeEventListener("play", syncPlaybackState)
+      video.removeEventListener("pause", syncPlaybackState)
+      video.removeEventListener("ended", syncPlaybackState)
+      video.removeEventListener("timeupdate", onTimeUpdate)
+      video.removeEventListener("durationchange", syncPositionState)
+      video.removeEventListener("ratechange", syncPositionState)
+      video.removeEventListener("seeked", syncPositionState)
+      for (const action of [
+        "play",
+        "pause",
+        "seekbackward",
+        "seekforward",
+        "seekto",
+      ] as MediaSessionAction[]) {
+        setActionHandler(action, null)
+      }
+      mediaSession.metadata = null
+      mediaSession.playbackState = "none"
+    }
+  }, [fileName, mediaLang, meta?.name, meta?.title, showAudioOnlyPlayback, t])
 
   const cycleFit = () => {
     setObjectFit((prev) => FIT_CYCLE[(FIT_CYCLE.indexOf(prev) + 1) % FIT_CYCLE.length])
@@ -1389,18 +1527,20 @@ export function DanmakuVideoPlayer({
                     </MediaChromeButton>
                   </div>
 
-                  <div className="flex min-w-0 shrink items-center gap-1.5 border-l border-white/10 pl-3 max-[349px]:pl-2">
-                    <TextChipButton
-                      title={t("playbackPlayer.objectFit", { mode: objectFit })}
-                      onClick={cycleFit}
-                      className="max-[349px]:px-1.5"
-                    >
-                      <span className={cn(ADV_LABEL, "max-[349px]:hidden")}>
-                        {t("playbackPlayer.fitLabel")}
-                      </span>
-                      <span className="text-xs font-medium text-white/90">{fitLabel}</span>
-                    </TextChipButton>
-                  </div>
+                  {showAudioOnlyPlayback ? null : (
+                    <div className="flex min-w-0 shrink items-center gap-1.5 border-l border-white/10 pl-3 max-[349px]:pl-2">
+                      <TextChipButton
+                        title={t("playbackPlayer.objectFit", { mode: objectFit })}
+                        onClick={cycleFit}
+                        className="max-[349px]:px-1.5"
+                      >
+                        <span className={cn(ADV_LABEL, "max-[349px]:hidden")}>
+                          {t("playbackPlayer.fitLabel")}
+                        </span>
+                        <span className="text-xs font-medium text-white/90">{fitLabel}</span>
+                      </TextChipButton>
+                    </div>
+                  )}
 
                   <div className="ml-auto flex shrink-0 items-center gap-1.5 max-[349px]:gap-1">
                     {!immersiveFullscreen ? (
@@ -1434,6 +1574,39 @@ export function DanmakuVideoPlayer({
             </div>
           </div>
         </MediaController>
+
+        {showAudioOnlyPlayback ? (
+          <div
+            ref={audioPictureRef}
+            className="pointer-events-none absolute top-0 left-0 z-10 flex aspect-video w-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_50%,rgba(120,80,190,0.32),transparent_55%),linear-gradient(145deg,#10101a,#050507)] px-6 py-3"
+            role="img"
+            aria-label={t("recordCard.audioOnlyBadge")}
+          >
+            <div className="flex min-h-0 max-h-full w-full max-w-[min(78vw,24rem)] flex-col items-center justify-center gap-2 text-center">
+              <div className="relative flex size-[4.25rem] shrink-0 items-center justify-center sm:size-20">
+                <div
+                  className={cn(
+                    "absolute inset-1 rounded-full border border-white/15 bg-white/8 shadow-[0_0_28px_rgba(139,92,246,0.35)]",
+                    !paused && "animate-[spin_16s_linear_infinite] motion-reduce:animate-none"
+                  )}
+                  aria-hidden
+                />
+                <div
+                  className={cn(
+                    "absolute inset-0 rounded-full bg-violet-300/14 blur-md",
+                    !paused && "animate-pulse motion-reduce:animate-none"
+                  )}
+                  aria-hidden
+                />
+                <MusicNoteIcon
+                  className="relative size-9 text-violet-200 sm:size-11"
+                  weight="duotone"
+                />
+              </div>
+              <p className="max-w-full shrink truncate text-xs text-white/70 sm:text-sm">{fileName}</p>
+            </div>
+          </div>
+        ) : null}
 
         {showCentralLoadOverlay ? (
           <div
