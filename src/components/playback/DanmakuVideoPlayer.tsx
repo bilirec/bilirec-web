@@ -84,7 +84,14 @@ import {
   exitDocumentFullscreen,
   getScreenOrientation,
   requestElementFullscreen,
+  shouldLockLandscapeInPortrait,
+  tryLockScreenLandscape,
 } from "@/lib/playback-fullscreen"
+import {
+  buildAudioMediaSessionArtwork,
+  buildCoverMediaSessionArtwork,
+} from "@/lib/media-session-artwork"
+import { apiClient } from "@/lib/api"
 import {
   DEFAULT_VIDEO_OBJECT_POSITION,
   FIT_CYCLE,
@@ -1065,11 +1072,30 @@ export function DanmakuVideoPlayer({
       video.currentTime = Math.max(0, Math.min(max, details.seekTime))
     })
 
-    mediaSession.metadata = new MediaMetadata({
+    const artworkLabel = [meta?.name, meta?.title].filter(Boolean).join(" · ") || fileName
+    const metadataBase = {
       title: fileName,
       artist: meta?.name || "BiliRec",
       album: meta?.title || t("playbackPlayer.audioAlbumFallback"),
-    })
+    }
+    const pathRoomId = Number.parseInt(videoPath.split(/[/\\]/)[0] ?? "", 10)
+    const roomId =
+      meta?.roomId ??
+      (Number.isFinite(pathRoomId) && pathRoomId > 0 ? pathRoomId : undefined)
+
+    let cancelled = false
+    const setSessionMetadata = (artwork: ReturnType<typeof buildAudioMediaSessionArtwork>) => {
+      if (cancelled) return
+      mediaSession.metadata = new MediaMetadata({ ...metadataBase, artwork })
+    }
+
+    setSessionMetadata(buildAudioMediaSessionArtwork(artworkLabel))
+    if (roomId) {
+      void apiClient.getRoomInfo(roomId).then((info) => {
+        if (cancelled || !info.cover) return
+        setSessionMetadata(buildCoverMediaSessionArtwork(info.cover))
+      })
+    }
     let lastPositionAt = 0
     const onTimeUpdate = () => {
       const now = performance.now()
@@ -1088,6 +1114,7 @@ export function DanmakuVideoPlayer({
     syncPositionState()
 
     return () => {
+      cancelled = true
       video.removeEventListener("play", syncPlaybackState)
       video.removeEventListener("pause", syncPlaybackState)
       video.removeEventListener("ended", syncPlaybackState)
@@ -1107,7 +1134,16 @@ export function DanmakuVideoPlayer({
       mediaSession.metadata = null
       mediaSession.playbackState = "none"
     }
-  }, [fileName, mediaLang, meta?.name, meta?.title, showAudioOnlyPlayback, t])
+  }, [
+    fileName,
+    mediaLang,
+    meta?.name,
+    meta?.roomId,
+    meta?.title,
+    showAudioOnlyPlayback,
+    t,
+    videoPath,
+  ])
 
   const cycleFit = () => {
     setObjectFit((prev) => FIT_CYCLE[(FIT_CYCLE.indexOf(prev) + 1) % FIT_CYCLE.length])
@@ -1143,38 +1179,35 @@ export function DanmakuVideoPlayer({
     const stage = stageRef.current
     if (!video || !stage) return
 
+    const lockIfNeeded = async () => {
+      if (
+        !shouldLockLandscapeInPortrait({
+          audioOnly: showAudioOnlyPlayback,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+        })
+      ) {
+        return
+      }
+      const locked = await tryLockScreenLandscape()
+      if (locked) {
+        orientationLockedRef.current = true
+        setOrientationLocked(true)
+        return
+      }
+      console.warn("Screen orientation lock rejected; keeping fullscreen")
+      toast.info(t("playbackPlayer.orientationLockFailed"))
+    }
+
     const enteredFullscreen = await requestElementFullscreen(stage)
-    if (!enteredFullscreen) {
-      // Fullscreen API unavailable: CSS-only immersive fallback (lock will not work).
-      setAppFullscreen(true)
-      toast.info(t("playbackPlayer.orientationLockFailed"))
-      return
-    }
-
     setAppFullscreen(true)
-
-    const landscapeVideo =
-      video.videoWidth > 0 && video.videoHeight > 0 && video.videoWidth > video.videoHeight
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
-    const viewportWidth = window.visualViewport?.width ?? window.innerWidth
-    const portraitViewport = viewportHeight > viewportWidth
-
-    if (!landscapeVideo || !portraitViewport) return
-
-    const orientation = getScreenOrientation()
-    if (!orientation?.lock) {
-      toast.info(t("playbackPlayer.orientationLockFailed"))
+    if (!enteredFullscreen) {
+      // Fullscreen API unavailable: CSS-only immersive fallback; still try orientation lock.
+      await lockIfNeeded()
       return
     }
 
-    try {
-      await orientation.lock("landscape")
-      orientationLockedRef.current = true
-      setOrientationLocked(true)
-    } catch (lockError) {
-      console.warn("Screen orientation lock rejected; keeping fullscreen:", lockError)
-      toast.info(t("playbackPlayer.orientationLockFailed"))
-    }
+    await lockIfNeeded()
   }
 
   const toggleFullscreen = async () => {

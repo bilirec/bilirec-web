@@ -41,3 +41,36 @@ export async function exitDocumentFullscreen(): Promise<void> {
     // Ignore browsers that reject exiting after the element already left fullscreen.
   }
 }
+
+export function isPortraitViewport(): boolean {
+  if (typeof window === "undefined") return false
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
+  return viewportHeight > viewportWidth
+}
+
+/** Lock to landscape when entering mobile fullscreen from portrait (audio-only or landscape video). */
+export function shouldLockLandscapeInPortrait(options: {
+  audioOnly: boolean
+  videoWidth: number
+  videoHeight: number
+}): boolean {
+  if (!isPortraitViewport()) return false
+  if (options.audioOnly) return true
+  return (
+    options.videoWidth > 0 &&
+    options.videoHeight > 0 &&
+    options.videoWidth > options.videoHeight
+  )
+}
+
+export async function tryLockScreenLandscape(): Promise<boolean> {
+  const orientation = getScreenOrientation()
+  if (!orientation?.lock) return false
+  try {
+    await orientation.lock("landscape")
+    return true
+  } catch {
+    return false
+  }
+}
