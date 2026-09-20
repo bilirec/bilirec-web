@@ -1370,7 +1370,10 @@ export function DanmakuVideoPlayer({
     <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
       {headerTitle || statusHint || loadedDanmakuHint ? (
         <div
-          className="pointer-events-none absolute top-2 left-3 right-12 z-30 flex max-w-[calc(100%-3.5rem)] flex-col gap-0.5 sm:top-0 sm:right-0 sm:left-0 sm:max-w-none sm:bg-linear-to-b sm:from-black/60 sm:via-black/25 sm:to-transparent sm:px-3 sm:pt-2 sm:pb-4"
+          className={cn(
+            "pointer-events-none absolute top-2 left-3 right-12 flex max-w-[calc(100%-3.5rem)] flex-col gap-0.5 sm:top-0 sm:right-0 sm:left-0 sm:max-w-none sm:bg-linear-to-b sm:from-black/60 sm:via-black/25 sm:to-transparent sm:px-3 sm:pt-2 sm:pb-4",
+            immersiveFullscreen ? "z-10001" : "z-50"
+          )}
           aria-hidden
         >
           <div className="max-w-full sm:max-w-[calc(100%-3.5rem)]">
@@ -1681,64 +1684,6 @@ export function DanmakuVideoPlayer({
           </div>
         ) : null}
 
-        {showCentralLoadOverlay ? (
-          <div
-            className={cn(
-              "absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 px-8",
-              playbackBlocked
-                ? "pointer-events-auto bg-black/60 backdrop-blur-[2px]"
-                : "pointer-events-none"
-            )}
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-            aria-valuenow={
-              danmakuStatus === "parsing" || danmakuStatus === "injecting"
-                ? loadProgressPercent ?? undefined
-                : undefined
-            }
-            aria-label={
-              !videoMetadataReady
-                ? t("playbackPlayer.videoLoading")
-                : loadProgressLabel ??
-                  (showDanmakuFetching
-                    ? t("playbackPlayer.danmakuFetching")
-                    : t("playbackPlayer.videoLoading"))
-            }
-          >
-            <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
-            {danmakuSidecarPresent && danmakuPipelineBusy ? (
-              <div className="w-full max-w-xs space-y-1.5">
-                {danmakuStatus === "fetching" || loadProgressPercent == null ? (
-                  <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/15">
-                    <div
-                      className={cn(
-                        "progress-indeterminate absolute inset-y-0 rounded-full",
-                        loadProgressAccentClass
-                      )}
-                    />
-                  </div>
-                ) : (
-                  <Progress
-                    value={loadProgressPercent}
-                    className={cn(
-                      "h-1.5 bg-white/15",
-                      loadProgressIndicatorClass
-                    )}
-                  />
-                )}
-                {loadProgressLabel ? (
-                  <p className="text-center text-[11px] text-white/85">{loadProgressLabel}</p>
-                ) : showDanmakuFetching ? (
-                  <p className="text-center text-[11px] text-white/85">
-                    {t("playbackPlayer.danmakuFetching")}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
         {showDockedLoadIndicator ? (
           <div
             className="pointer-events-none absolute right-3 bottom-24 z-40 flex items-center gap-2 rounded-md bg-black/70 px-2.5 py-2 text-white/90 shadow-lg backdrop-blur-sm sm:bottom-20"
@@ -1824,6 +1769,62 @@ export function DanmakuVideoPlayer({
           )}
         </div>
       </div>
+
+      {showCentralLoadOverlay ? (
+        <div
+          className={cn(
+            "inset-0 flex h-full w-full flex-col items-center justify-center gap-3 px-8",
+            immersiveFullscreen ? "fixed z-10000" : "absolute z-40",
+            playbackBlocked
+              ? "pointer-events-auto bg-black/60 backdrop-blur-[2px]"
+              : "pointer-events-none"
+          )}
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          aria-valuenow={
+            danmakuStatus === "parsing" || danmakuStatus === "injecting"
+              ? loadProgressPercent ?? undefined
+              : undefined
+          }
+          aria-label={
+            !videoMetadataReady
+              ? t("playbackPlayer.videoLoading")
+              : loadProgressLabel ??
+                (showDanmakuFetching
+                  ? t("playbackPlayer.danmakuFetching")
+                  : t("playbackPlayer.videoLoading"))
+          }
+        >
+          <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
+          {danmakuSidecarPresent && danmakuPipelineBusy ? (
+            <div className="w-full max-w-xs space-y-1.5">
+              {danmakuStatus === "fetching" || loadProgressPercent == null ? (
+                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                  <div
+                    className={cn(
+                      "progress-indeterminate absolute inset-y-0 rounded-full",
+                      loadProgressAccentClass
+                    )}
+                  />
+                </div>
+              ) : (
+                <Progress
+                  value={loadProgressPercent}
+                  className={cn("h-1.5 bg-white/15", loadProgressIndicatorClass)}
+                />
+              )}
+              {loadProgressLabel ? (
+                <p className="text-center text-[11px] text-white/85">{loadProgressLabel}</p>
+              ) : showDanmakuFetching ? (
+                <p className="text-center text-[11px] text-white/85">
+                  {t("playbackPlayer.danmakuFetching")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
