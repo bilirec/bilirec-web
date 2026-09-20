@@ -232,14 +232,28 @@ class ApiClient {
     await this.client.post(`/record/${roomId}/stop`, {});
   }
 
-  async getFiles(path: string = "", offset: number = 0, limit: number = 200, search: string = ""): Promise<RecordFileListResponse> {
+  async getFiles(
+    path: string = "",
+    offset: number = 0,
+    limit: number = 200,
+    search: string = "",
+    onlyMedia: boolean = false,
+  ): Promise<RecordFileListResponse> {
     const encodedPath = path
       .split("/")
       .filter(Boolean)
       .map(encodeURIComponent)
       .join("/");
     const url = encodedPath ? `/files/browse/${encodedPath}` : "/files/browse";
-    const response = await this.client.get<RecordFileListResponse>(url, { params: { offset, limit, search } });
+    const params: { offset: number; limit: number; search: string; only_media?: boolean } = {
+      offset,
+      limit,
+      search,
+    };
+    if (onlyMedia) {
+      params.only_media = true;
+    }
+    const response = await this.client.get<RecordFileListResponse>(url, { params });
     return response.data;
   }
 

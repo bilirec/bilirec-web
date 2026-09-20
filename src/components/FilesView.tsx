@@ -5,6 +5,8 @@ import { FileCard } from './FileCard'
 import { EmptyState } from './EmptyState'
 import { PlaybackPlayerDialog } from '@/components/playback/PlaybackPlayerDialog'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CaretLeftIcon } from '@phosphor-icons/react'
 import { SearchBar } from './SearchBar'
@@ -13,6 +15,7 @@ import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordFile, RecordFileListResponse } from '@/lib/types'
 import { useTranslation } from 'react-i18next'
+import { loadOnlyMediaFiles, saveOnlyMediaFiles } from '@/lib/files-view-settings'
 
 type FilesLayoutConfig = {
   pageSize: number
@@ -61,11 +64,12 @@ function FileCardSkeleton() {
   )
 }
 
-const getFilesQueryKey = (path: string, search: string, pageSize: number) => [
+const getFilesQueryKey = (path: string, search: string, pageSize: number, onlyMedia: boolean) => [
   'files',
   path,
   search,
-  pageSize
+  pageSize,
+  onlyMedia,
 ] as const
 
 const normalizeList = (items?: RecordFile[]) => {
@@ -89,6 +93,7 @@ export function FilesView() {
   const [currentPath, setCurrentPath] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [onlyMedia, setOnlyMedia] = useState(() => loadOnlyMediaFiles())
   const [displayFiles, setDisplayFiles] = useState<RecordFile[]>([])
   const [displayTotal, setDisplayTotal] = useState(0)
   const [isSearchTransition, setIsSearchTransition] = useState(false)
@@ -100,7 +105,8 @@ export function FilesView() {
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null)
   const prevPathRef = useRef(currentPath)
   const prevSearchRef = useRef(search)
-  const lastAppliedSearchRef = useRef(search)
+  const prevOnlyMediaRef = useRef(onlyMedia)
+  const lastAppliedListFilterRef = useRef(`${search}:${onlyMedia}`)
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -127,8 +133,8 @@ export function FilesView() {
   }, [searchInput])
 
   const queryKey = useMemo(
-    () => getFilesQueryKey(currentPath, search, pageSize),
-    [currentPath, search, pageSize]
+    () => getFilesQueryKey(currentPath, search, pageSize, onlyMedia),
+    [currentPath, search, pageSize, onlyMedia]
   )
 
   const {
@@ -144,7 +150,7 @@ export function FilesView() {
   } = useInfiniteQuery({
     queryKey,
     queryFn: async ({ pageParam = 0 }: { pageParam: number }) => {
-      const data = await apiClient.getFiles(currentPath, pageParam, pageSize, search)
+      const data = await apiClient.getFiles(currentPath, pageParam, pageSize, search, onlyMedia)
       return {
         ...data,
         items: normalizeList(data.items)
@@ -193,36 +199,38 @@ export function FilesView() {
   const isSearching = isDebouncingSearch || isSearchTransition || (isFetching && search.length > 0)
 
   useEffect(() => {
-    const isSearchOnlyChange =
+    const isListFilterChange =
       prevPathRef.current === currentPath &&
-      prevSearchRef.current !== search
+      (prevSearchRef.current !== search || prevOnlyMediaRef.current !== onlyMedia)
 
     if (prevPathRef.current !== currentPath) {
       // Path changed: clear immediately so skeleton can represent new directory load.
       setDisplayFiles([])
       setDisplayTotal(0)
       setIsSearchTransition(false)
-    } else if (isSearchOnlyChange && displayFiles.length > 0) {
-      // Search changed under same path: keep old items until new result arrives.
+    } else if (isListFilterChange && displayFiles.length > 0) {
+      // Search or media filter changed under same path: keep old items until new result arrives.
       setIsSearchTransition(true)
     }
 
     prevPathRef.current = currentPath
     prevSearchRef.current = search
-  }, [currentPath, search, pageSize, displayFiles.length])
+    prevOnlyMediaRef.current = onlyMedia
+  }, [currentPath, search, onlyMedia, pageSize, displayFiles.length])
 
   useEffect(() => {
     if (!isSuccess) return
 
-    if (lastAppliedSearchRef.current !== search) {
+    const listFilterKey = `${search}:${onlyMedia}`
+    if (lastAppliedListFilterRef.current !== listFilterKey) {
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-      lastAppliedSearchRef.current = search
+      lastAppliedListFilterRef.current = listFilterKey
     }
 
     setDisplayFiles(queryFiles)
     setDisplayTotal(queryTotal)
     setIsSearchTransition(false)
-  }, [isSuccess, queryFiles, queryTotal])
+  }, [isSuccess, queryFiles, queryTotal, search, onlyMedia])
 
   useEffect(() => {
     if (isSearchTransition && !isFetching && !isDebouncingSearch) {
@@ -311,17 +319,38 @@ export function FilesView() {
             <h2 className="text-xl font-bold">{t('filesView.title')}</h2>
           </div>
 
-          <SearchBar
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder={t('filesView.searchPlaceholder')}
-            isSearching={isSearching}
-            searchingLabel={t('filesView.searching')}
-            searchLabel={t('actions.search')}
-            dialogTitle={t('filesView.searchPlaceholder')}
-            containerClassName="ml-auto"
-            inputWidth="w-[200px] sm:w-[280px]"
-          />
+          <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+            {currentPath ? (
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                <Label
+                  htmlFor="files-only-media"
+                  className="cursor-pointer text-xs text-muted-foreground sm:text-sm whitespace-nowrap"
+                >
+                  <span className="hidden min-[420px]:inline">{t('filesView.onlyMedia')}</span>
+                  <span className="min-[420px]:hidden">{t('filesView.onlyMediaShort')}</span>
+                </Label>
+                <Switch
+                  id="files-only-media"
+                  checked={onlyMedia}
+                  onCheckedChange={(checked) => {
+                    setOnlyMedia(checked)
+                    saveOnlyMediaFiles(checked)
+                  }}
+                  aria-label={t('filesView.onlyMedia')}
+                />
+              </div>
+            ) : null}
+            <SearchBar
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder={t('filesView.searchPlaceholder')}
+              isSearching={isSearching}
+              searchingLabel={t('filesView.searching')}
+              searchLabel={t('actions.search')}
+              dialogTitle={t('filesView.searchPlaceholder')}
+              inputWidth="w-[200px] sm:w-[280px]"
+            />
+          </div>
         </div>
 
         {currentPath && (
