@@ -242,6 +242,7 @@ export function DanmakuVideoPlayer({
   const [chatItems, setChatItems] = useState<PlaybackChatItem[]>([])
   const [meta, setMeta] = useState<DanmakuMeta | undefined>()
   const [danmakuStatus, setDanmakuStatus] = useState<DanmakuPipelineStatus>("fetching")
+  const [danmakuSidecarPresent, setDanmakuSidecarPresent] = useState(false)
   const [rates, setRates] = useState<number[]>(() => loadPlaybackRates())
   const [playbackRate, setPlaybackRate] = useState(1)
   const [frameStepMs, setFrameStepMs] = useState(() => loadFrameStepMs())
@@ -400,6 +401,7 @@ export function DanmakuVideoPlayer({
     const generation = ++danmakuLoadGenerationRef.current
 
     setDanmakuStatus("fetching")
+    setDanmakuSidecarPresent(false)
     setDanmakuLoadTimedOut(false)
     setLoadIndicatorDocked(false)
     setLoadProgressPercent(null)
@@ -533,6 +535,10 @@ export function DanmakuVideoPlayer({
 
     void fetchDanmakuForVideo(videoPath, {
       signal: ac.signal,
+      onJsonlSidecarFound: () => {
+        if (generation !== danmakuLoadGenerationRef.current) return
+        setDanmakuSidecarPresent(true)
+      },
       onProgress: (ratio) => {
         if (generation !== danmakuLoadGenerationRef.current) return
         setDanmakuStatus("parsing")
@@ -1253,7 +1259,10 @@ export function DanmakuVideoPlayer({
   const showCentralLoadOverlay =
     !loadIndicatorDocked && (!videoMetadataReady || danmakuPipelineBusy)
   const showDockedLoadIndicator =
-    loadIndicatorDocked && videoMetadataReady && danmakuPipelineBusy
+    loadIndicatorDocked &&
+    videoMetadataReady &&
+    danmakuSidecarPresent &&
+    danmakuPipelineBusy
   const loadProgressAccentClass =
     danmakuStatus === "parsing"
       ? "bg-sky-300"
@@ -1275,14 +1284,17 @@ export function DanmakuVideoPlayer({
         : t("playbackPlayer.danmakuInjecting", { percent: loadProgressPercent })
       : null
 
+  const showDanmakuFetching =
+    danmakuSidecarPresent && danmakuStatus === "fetching"
+
   const statusHint =
     danmakuStatus === "xml" || danmakuStatus === "none"
       ? t("playbackPlayer.danmakuXmlSkipped")
       : danmakuStatus === "error"
         ? t("playbackPlayer.danmakuLoadError")
-        : danmakuStatus === "fetching"
-        ? t("playbackPlayer.danmakuFetching")
-        : loadProgressLabel
+        : showDanmakuFetching
+          ? t("playbackPlayer.danmakuFetching")
+          : loadProgressLabel
 
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
   const loadedDanmakuHint =
@@ -1688,11 +1700,14 @@ export function DanmakuVideoPlayer({
             aria-label={
               !videoMetadataReady
                 ? t("playbackPlayer.videoLoading")
-                : loadProgressLabel ?? t("playbackPlayer.danmakuFetching")
+                : loadProgressLabel ??
+                  (showDanmakuFetching
+                    ? t("playbackPlayer.danmakuFetching")
+                    : t("playbackPlayer.videoLoading"))
             }
           >
             <CircleNotchIcon className="size-8 animate-spin text-white/90" weight="bold" aria-hidden />
-            {danmakuPipelineBusy ? (
+            {danmakuSidecarPresent && danmakuPipelineBusy ? (
               <div className="w-full max-w-xs space-y-1.5">
                 {danmakuStatus === "fetching" || loadProgressPercent == null ? (
                   <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/15">
@@ -1714,7 +1729,7 @@ export function DanmakuVideoPlayer({
                 )}
                 {loadProgressLabel ? (
                   <p className="text-center text-[11px] text-white/85">{loadProgressLabel}</p>
-                ) : danmakuStatus === "fetching" ? (
+                ) : showDanmakuFetching ? (
                   <p className="text-center text-[11px] text-white/85">
                     {t("playbackPlayer.danmakuFetching")}
                   </p>

@@ -269,6 +269,8 @@ export type DanmakuFetchResult =
 
 export interface FetchDanmakuOptions extends ParseDanmakuCallbacks {
   signal?: AbortSignal
+  /** Fired once the danmaku sidecar exists (2xx, non-XML) before the body is read. */
+  onJsonlSidecarFound?: () => void
 }
 
 /** Last index with ts <= t (+epsilon), assuming items sorted by ts ascending. */
@@ -309,6 +311,7 @@ export async function fetchDanmakuForVideo(
     if (contentType.includes("xml")) {
       return { kind: "none", reason: "xml" }
     }
+    options?.onJsonlSidecarFound?.()
     const text = await res.text()
     // Safety: if body looks like XML despite header
     const trimmed = text.trimStart()
