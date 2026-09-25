@@ -190,6 +190,19 @@ export function RecordStartOptions({
           disabled={disabled}
         />
       </div>
+
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+        <div className="space-y-1">
+          <Label htmlFor="record-delete-oldest">{t('recordStartOptions.deleteOldestOnLowDisk')}</Label>
+          <p className="text-sm text-muted-foreground">{t('recordStartOptions.deleteOldestOnLowDiskHint')}</p>
+        </div>
+        <Switch
+          id="record-delete-oldest"
+          checked={value.delete_oldest_on_low_disk ?? false}
+          onCheckedChange={(checked) => onChange({ ...value, delete_oldest_on_low_disk: checked })}
+          disabled={disabled}
+        />
+      </div>
     </div>
   )
 }

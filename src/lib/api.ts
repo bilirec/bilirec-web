@@ -222,6 +222,9 @@ class ApiClient {
     if (data.recordDanmaku) {
       params.record_danmaku = true;
     }
+    if (data.deleteOldestOnLowDisk) {
+      params.delete_oldest_on_low_disk = true;
+    }
     if (data.streamProfiles?.length) {
       params.stream_profile = data.streamProfiles.join(',')
     }

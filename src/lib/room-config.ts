@@ -2,7 +2,12 @@ import type { RoomConfig, StartRecordRequest } from './types'
 
 export type RecordStartConfig = Pick<
   RoomConfig,
-  'record_duration_minutes' | 'qn' | 'only_audio' | 'record_danmaku' | 'stream_profiles'
+  | 'record_duration_minutes'
+  | 'qn'
+  | 'only_audio'
+  | 'record_danmaku'
+  | 'stream_profiles'
+  | 'delete_oldest_on_low_disk'
 >
 
 export const STREAM_PROFILE_VALUES = ['http-flv', 'hls-fmp4', 'hls-ts'] as const
@@ -35,6 +40,7 @@ export function defaultRecordStartConfig(): RecordStartConfig {
     only_audio: false,
     record_danmaku: false,
     stream_profiles: [],
+    delete_oldest_on_low_disk: false,
   }
 }
 
@@ -45,13 +51,22 @@ export function recordStartConfigFromRoomConfig(config: RoomConfig): RecordStart
     only_audio: config.only_audio ?? false,
     record_danmaku: config.record_danmaku ?? false,
     stream_profiles: normalizeStreamProfiles(config.stream_profiles),
+    delete_oldest_on_low_disk: config.delete_oldest_on_low_disk ?? false,
   }
 }
 
 export function buildStartRecordParams(
   roomId: number,
   config:
-    | Pick<RoomConfig, 'record_duration_minutes' | 'qn' | 'only_audio' | 'record_danmaku' | 'stream_profiles'>
+    | Pick<
+        RoomConfig,
+        | 'record_duration_minutes'
+        | 'qn'
+        | 'only_audio'
+        | 'record_danmaku'
+        | 'stream_profiles'
+        | 'delete_oldest_on_low_disk'
+      >
     | null
     | undefined,
 ): StartRecordRequest {
@@ -71,6 +86,9 @@ export function buildStartRecordParams(
   }
   if (config?.record_danmaku) {
     params.recordDanmaku = true
+  }
+  if (config?.delete_oldest_on_low_disk) {
+    params.deleteOldestOnLowDisk = true
   }
   const streamProfiles = normalizeStreamProfiles(config?.stream_profiles)
   if (streamProfiles.length > 0) {

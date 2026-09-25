@@ -127,6 +127,7 @@ export interface StartRecordRequest {
   onlyAudio?: boolean
   recordDanmaku?: boolean
   streamProfiles?: string[]
+  deleteOldestOnLowDisk?: boolean
 }
 
 export interface ConvertQueue {
@@ -162,6 +163,7 @@ export interface RoomConfig {
   only_audio?: boolean
   record_danmaku?: boolean
   stream_profiles?: string[]
+  delete_oldest_on_low_disk?: boolean
 }
 
 export interface UpdateRoomConfigRequest {
@@ -172,6 +174,7 @@ export interface UpdateRoomConfigRequest {
   only_audio?: boolean
   record_danmaku?: boolean
   stream_profiles?: string[]
+  delete_oldest_on_low_disk?: boolean
 }
 
 export interface DiskUsage {

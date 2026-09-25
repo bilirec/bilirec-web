@@ -87,6 +87,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
         only_audio: roomConfig.only_audio ?? false,
         record_danmaku: roomConfig.record_danmaku ?? false,
         stream_profiles: roomConfig.stream_profiles ?? [],
+        delete_oldest_on_low_disk: roomConfig.delete_oldest_on_low_disk ?? false,
       })
       setRoomConfig(updatedConfig)
       onOpenChange(false)
@@ -154,6 +155,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
                     only_audio: roomConfig.only_audio,
                     record_danmaku: roomConfig.record_danmaku,
                     stream_profiles: roomConfig.stream_profiles,
+                    delete_oldest_on_low_disk: roomConfig.delete_oldest_on_low_disk,
                   }}
                   onChange={(opts) => setRoomConfig((current) => (current ? { ...current, ...opts } : current))}
                   disabled={isSaving}
