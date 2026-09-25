@@ -228,7 +228,8 @@ class ApiClient {
     if (data.streamProfiles?.length) {
       params.stream_profile = data.streamProfiles.join(',')
     }
-    await this.client.post(`/record/${roomId}/start`, {}, { params });
+    // undefined omits the request body; null would send the literal "null" (HasBody true).
+    await this.client.post(`/record/${roomId}/start`, undefined, { params });
   }
 
   async stopRecord(roomId: number): Promise<void> {
