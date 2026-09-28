@@ -149,6 +149,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
                 </div>
 
                 <RecordStartOptions
+                  view="subscribe"
                   value={{
                     record_duration_minutes: roomConfig.record_duration_minutes,
                     qn: roomConfig.qn,

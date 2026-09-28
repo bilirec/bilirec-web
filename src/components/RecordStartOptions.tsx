@@ -4,6 +4,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   normalizeStreamProfiles,
   type RecordStartConfig,
+  type RecordStartOptionsView,
   type StreamProfileValue,
 } from '@/lib/room-config'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +38,7 @@ const STREAM_PROFILE_OPTIONS: StreamProfileOption[] = [
 interface RecordStartOptionsProps {
   value: RecordStartConfig
   onChange: (value: RecordStartConfig) => void
+  view: RecordStartOptionsView
   disabled?: boolean
   durationHintKey?: string
 }
@@ -44,10 +46,12 @@ interface RecordStartOptionsProps {
 export function RecordStartOptions({
   value,
   onChange,
+  view,
   disabled = false,
   durationHintKey = 'recordsView.durationHint',
 }: RecordStartOptionsProps) {
   const { t } = useTranslation()
+  const showDeleteOldestOnLowDisk = view !== 'records'
 
   const recordDuration = value.record_duration_minutes ?? 0
   const selectedQn = value.qn === 0 ? undefined : value.qn
@@ -191,18 +195,20 @@ export function RecordStartOptions({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
-        <div className="space-y-1">
-          <Label htmlFor="record-delete-oldest">{t('recordStartOptions.deleteOldestOnLowDisk')}</Label>
-          <p className="text-sm text-muted-foreground">{t('recordStartOptions.deleteOldestOnLowDiskHint')}</p>
+      {showDeleteOldestOnLowDisk && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="space-y-1">
+            <Label htmlFor="record-delete-oldest">{t('recordStartOptions.deleteOldestOnLowDisk')}</Label>
+            <p className="text-sm text-muted-foreground">{t('recordStartOptions.deleteOldestOnLowDiskHint')}</p>
+          </div>
+          <Switch
+            id="record-delete-oldest"
+            checked={value.delete_oldest_on_low_disk ?? false}
+            onCheckedChange={(checked) => onChange({ ...value, delete_oldest_on_low_disk: checked })}
+            disabled={disabled}
+          />
         </div>
-        <Switch
-          id="record-delete-oldest"
-          checked={value.delete_oldest_on_low_disk ?? false}
-          onCheckedChange={(checked) => onChange({ ...value, delete_oldest_on_low_disk: checked })}
-          disabled={disabled}
-        />
-      </div>
+      )}
     </div>
   )
 }

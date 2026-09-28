@@ -127,7 +127,11 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
               confirmLoadingLabel={t('recordsView.adding')}
               onConfirmDialogOpen={resetRecordStartForm}
               confirmExtraContent={
-                <RecordStartOptions value={startConfig} onChange={setStartConfig} />
+                <RecordStartOptions
+                  view="records"
+                  value={startConfig}
+                  onChange={setStartConfig}
+                />
               }
               onConfirm={handleConfirmRecord}
             />

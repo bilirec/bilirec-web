@@ -10,6 +10,9 @@ export type RecordStartConfig = Pick<
   | 'delete_oldest_on_low_disk'
 >
 
+/** Where {@link RecordStartOptions} is rendered (controls which fields are shown). */
+export type RecordStartOptionsView = 'records' | 'subscribe'
+
 export const STREAM_PROFILE_VALUES = ['http-flv', 'hls-fmp4', 'hls-ts'] as const
 export type StreamProfileValue = (typeof STREAM_PROFILE_VALUES)[number]
 
