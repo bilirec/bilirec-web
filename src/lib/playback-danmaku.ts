@@ -64,7 +64,7 @@ export function danmakuRangesForArea(area: DanmakuArea): {
         ? 50
         : area === "three-quarters"
           ? 75
-          : 85
+          : 98
 
   return {
     scroll: [2, maxPercent],
@@ -300,6 +300,11 @@ export function styleDanmakuItems(
   }))
 }
 
+/** Rebuild lane geometry from current layer height (required after host resize, e.g. fullscreen). */
+export function reapplyDanmakuRanges(dm: NDanmaku, danmakuArea: DanmakuArea): void {
+  dm.ranges(danmakuRangesForArea(danmakuArea))
+}
+
 export function prepareDanmakuVodList(dm: NDanmaku, danmakuArea: DanmakuArea): void {
   try {
     dm.list.del("vod")
@@ -309,7 +314,7 @@ export function prepareDanmakuVodList(dm: NDanmaku, danmakuArea: DanmakuArea): v
   dm.list.new("vod")
   dm.list.use("vod")
   dm.list.uncertainty(DANMAKU_TICK_UNCERTAINTY_MS)
-  dm.ranges(danmakuRangesForArea(danmakuArea))
+  reapplyDanmakuRanges(dm, danmakuArea)
 }
 
 export async function injectDanmakuBullets(

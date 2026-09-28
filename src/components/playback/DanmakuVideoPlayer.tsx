@@ -75,6 +75,7 @@ import {
   DANMAKU_TICK_UNCERTAINTY_MS,
   injectDanmakuBullets,
   prepareDanmakuVodList,
+  reapplyDanmakuRanges,
   styleDanmakuItems,
   type DanmakuInjectStyleOptions,
   resolveDanmakuFont,
@@ -191,6 +192,7 @@ export function DanmakuVideoPlayer({
   const stageRef = useRef<HTMLDivElement>(null)
   const audioPictureRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
+  const danmakuHostBoxRef = useRef({ width: 0, height: 0 })
   const overlayHostRef = useRef<HTMLDivElement>(null)
   const controlsHostRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -669,6 +671,20 @@ export function DanmakuVideoPlayer({
       if (audioPicture) applyBox(audioPicture)
       applyBox(host)
 
+      if (box.width > 0 && box.height > 0) {
+        const prevBox = danmakuHostBoxRef.current
+        if (
+          Math.abs(prevBox.width - box.width) >= 1 ||
+          Math.abs(prevBox.height - box.height) >= 1
+        ) {
+          danmakuHostBoxRef.current = { width: box.width, height: box.height }
+          const dm = danmakuRef.current
+          if (dm) {
+            reapplyDanmakuRanges(dm, danmakuAreaRef.current)
+          }
+        }
+      }
+
       const topBar = Math.max(0, top)
       const bottomBar = Math.max(0, stageH - top - box.height)
       // Landscape VOD on portrait phone → black bars. Vertical VOD → translucent dock on picture.
@@ -757,6 +773,7 @@ export function DanmakuVideoPlayer({
     orientationLocked,
     playbackUrl,
     showAudioOnlyPlayback,
+    stageFullscreen,
     viewportLandscape,
   ])
 
