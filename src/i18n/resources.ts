@@ -321,9 +321,9 @@ export const resources = {
         onlyAudioHint: "只保存音頻流，不錄製畫面。",
         recordDanmaku: "錄製彈幕",
         recordDanmakuHint: "同時保存彈幕與禮物等互動記錄。",
-        deleteOldestOnLowDisk: "空間不足時刪除最舊檔",
+        deleteOldestOnLowDisk: "自動刪舊檔",
         deleteOldestOnLowDiskHint:
-          "可用空間低於最低要求時，依檔名時間刪除這個房間最舊的錄製檔，再開始錄製。仍不足則不啟動。"
+          "空間不足時自動刪除本房間最舊錄製檔後再開始，仍不足則不啟動。"
       },
       recordCard: {
         roomFallback: "直播間 {{roomId}}",
@@ -830,9 +830,9 @@ export const resources = {
         onlyAudioHint: "只保存音频流，不录制画面。",
         recordDanmaku: "录制弹幕",
         recordDanmakuHint: "同时保存弹幕与礼物等互动记录。",
-        deleteOldestOnLowDisk: "空间不足时删除最旧文件",
+        deleteOldestOnLowDisk: "自动删旧文件",
         deleteOldestOnLowDiskHint:
-          "可用空间低于最低要求时，依文件名时间删除这个房间最旧的录制文件，再开始录制。仍不足则不启动。"
+          "空间不足时自动删除本房间最旧录制文件后再开始，仍不足则不启动。"
       },
       recordCard: {
         roomFallback: "直播间 {{roomId}}",
