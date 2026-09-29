@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { QRCodeSVG } from 'qrcode.react'
 import { ArrowSquareOutIcon, CircleNotchIcon, CopyIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -26,24 +27,49 @@ function isUnsupportedStatus(statusCode: number | undefined) {
   return statusCode === 400 || statusCode === 404 || statusCode === 403
 }
 
+const DESKTOP_QR_BOX_PX = 224
+const DESKTOP_QR_SIZE_PX = DESKTOP_QR_BOX_PX - 16
+const MOBILE_QR_BOX_PX = 160
+const MOBILE_QR_SIZE_PX = MOBILE_QR_BOX_PX - 16
+
+function LoginQrCode({
+  value,
+  pixelSize,
+  boxSizePx,
+  label,
+}: {
+  value: string
+  pixelSize: number
+  boxSizePx: number
+  label: string
+}) {
+  return (
+    <div
+      role="img"
+      aria-label={label}
+      className="flex items-center justify-center rounded-md border border-border bg-white p-2"
+      style={{ width: boxSizePx, height: boxSizePx }}
+    >
+      <QRCodeSVG value={value} size={pixelSize} level="M" />
+    </div>
+  )
+}
+
 function DesktopQrPanel({
   qrUrl,
-  qrImageUrl,
   qrLinkLabel,
 }: {
   qrUrl: string
-  qrImageUrl: string
   qrLinkLabel: string
 }) {
   return (
     <div className="flex justify-center">
       <a href={qrUrl} target="_blank" rel="noreferrer" className="inline-block">
-        <img
-          src={qrImageUrl}
-          alt={qrLinkLabel}
-          referrerPolicy="no-referrer"
-          className="size-56 rounded-md border border-border bg-white object-contain p-2"
-          loading="lazy"
+        <LoginQrCode
+          value={qrUrl}
+          pixelSize={DESKTOP_QR_SIZE_PX}
+          boxSizePx={DESKTOP_QR_BOX_PX}
+          label={qrLinkLabel}
         />
       </a>
     </div>
@@ -106,11 +132,11 @@ function MobileLoginPanel({
 }
 
 function MobileQrPanel({
-  qrImageUrl,
+  qrUrl,
   qrLinkLabel,
   onCopyLink,
 }: {
-  qrImageUrl: string
+  qrUrl: string
   qrLinkLabel: string
   onCopyLink: () => void
 }) {
@@ -119,12 +145,11 @@ function MobileQrPanel({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-center">
-        <img
-          src={qrImageUrl}
-          alt={qrLinkLabel}
-          referrerPolicy="no-referrer"
-          className="size-40 rounded-md border border-border bg-white object-contain p-2"
-          loading="lazy"
+        <LoginQrCode
+          value={qrUrl}
+          pixelSize={MOBILE_QR_SIZE_PX}
+          boxSizePx={MOBILE_QR_BOX_PX}
+          label={qrLinkLabel}
         />
       </div>
 
@@ -197,9 +222,6 @@ export function BilibiliAuthDialog({
     onStatusChange(merged)
   }
 
-  const qrImageUrl = qrUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrUrl)}`
-    : ''
   const isExpired = status?.state === 'qr_expired'
   const statusMessage = isExpired ? t('bilibiliAuth.qrExpired') : status?.lastError
   const isAwaiting = Boolean(status && AWAITING_STATES.has(status.state))
@@ -417,16 +439,12 @@ export function BilibiliAuthDialog({
           {showLoginContent ? (
             <>
               <div className="[@media(pointer:coarse)]:hidden">
-                <DesktopQrPanel
-                  qrUrl={qrUrl}
-                  qrImageUrl={qrImageUrl}
-                  qrLinkLabel={t('bilibiliAuth.qrLink')}
-                />
+                <DesktopQrPanel qrUrl={qrUrl} qrLinkLabel={t('bilibiliAuth.qrLink')} />
               </div>
               <div className="hidden [@media(pointer:coarse)]:block">
                 {mobileMode === 'qr' ? (
                   <MobileQrPanel
-                    qrImageUrl={qrImageUrl}
+                    qrUrl={qrUrl}
                     qrLinkLabel={t('bilibiliAuth.qrLink')}
                     onCopyLink={() => void handleCopyLoginLink()}
                   />
