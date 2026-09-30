@@ -1,0 +1,47 @@
+/* Danmaku host: clipped to video picture; layer fills the host */
+.bilirec-danmaku-host {
+  z-index: 18;
+  pointer-events: none;
+}
+
+.bilirec-danmaku-host > .N-dmLayer {
+  width: 100% !important;
+  height: 100% !important;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Compositor-friendly scroll motion (px endpoints set per bullet in JS). */
+@keyframes bilirec-dm-scroll-forward {
+  from {
+    transform: translate3d(var(--bilirec-dm-from-x, 100vw), 0, 0);
+  }
+  to {
+    transform: translate3d(var(--bilirec-dm-to-x, -100%), 0, 0);
+  }
+}
+
+@keyframes bilirec-dm-scroll-reversed {
+  from {
+    transform: translate3d(var(--bilirec-dm-from-x, -100%), 0, 0);
+  }
+  to {
+    transform: translate3d(var(--bilirec-dm-to-x, 100vw), 0, 0);
+  }
+}
+
+.bilirec-danmaku-host .N-scroll-forward.N-scroll {
+  left: 0 !important;
+  right: auto !important;
+  animation-name: bilirec-dm-scroll-forward !important;
+  animation-timing-function: linear !important;
+  will-change: transform;
+}
+
+.bilirec-danmaku-host .N-scroll-reversed.N-scroll {
+  left: 0 !important;
+  right: auto !important;
+  animation-name: bilirec-dm-scroll-reversed !important;
+  animation-timing-function: linear !important;
+  will-change: transform;
+}

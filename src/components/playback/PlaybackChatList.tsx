@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { useVideoPlaybackTime } from "@/hooks/use-video-playback-time"
 import {
   chatItemsVisibleEnd,
   guardLevelColor,
@@ -21,7 +22,7 @@ type ChatListLayout = Extract<OverlayLayout, { mode: "letterbox" | "docked" }>
 
 interface PlaybackChatListProps {
   items: PlaybackChatItem[]
-  currentTime: number
+  videoRef: RefObject<HTMLVideoElement | null>
   hidden: boolean
   layout: ChatListLayout
   emotes?: EmoteMap | null
@@ -149,12 +150,13 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
  */
 export function PlaybackChatList({
   items,
-  currentTime,
+  videoRef,
   hidden,
   layout,
   emotes,
   className,
 }: PlaybackChatListProps) {
+  const currentTime = useVideoPlaybackTime(videoRef)
   const parentRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
   const [stickBottom, setStickBottom] = useState(true)

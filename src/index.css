@@ -342,19 +342,6 @@ body {
   }
 }
 
-/* Danmaku host: clipped to video picture; layer fills the host */
-.bilirec-danmaku-host {
-  z-index: 18;
-  pointer-events: none;
-}
-
-.bilirec-danmaku-host > .N-dmLayer {
-  width: 100% !important;
-  height: 100% !important;
-  inset: 0;
-  pointer-events: none;
-}
-
 /* Danmaku playback player: kill media-chrome default gray control chrome */
 .bilirec-playback-player media-control-bar.bilirec-playback-bar,
 .bilirec-playback-player .bilirec-playback-bar {

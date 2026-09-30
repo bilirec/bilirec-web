@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import "./main.css"
 import "./styles/theme.css"
 import "./index.css"
+import "./styles/danmaku.css"
 import { FallbackProps } from 'react-error-boundary';
 
 const AppWithErrorBoundary = withErrorBoundary(App, { 

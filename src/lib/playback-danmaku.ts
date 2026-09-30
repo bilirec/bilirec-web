@@ -219,7 +219,234 @@ type NDanmakuHitBox = {
 }
 
 const ANCHOR_TYPES = new Set<DanmakuType>(["scroll", "top", "bottom"])
+const SCROLL_MOTION_TYPES = new Set<DanmakuType>(["scroll", "random", "midscroll"])
 const DISCARD_ATTR = "data-bilirec-danmaku-discard"
+const DM_WIDTH_ATTR = "data-bilirec-dm-width"
+const DM_FROM_X = "--bilirec-dm-from-x"
+const DM_TO_X = "--bilirec-dm-to-x"
+
+type HitLaneDm = {
+  start: number
+  life: number
+  reversed: boolean
+  element: HTMLElement
+}
+
+type HitLane = {
+  from: number
+  to: number
+  available: boolean
+  dm: HitLaneDm | null
+}
+
+type HitBoxWithLanes = NDanmakuHitBox & {
+  hitSets?: Record<string, HitLane[]>
+}
+
+function nowMs(): number {
+  return Date.now()
+}
+
+function parseAnimationDurationMs(element: HTMLElement): number {
+  const inline = element.style.animationDuration
+  const raw = inline || (typeof getComputedStyle !== "undefined" ? getComputedStyle(element).animationDuration : "")
+  if (!raw) return 5000
+  const trimmed = raw.trim()
+  if (trimmed.endsWith("ms")) {
+    const n = parseFloat(trimmed)
+    return Number.isFinite(n) && n > 0 ? n : 5000
+  }
+  if (trimmed.endsWith("s")) {
+    const n = parseFloat(trimmed)
+    return Number.isFinite(n) && n > 0 ? n * 1000 : 5000
+  }
+  const n = parseFloat(trimmed)
+  return Number.isFinite(n) && n > 0 ? n * 1000 : 5000
+}
+
+function readScrollAnimationProgress(element: HTMLElement, fallbackLifeMs: number): number {
+  const anim = element.getAnimations?.()?.[0]
+  if (anim?.effect && typeof anim.currentTime === "number") {
+    const timing = (anim.effect as KeyframeEffect).getTiming()
+    let duration = timing.duration
+    if (typeof duration !== "number" || duration <= 0) {
+      duration = parseAnimationDurationMs(element)
+    }
+    if (duration > 0) {
+      return Math.min(1, Math.max(0, anim.currentTime / duration))
+    }
+  }
+  const life = parseAnimationDurationMs(element) || fallbackLifeMs
+  void life
+  return 0
+}
+
+function readStoredScrollWidth(element: HTMLElement): number | null {
+  const stored = element.getAttribute(DM_WIDTH_ATTR)
+  if (stored) {
+    const n = parseFloat(stored)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  const w = element.offsetWidth
+  if (w > 0) {
+    element.setAttribute(DM_WIDTH_ATTR, String(w))
+    return w
+  }
+  return null
+}
+
+function scrollOccupancyReleased(
+  element: HTMLElement,
+  lifeMs: number,
+  layerWidth: number
+): boolean {
+  const w = readStoredScrollWidth(element)
+  if (w == null || layerWidth <= 0) return true
+  const progress = readScrollAnimationProgress(element, lifeMs)
+  return progress >= w / (layerWidth + w)
+}
+
+function applyScrollMotionVars(element: HTMLElement, attrs: DanmakuAttrs, layerWidth: number): void {
+  if (!attrs.type || !SCROLL_MOTION_TYPES.has(attrs.type)) return
+  if (layerWidth <= 0) return
+
+  const w = readStoredScrollWidth(element)
+  if (w == null) return
+
+  const reversed = Boolean(attrs.reverse)
+  const fromX = reversed ? -w : layerWidth
+  const toX = reversed ? layerWidth : -w
+  element.style.setProperty(DM_FROM_X, `${fromX}px`)
+  element.style.setProperty(DM_TO_X, `${toX}px`)
+  element.style.left = "0"
+  element.style.right = "auto"
+}
+
+function bilirecDanmakuAnchor(
+  hitBox: HitBoxWithLanes,
+  element: HTMLElement,
+  attrs: DanmakuAttrs,
+  layerWidth: number,
+  retry: boolean
+): number {
+  const laneHeight = element.offsetHeight
+  const lanes = attrs.type ? hitBox.hitSets?.[attrs.type] : undefined
+  if (!lanes) return 0
+
+  const bottomSpace = attrs.bottom_space ?? 2
+  let anchorTopPx = -1
+
+  for (let n = 0, laneCount = lanes.length; n < laneCount; n++) {
+    const lane = lanes[n]!
+    if (lane.available) {
+      const slotUnits = lane.to - lane.from + 1
+      const needUnits = Math.floor(100 * (laneHeight + bottomSpace))
+      if (anchorTopPx === -1 && slotUnits >= needUnits) {
+        const tailLane: HitLane = { ...lane }
+        const splitAt = lane.from + needUnits
+        anchorTopPx = lane.from / 100
+        lane.to = splitAt - 1
+        lane.available = false
+        lane.dm = {
+          start: nowMs(),
+          life: attrs.life ?? 5000,
+          reversed: Boolean(attrs.reverse),
+          element,
+        }
+        tailLane.from = splitAt
+        lanes.splice(n + 1, 0, tailLane)
+      }
+    } else if (lane.dm) {
+      const dmEl = lane.dm.element
+      let released = false
+      switch (attrs.type) {
+        case "scroll":
+          released = scrollOccupancyReleased(dmEl, lane.dm.life, layerWidth)
+          break
+        case "top":
+        case "bottom":
+          released = nowMs() - lane.dm.start >= lane.dm.life
+          break
+        default:
+          released = false
+      }
+      if (dmEl.offsetWidth === 0 || dmEl.parentNode == null) {
+        released = true
+      }
+
+      if (released) {
+        const prev = lanes[n - 1]
+        const next = lanes[n + 1]
+        if (prev?.available && next?.available) {
+          prev.to = next.to
+          lanes.splice(n, 2)
+          n -= 1
+          laneCount -= 2
+        } else if (prev?.available) {
+          prev.to = lane.to
+          lanes.splice(n, 1)
+          n -= 1
+          laneCount -= 1
+        } else if (next?.available) {
+          lane.to = next.to
+          lane.available = true
+          lane.dm = null
+          lanes.splice(n + 1, 1)
+          laneCount -= 1
+        } else {
+          lane.available = true
+          lane.dm = null
+        }
+        n -= 1
+      }
+    }
+  }
+
+  if (anchorTopPx === -1) {
+    if (!retry) {
+      hitBox.refreshHitSets(attrs.type)
+      return bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, true)
+    }
+    anchorTopPx = 0
+  }
+  return anchorTopPx
+}
+
+/** Recompute scroll transform endpoints after the picture box width changes. */
+export function resyncDanmakuScrollMotionAfterResize(dm: NDanmaku): void {
+  const layer = dm.dmLayer
+  if (!layer) return
+  const W = layer.clientWidth
+  if (W <= 0) return
+
+  const nodes = layer.querySelectorAll(".N-scroll")
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue
+    const w = readStoredScrollWidth(node) ?? node.offsetWidth
+    if (w <= 0) continue
+    node.setAttribute(DM_WIDTH_ATTR, String(w))
+
+    const reversed = node.classList.contains("N-scroll-reversed")
+    const life = parseAnimationDurationMs(node)
+    const progress = readScrollAnimationProgress(node, life)
+    const remaining = Math.max(0, (1 - progress) * life)
+
+    const fromX = reversed ? -w + progress * (W + w) : W - progress * (W + w)
+    const toX = reversed ? W : -w
+
+    node.style.setProperty(DM_FROM_X, `${fromX}px`)
+    node.style.setProperty(DM_TO_X, `${toX}px`)
+    node.style.left = "0"
+    node.style.right = "auto"
+    if (remaining > 0) {
+      node.style.animationDuration = `${remaining}ms`
+    }
+  }
+}
+
+function resolveLayerWidth(dm: NDanmaku, hitBox: HitBoxWithLanes): number {
+  return dm.dmLayer?.clientWidth ?? hitBox.target?.clientWidth ?? 0
+}
 
 /**
  * When lanes are full, n-danmaku resets hitSets and places the new item at 0.
@@ -232,8 +459,24 @@ export function attachDanmakuOverlapControl(
   dm: NDanmaku,
   isPreventOverlapEnabled: () => boolean
 ): void {
-  const hitBox = (dm as unknown as { hitBox?: NDanmakuHitBox }).hitBox
+  const hitBox = (dm as unknown as { hitBox?: HitBoxWithLanes }).hitBox
   if (!hitBox?.danmakuAnchor || !hitBox.setDanmakuPos || !hitBox.refreshHitSets) return
+
+  let tickLayerWidth = resolveLayerWidth(dm, hitBox)
+
+  const skippedTypes = new Set<DanmakuType>()
+
+  const currentAnchorType = (): DanmakuType | undefined => {
+    const type = (dm as unknown as { currentAttrs?: { type?: DanmakuType } }).currentAttrs?.type
+    return type && ANCHOR_TYPES.has(type) ? type : undefined
+  }
+
+  const originalTick = dm.list.tick.bind(dm.list)
+  dm.list.tick = (time: number) => {
+    skippedTypes.clear()
+    tickLayerWidth = resolveLayerWidth(dm, hitBox)
+    originalTick(time)
+  }
 
   const originalAnchor = hitBox.danmakuAnchor.bind(hitBox)
   hitBox.danmakuAnchor = (element, attrs, retry = false) => {
@@ -252,7 +495,8 @@ export function attachDanmakuOverlapControl(
 
     hitBox.refreshHitSets = () => undefined
     try {
-      return originalAnchor(element, attrs, false)
+      const layerWidth = tickLayerWidth || resolveLayerWidth(dm, hitBox)
+      return bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, false)
     } finally {
       hitBox.refreshHitSets = originalRefresh
     }
@@ -261,6 +505,8 @@ export function attachDanmakuOverlapControl(
   const originalSetPos = hitBox.setDanmakuPos.bind(hitBox)
   hitBox.setDanmakuPos = (element, attrs) => {
     applyBigEmoteBeforeAnchor(element, attrs)
+    const layerWidth = tickLayerWidth || resolveLayerWidth(dm, hitBox)
+    applyScrollMotionVars(element, attrs, layerWidth)
     originalSetPos(element, attrs)
     if (!isPreventOverlapEnabled()) return
     const type = attrs.type
@@ -273,10 +519,16 @@ export function attachDanmakuOverlapControl(
 
   const originalCreate = dm.create.bind(dm)
   dm.create = (text, created, callback) => {
+    if (isPreventOverlapEnabled()) {
+      const type = currentAnchorType()
+      if (type && skippedTypes.has(type)) return dm
+    }
     return originalCreate(
       text,
       (element, id) => {
         if (element.getAttribute(DISCARD_ATTR) === "1") {
+          const type = currentAnchorType()
+          if (type) skippedTypes.add(type)
           dm.clear(id)
           return
         }

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { useVideoPlaybackTime } from "@/hooks/use-video-playback-time"
 import type { OverlayEvent } from "@/lib/danmaku"
 import { guardLevelColor, guardLevelIcon, guardLevelLabel, resolveSuperChatTheme } from "@/lib/danmaku"
 import type { OverlayCorner } from "@/lib/playback-settings"
@@ -94,7 +95,7 @@ export type OverlayLayout =
 
 interface EventOverlayLayerProps {
   events: OverlayEvent[]
-  currentTime: number
+  videoRef: RefObject<HTMLVideoElement | null>
   hidden: boolean
   seekEpoch: number
   /** Where on the stage to anchor the combined event zone. */
@@ -198,7 +199,7 @@ function overlayMotionClass(exiting: boolean, variant: "hang" | "toast") {
 
 export function EventOverlayLayer({
   events,
-  currentTime,
+  videoRef,
   hidden,
   seekEpoch,
   overlayCorner = "top-left",
@@ -209,6 +210,7 @@ export function EventOverlayLayer({
   className,
 }: EventOverlayLayerProps) {
   const { t } = useTranslation()
+  const currentTime = useVideoPlaybackTime(videoRef)
   const cursorRef = useRef(0)
   const currentTimeRef = useRef(currentTime)
   const zoneRef = useRef<HTMLDivElement>(null)

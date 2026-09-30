@@ -80,6 +80,7 @@ import {
   type DanmakuInjectStyleOptions,
   resolveDanmakuFont,
   attachDanmakuOverlapControl,
+  resyncDanmakuScrollMotionAfterResize,
 } from "@/lib/playback-danmaku"
 import { loadEmoteMap, setEmoteLayoutContextProvider, type EmoteMap } from "@/lib/danmaku-emote"
 import {
@@ -227,7 +228,6 @@ export function DanmakuVideoPlayer({
     loadScreenDanmakuVisible()
   )
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
   const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
@@ -718,6 +718,7 @@ export function DanmakuVideoPlayer({
           const dm = danmakuRef.current
           if (dm) {
             reapplyDanmakuRanges(dm, danmakuAreaRef.current)
+            resyncDanmakuScrollMotionAfterResize(dm)
           }
         }
       }
@@ -957,7 +958,6 @@ export function DanmakuVideoPlayer({
       danmakuRaf = requestAnimationFrame(runDanmakuTicker)
     }
     const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime)
       // Fallback for throttled requestAnimationFrame (background tabs / seeks).
       tickDanmaku()
     }
@@ -1007,7 +1007,6 @@ export function DanmakuVideoPlayer({
     const onSeeked = () => {
       danmakuSeekingRef.current = false
       // Bump seekEpoch only after currentTime is the post-seek value so overlays can replay
-      setCurrentTime(video.currentTime)
       setSeekEpoch((n) => n + 1)
       const dm = danmakuRef.current
       if (dm?.list) {
@@ -1035,7 +1034,6 @@ export function DanmakuVideoPlayer({
     video.addEventListener("seeking", onSeeking)
     video.addEventListener("seeked", onSeeked)
     setPaused(video.paused)
-    setCurrentTime(video.currentTime)
     setPlaybackRate(video.playbackRate)
     const metadataReady = video.readyState >= HTMLMediaElement.HAVE_METADATA
     setVideoMetadataReady(metadataReady)
@@ -1791,7 +1789,7 @@ export function DanmakuVideoPlayer({
           {chatLayout ? (
             <PlaybackChatList
               items={chatItems}
-              currentTime={currentTime}
+              videoRef={videoRef}
               hidden={danmakuHidden || !effectsReady}
               layout={chatLayout}
               emotes={emoteMap}
@@ -1799,7 +1797,7 @@ export function DanmakuVideoPlayer({
           ) : (
             <EventOverlayLayer
               events={overlays}
-              currentTime={currentTime}
+              videoRef={videoRef}
               hidden={danmakuHidden || !effectsReady}
               seekEpoch={seekEpoch}
               overlayCorner={overlayCorner}
