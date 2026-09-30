@@ -366,6 +366,26 @@ body {
   isolation: isolate;
 }
 
+.bilirec-playback-player .bilirec-playback-progress-timeline {
+  overflow: visible;
+}
+
+/* Progress track: slim padding (with or without heatmap SVG). Heatmap sits bottom-full of range. */
+.bilirec-playback-player .bilirec-playback-progress-timeline .bilirec-playback-time-range {
+  --media-control-height: 12px;
+  --media-range-padding: 0;
+  --media-range-padding-left: 2px;
+  --media-range-padding-right: 2px;
+}
+
+/* Portrait touch: heatmap hidden; keep a larger hit target. */
+.bilirec-playback-player
+  .bilirec-playback-progress-timeline--touch-portrait
+  .bilirec-playback-time-range {
+  --media-control-height: 18px;
+  --media-range-padding: 2px;
+}
+
 /* Rate menu: opaque dark panel (not gray-on-video). Keep above isolated progress.
    Do not set position here — media-chrome sets absolute when open. */
 .bilirec-playback-player media-playback-rate-menu,

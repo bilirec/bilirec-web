@@ -43,6 +43,7 @@ import {
   type OverlayEvent,
   type PlaybackChatItem,
 } from "@/lib/danmaku"
+import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
   type PlaybackSettingsValue,
@@ -194,6 +195,7 @@ export function DanmakuVideoPlayer({
   const stageRef = useRef<HTMLDivElement>(null)
   const audioPictureRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
+  const portraitPictureTapRef = useRef<HTMLDivElement>(null)
   const danmakuHostBoxRef = useRef({ width: 0, height: 0 })
   const overlayHostRef = useRef<HTMLDivElement>(null)
   const controlsHostRef = useRef<HTMLDivElement>(null)
@@ -230,6 +232,7 @@ export function DanmakuVideoPlayer({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
+  const [videoDurationSec, setVideoDurationSec] = useState(0)
   const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
   const [loadIndicatorDocked, setLoadIndicatorDocked] = useState(false)
@@ -707,6 +710,7 @@ export function DanmakuVideoPlayer({
       }
       if (audioPicture) applyBox(audioPicture)
       applyBox(host)
+      if (portraitPictureTapRef.current) applyBox(portraitPictureTapRef.current)
 
       if (box.width > 0 && box.height > 0) {
         const prevBox = danmakuHostBoxRef.current
@@ -961,12 +965,18 @@ export function DanmakuVideoPlayer({
       // Fallback for throttled requestAnimationFrame (background tabs / seeks).
       tickDanmaku()
     }
+    const syncVideoDuration = () => {
+      const d = video.duration
+      setVideoDurationSec(Number.isFinite(d) && d > 0 ? d : 0)
+    }
     const onLoadStart = () => {
       setVideoMetadataReady(false)
+      setVideoDurationSec(0)
       setAudioOnlyPlayback(audioOnlyFileByName)
     }
     const onLoadedMetadata = () => {
       setVideoMetadataReady(true)
+      syncVideoDuration()
       setAudioOnlyPlayback(
         audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
       )
@@ -1028,6 +1038,7 @@ export function DanmakuVideoPlayer({
     video.addEventListener("timeupdate", onTimeUpdate)
     video.addEventListener("loadstart", onLoadStart)
     video.addEventListener("loadedmetadata", onLoadedMetadata)
+    video.addEventListener("durationchange", syncVideoDuration)
     video.addEventListener("play", onPlay)
     video.addEventListener("pause", onPause)
     video.addEventListener("ratechange", onRateChange)
@@ -1038,6 +1049,7 @@ export function DanmakuVideoPlayer({
     const metadataReady = video.readyState >= HTMLMediaElement.HAVE_METADATA
     setVideoMetadataReady(metadataReady)
     if (metadataReady) {
+      syncVideoDuration()
       setAudioOnlyPlayback(
         audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
       )
@@ -1049,6 +1061,7 @@ export function DanmakuVideoPlayer({
       video.removeEventListener("timeupdate", onTimeUpdate)
       video.removeEventListener("loadstart", onLoadStart)
       video.removeEventListener("loadedmetadata", onLoadedMetadata)
+      video.removeEventListener("durationchange", syncVideoDuration)
       video.removeEventListener("play", onPlay)
       video.removeEventListener("pause", onPause)
       video.removeEventListener("ratechange", onRateChange)
@@ -1349,6 +1362,27 @@ export function DanmakuVideoPlayer({
           ? t("playbackPlayer.danmakuFetching")
           : loadProgressLabel
 
+  const danmakuHeatmapPath = useMemo(
+    () => buildDanmakuHeatmapPath(chatItems, videoDurationSec),
+    [chatItems, videoDurationSec]
+  )
+  const portraitTouchProgress = touchDevice && !viewportLandscape
+  const showDanmakuHeatmap =
+    danmakuHeatmapPath != null && !portraitTouchProgress
+  const portraitChatChrome = Boolean(
+    touchDevice && !viewportLandscape && chatLayout
+  )
+
+  const togglePortraitPlaybackChrome = useCallback(() => {
+    const mc = stageRef.current?.querySelector("media-controller")
+    if (!(mc instanceof HTMLElement)) return
+    if (mc.hasAttribute("userinactive")) {
+      mc.removeAttribute("userinactive")
+    } else {
+      mc.setAttribute("userinactive", "")
+    }
+  }, [])
+
   const headerTitle = fileName || [meta?.name, meta?.title].filter(Boolean).join(" · ")
   const loadedDanmakuHint =
     loadedDanmakuCount != null && loadedDanmakuCount > 0
@@ -1482,8 +1516,27 @@ export function DanmakuVideoPlayer({
             <div className="pointer-events-auto flex w-full flex-col gap-0.5 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
               {/* VLC-style: progress alone on first row.
                   Isolate so media-time-range's shadow #range { z-index:1 } cannot escape. */}
-              <MediaControlBar className="bilirec-playback-bar bilirec-playback-bar-progress relative z-0 isolate w-full">
-                <MediaTimeRange className="w-full min-w-0 flex-1" />
+              <MediaControlBar
+                className="bilirec-playback-bar bilirec-playback-bar-progress group/progress relative z-0 isolate w-full"
+              >
+                <div
+                  className={cn(
+                    "bilirec-playback-progress-timeline relative w-full min-w-0 flex-1",
+                    portraitTouchProgress && "bilirec-playback-progress-timeline--touch-portrait"
+                  )}
+                >
+                  {showDanmakuHeatmap ? (
+                    <svg
+                      className="bilirec-danmaku-heatmap pointer-events-none absolute inset-x-0 bottom-full h-[18px] w-full opacity-[0.35] transition-opacity duration-150 group-hover/progress:opacity-[0.5]"
+                      viewBox="0 0 100 30"
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
+                      <path d={danmakuHeatmapPath} fill="white" />
+                    </svg>
+                  ) : null}
+                  <MediaTimeRange className="bilirec-playback-time-range w-full min-w-0" />
+                </div>
               </MediaControlBar>
 
               {/* Controls below progress; higher stack than the isolated range */}
@@ -1773,6 +1826,21 @@ export function DanmakuVideoPlayer({
             </div>
           </div>
         ) : null}
+
+        {/* Portrait chat mode: MC sits under z-19 chat; taps on the picture must toggle userinactive here. */}
+        <div
+          ref={portraitPictureTapRef}
+          className={cn(
+            "absolute z-17 touch-manipulation",
+            portraitChatChrome ? "pointer-events-auto" : "pointer-events-none"
+          )}
+          aria-hidden
+          onPointerUp={(event) => {
+            if (!portraitChatChrome) return
+            if (event.pointerType === "mouse") return
+            togglePortraitPlaybackChrome()
+          }}
+        />
 
         {/* Sized to the video picture box (not the whole stage / letterbox / chrome) */}
         <div
