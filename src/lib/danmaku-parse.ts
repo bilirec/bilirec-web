@@ -1,4 +1,5 @@
 import type { DanmakuAttrs, DanmakuListItem, DanmakuType } from "n-danmaku"
+import type { BilirecDanmakuListItem } from "@/lib/danmaku-emote"
 import { DANMAKU_LOAD_CHUNK_SIZE } from "@/lib/playback-danmaku"
 
 export type OverlayKind = "super_chat" | "gift" | "guard"
@@ -15,6 +16,8 @@ export interface PlaybackChatItem {
   text: string
   /** Danmaku text color (css). */
   color?: string
+  /** Room / official sticker URL from JSONL. */
+  emoticonUrl?: string
   price?: number
   lifeSec?: number
   backgroundColor?: string
@@ -208,6 +211,8 @@ export function parseJsonlDanmaku(
           const textBody = asString(obj.text)
           const color = colorIntToCss(asNumber(obj.color, 0xffffff))
           const { type: dmType, reverse } = modeToType(asNumber(obj.mode, 1))
+          const recordDmType = asNumber(obj.dm_type, 0)
+          const emoticonUrl = asString(obj.emoticon_url)
           const styles: DanmakuAttrs = {
             color,
             opacity: 80,
@@ -219,12 +224,16 @@ export function parseJsonlDanmaku(
             pointer_events: false,
             custom_css: { "text-shadow": "1px 0 1px #000000" },
           }
-          bullets.push({
+          const bullet: BilirecDanmakuListItem = {
             time: timeMs,
             text: textBody,
             reset_styles: true,
             styles,
-          })
+          }
+          if (emoticonUrl) {
+            bullet.bigEmote = { dmType: 1, emoticonUrl }
+          }
+          bullets.push(bullet)
           bulletCount += 1
           if (onBulletChunk && bullets.length >= chunkSize) {
             flushBulletChunk(bullets, onBulletChunk)
@@ -236,6 +245,7 @@ export function parseJsonlDanmaku(
             user,
             text: textBody,
             color,
+            ...(emoticonUrl ? { emoticonUrl } : {}),
           })
         } else if (type === "super_chat") {
           const sc: OverlayEvent = {

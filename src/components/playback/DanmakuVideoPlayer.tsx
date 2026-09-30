@@ -76,11 +76,12 @@ import {
   injectDanmakuBullets,
   prepareDanmakuVodList,
   reapplyDanmakuRanges,
-  styleDanmakuItems,
+  styleDanmakuItemsForEngine,
   type DanmakuInjectStyleOptions,
   resolveDanmakuFont,
   attachDanmakuOverlapControl,
 } from "@/lib/playback-danmaku"
+import { loadEmoteMap, setEmoteLayoutContextProvider, type EmoteMap } from "@/lib/danmaku-emote"
 import {
   exitDocumentFullscreen,
   getScreenOrientation,
@@ -209,6 +210,8 @@ export function DanmakuVideoPlayer({
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
   const danmakuPreventOverlapRef = useRef(loadDanmakuPreventOverlap())
+  const emoteMapRef = useRef<EmoteMap | null>(null)
+  const [emoteMap, setEmoteMap] = useState<EmoteMap | null>(null)
   const touchDeviceRef = useRef(
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
   )
@@ -233,6 +236,10 @@ export function DanmakuVideoPlayer({
   const [seekEpoch, setSeekEpoch] = useState(0)
   const [stageFullscreen, setStageFullscreen] = useState(false)
   const [appFullscreen, setAppFullscreen] = useState(false)
+  const stageFullscreenRef = useRef(false)
+  const appFullscreenRef = useRef(false)
+  stageFullscreenRef.current = stageFullscreen
+  appFullscreenRef.current = appFullscreen
   const [orientationLocked, setOrientationLocked] = useState(false)
   const [viewportLandscape, setViewportLandscape] = useState(() =>
     typeof window !== "undefined" && window.innerWidth > window.innerHeight
@@ -369,6 +376,18 @@ export function DanmakuVideoPlayer({
   const danmakuAreaRef = useRef(danmakuArea)
   danmakuAreaRef.current = danmakuArea
 
+  const getEmoteRenderContext = useCallback(() => {
+    const { width } = danmakuHostBoxRef.current
+    return {
+      emotes: emoteMapRef.current,
+      styleOpts: injectStyleRef.current,
+      hostWidth: width,
+    }
+  }, [])
+
+  const getEmoteRenderContextRef = useRef(getEmoteRenderContext)
+  getEmoteRenderContextRef.current = getEmoteRenderContext
+
   const setLoadProgressThrottled = useCallback((percent: number) => {
     const now = Date.now()
     const clamped = Math.min(100, Math.max(0, Math.round(percent)))
@@ -422,10 +441,22 @@ export function DanmakuVideoPlayer({
 
     const chunkQueue: DanmakuListItem[][] = []
     let parseDone = false
+    let emoteMapSettled = false
     let pendingJsonl: Extract<
       Awaited<ReturnType<typeof fetchDanmakuForVideo>>,
       { kind: "jsonl" }
     > | null = null
+
+    void loadEmoteMap()
+      .then((map) => {
+        emoteMapRef.current = map
+        setEmoteMap(map)
+      })
+      .finally(() => {
+        if (generation !== danmakuLoadGenerationRef.current) return
+        emoteMapSettled = true
+        scheduleInjectPump()
+      })
 
     const stopInjectPump = () => {
       if (injectPumpRafRef.current !== 0) {
@@ -453,7 +484,7 @@ export function DanmakuVideoPlayer({
           danmakuAreaRef.current
         )
       }
-      dm.list.load(styleDanmakuItems(chunk, injectStyleRef.current))
+      dm.list.load(styleDanmakuItemsForEngine(chunk, injectStyleRef.current, getEmoteRenderContext()))
       bulletsLoadedCountRef.current += chunk.length
       return true
     }
@@ -489,6 +520,7 @@ export function DanmakuVideoPlayer({
         bulletsLoadedCountRef.current = 0
         await injectDanmakuBullets(dm, bulletsRef.current, injectStyleRef.current, {
           isCancelled: () => generation !== danmakuLoadGenerationRef.current,
+          emoteCtx: getEmoteRenderContext(),
         })
         if (generation !== danmakuLoadGenerationRef.current) return
         bulletsLoadedCountRef.current = bulletsRef.current.length
@@ -517,6 +549,10 @@ export function DanmakuVideoPlayer({
       }
 
       if (chunkQueue.length > 0) {
+        if (!emoteMapSettled) {
+          injectPumpRafRef.current = requestAnimationFrame(runInjectPump)
+          return
+        }
         const chunk = chunkQueue.shift()!
         if (loadOneChunkIntoEngine(chunk)) {
           reportInjectProgress()
@@ -578,7 +614,7 @@ export function DanmakuVideoPlayer({
       stopInjectPump()
       chunkQueue.length = 0
     }
-  }, [videoPath, setLoadProgressThrottled, activateDanmakuAfterInject])
+  }, [videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
 
   useEffect(() => {
     if (!isDanmakuPipelineBusy(danmakuStatus)) {
@@ -611,6 +647,7 @@ export function DanmakuVideoPlayer({
     const instance = new NDanmaku(host, "bilirec", "1")
     instance.dmLayer.style.pointerEvents = "none"
     attachDanmakuOverlapControl(instance, () => danmakuPreventOverlapRef.current)
+    setEmoteLayoutContextProvider(() => getEmoteRenderContextRef.current())
     danmakuRef.current = instance
     listReadyRef.current = false
     instance.pause()
@@ -797,6 +834,7 @@ export function DanmakuVideoPlayer({
 
       await injectDanmakuBullets(dm, bulletsRef.current, getInjectStyleOptions(), {
         isCancelled: () => cancelled,
+        emoteCtx: getEmoteRenderContext(),
       })
 
       if (cancelled) return
@@ -1756,6 +1794,7 @@ export function DanmakuVideoPlayer({
               currentTime={currentTime}
               hidden={danmakuHidden || !effectsReady}
               layout={chatLayout}
+              emotes={emoteMap}
             />
           ) : (
             <EventOverlayLayer

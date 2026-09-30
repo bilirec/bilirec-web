@@ -12,6 +12,7 @@
         "lint": "eslint .",
         "check:sw": "node --check public/sw.js && tsc --noEmit --allowJs --checkJs --lib ES2022,WebWorker public/sw.js",
         "preview": "vite preview",
+        "fetch-emotes": "node scripts/fetch-emotes.mjs",
         "deploy": "node scripts/deploy.js",
         "deploy:main": "wrangler deploy",
         "deploy:nightly": "wrangler deploy --env nightly",

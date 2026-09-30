@@ -1,6 +1,14 @@
 import type NDanmaku from "n-danmaku"
 import type { DanmakuAttrs, DanmakuListItem, DanmakuType } from "n-danmaku"
 import {
+  attachEmoteRenderingBatch,
+  applyBigEmoteBeforeAnchor,
+  BILIREC_BIG_EMOTE_HEIGHT,
+  parseAnchorHeightPx,
+  type BilirecBigEmoteStyleHints,
+  type EmoteRenderContext,
+} from "@/lib/danmaku-emote"
+import {
   clampDanmakuSize,
   clampDanmakuSpeed,
   DEFAULT_DANMAKU_SIZE,
@@ -229,7 +237,11 @@ export function attachDanmakuOverlapControl(
 
   const originalAnchor = hitBox.danmakuAnchor.bind(hitBox)
   hitBox.danmakuAnchor = (element, attrs, retry = false) => {
-    if (!isPreventOverlapEnabled()) return originalAnchor(element, attrs, retry)
+    applyBigEmoteBeforeAnchor(element, attrs)
+
+    if (!isPreventOverlapEnabled()) {
+      return originalAnchor(element, attrs, retry)
+    }
     if (retry) return -1
 
     const originalRefresh = hitBox.refreshHitSets.bind(hitBox)
@@ -248,6 +260,7 @@ export function attachDanmakuOverlapControl(
 
   const originalSetPos = hitBox.setDanmakuPos.bind(hitBox)
   hitBox.setDanmakuPos = (element, attrs) => {
+    applyBigEmoteBeforeAnchor(element, attrs)
     originalSetPos(element, attrs)
     if (!isPreventOverlapEnabled()) return
     const type = attrs.type
@@ -286,18 +299,24 @@ export function styleDanmakuItems(
   items: DanmakuListItem[],
   opts: DanmakuInjectStyleOptions
 ): DanmakuListItem[] {
-  return items.map((b) => ({
-    ...b,
-    styles: {
-      ...b.styles,
-      scale: opts.danmakuScale,
-      size: opts.danmakuFontSize,
-      opacity: opts.danmakuOpacity,
-      life: danmakuLifeForRate(opts.playbackRate, b.styles?.type, opts.danmakuSpeed),
-      pointer_events: false,
-      custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
-    },
-  }))
+  return items.map((b) => {
+    const hint = (b.styles as BilirecBigEmoteStyleHints | undefined)?.[
+      BILIREC_BIG_EMOTE_HEIGHT
+    ]
+    const anchorHeight = parseAnchorHeightPx(hint)
+    return {
+      ...b,
+      styles: {
+        ...b.styles,
+        scale: opts.danmakuScale,
+        size: anchorHeight != null ? `${anchorHeight}px` : opts.danmakuFontSize,
+        opacity: opts.danmakuOpacity,
+        life: danmakuLifeForRate(opts.playbackRate, b.styles?.type, opts.danmakuSpeed),
+        pointer_events: false,
+        custom_css: b.styles?.custom_css ? { ...b.styles.custom_css } : undefined,
+      },
+    }
+  })
 }
 
 /** Rebuild lane geometry from current layer height (required after host resize, e.g. fullscreen). */
@@ -317,6 +336,16 @@ export function prepareDanmakuVodList(dm: NDanmaku, danmakuArea: DanmakuArea): v
   reapplyDanmakuRanges(dm, danmakuArea)
 }
 
+export function styleDanmakuItemsForEngine(
+  items: DanmakuListItem[],
+  opts: DanmakuInjectStyleOptions,
+  emoteCtx?: EmoteRenderContext | null
+): DanmakuListItem[] {
+  const styled = styleDanmakuItems(items, opts)
+  if (!emoteCtx) return styled
+  return attachEmoteRenderingBatch(styled, emoteCtx)
+}
+
 export async function injectDanmakuBullets(
   dm: NDanmaku,
   bullets: DanmakuListItem[],
@@ -324,14 +353,16 @@ export async function injectDanmakuBullets(
   callbacks?: {
     isCancelled?: () => boolean
     onChunkLoaded?: (loadedCount: number, total: number) => void
+    emoteCtx?: EmoteRenderContext | null
   }
 ): Promise<void> {
   const total = bullets.length
   for (let start = 0; start < total; start += DANMAKU_LOAD_CHUNK_SIZE) {
     if (callbacks?.isCancelled?.()) return
-    const chunk = styleDanmakuItems(
+    const chunk = styleDanmakuItemsForEngine(
       bullets.slice(start, start + DANMAKU_LOAD_CHUNK_SIZE),
-      opts
+      opts,
+      callbacks?.emoteCtx
     )
     dm.list.load(chunk)
     callbacks?.onChunkLoaded?.(Math.min(start + chunk.length, total), total)

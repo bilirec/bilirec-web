@@ -9,7 +9,9 @@ import {
   resolveSuperChatTheme,
   type PlaybackChatItem,
 } from "@/lib/danmaku"
+import type { EmoteMap } from "@/lib/danmaku-emote"
 import { GuardIcon, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
+import { PlaybackChatDanmakuBody } from "@/components/playback/PlaybackChatDanmakuBody"
 
 const CONTROL_RESERVE_PX = 100
 const STICK_BOTTOM_PX = 48
@@ -22,10 +24,11 @@ interface PlaybackChatListProps {
   currentTime: number
   hidden: boolean
   layout: ChatListLayout
+  emotes?: EmoteMap | null
   className?: string
 }
 
-function ChatRow({ item }: { item: PlaybackChatItem }) {
+function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap | null }) {
   const { t } = useTranslation()
 
   if (item.kind === "danmaku") {
@@ -34,7 +37,12 @@ function ChatRow({ item }: { item: PlaybackChatItem }) {
         {item.user ? (
           <span className="mr-1.5 font-medium text-white/55">{item.user}</span>
         ) : null}
-        <span style={item.color ? { color: item.color } : undefined}>{item.text}</span>
+        <PlaybackChatDanmakuBody
+          text={item.text}
+          color={item.color}
+          emoticonUrl={item.emoticonUrl}
+          emotes={emotes}
+        />
       </div>
     )
   }
@@ -144,6 +152,7 @@ export function PlaybackChatList({
   currentTime,
   hidden,
   layout,
+  emotes,
   className,
 }: PlaybackChatListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
@@ -235,7 +244,7 @@ export function PlaybackChatList({
                 className="absolute top-0 left-0 w-full"
                 style={{ transform: `translateY(${row.start}px)` }}
               >
-                <ChatRow item={item} />
+                <ChatRow item={item} emotes={emotes} />
               </div>
             )
           })}
