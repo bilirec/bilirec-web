@@ -59,10 +59,8 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (
-          this.unauthorizedSuppressed === 0 &&
-          (error.response?.status === 401 || error.response?.status === 403)
-        ) {
+        // Only 401 clears the app session. Bilirec uses 403 for RBAC (e.g. viewer on admin routes).
+        if (this.unauthorizedSuppressed === 0 && error.response?.status === 401) {
           window.dispatchEvent(new Event("api:unauthorized"));
         }
         return Promise.reject(error);

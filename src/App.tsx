@@ -374,6 +374,12 @@ function App() {
       return;
     }
 
+    if (userRole !== "admin") {
+      setBilibiliButtonVisible(false);
+      setBilibiliAuthStatus(null);
+      return;
+    }
+
     let cancelled = false;
 
     const loadBilibiliStatus = async () => {
@@ -404,9 +410,12 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   const refreshBilibiliStatus = async () => {
+    if (userRole !== "admin") {
+      return null;
+    }
     try {
       const status = await apiClient.getBilibiliAuthStatus();
       setBilibiliButtonVisible(true);
