@@ -460,6 +460,11 @@ class ApiClient {
     return response.data.room_ids ?? [];
   }
 
+  async getAutoRecordRooms(): Promise<number[]> {
+    const response = await this.client.get<SubscribedRooms>('/room/subscribe/auto-record');
+    return response.data.room_ids ?? [];
+  }
+
   async getDiskUsage(): Promise<DiskUsage> {
     const response = await this.client.get<DiskUsage>('/files/disk-space');
     return response.data;
