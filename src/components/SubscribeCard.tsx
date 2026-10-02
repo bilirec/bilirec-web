@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RoomCover } from '@/components/RoomCover'
-import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, CopySimpleIcon, GearSixIcon } from '@phosphor-icons/react'
+import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, CopySimpleIcon, GearSixIcon, EyeIcon, EyeClosedIcon, type IconWeight } from '@phosphor-icons/react'
+import { useTheme } from 'next-themes'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { RoomInfo } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
 import { getLiveTimeMeta, normalizeText } from '@/lib/utils'
@@ -15,13 +17,16 @@ import { useTranslation } from 'react-i18next'
 interface SubscribeCardProps {
   roomInfo: RoomInfo
   isRecording?: boolean
+  autoRecord?: boolean
   onUnsubscribe: (roomId: number) => Promise<void>
   onStartRecord: (roomId: number) => Promise<void>
 }
 
-export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, onStartRecord }: SubscribeCardProps) {
+export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = false, onUnsubscribe, onStartRecord }: SubscribeCardProps) {
   const { t } = useTranslation()
+  const { resolvedTheme } = useTheme()
   const { isReadOnly } = useRole()
+  const autoRecordEyeWeight: IconWeight = resolvedTheme === 'dark' ? 'duotone' : 'regular'
   const [isLoading, setIsLoading] = useState(false)
   const [isUnsubDialogOpen, setIsUnsubDialogOpen] = useState(false)
   const [isStartRecordDialogOpen, setIsStartRecordDialogOpen] = useState(false)
@@ -63,6 +68,69 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
   const handleStartRecord = () => {
     setIsStartRecordDialogOpen(true)
   }
+
+  const isLive = roomInfo.live_status === 1
+
+  const isAutoRecordSkipped = isLive && !isRecording
+  const AutoRecordIcon = isAutoRecordSkipped ? EyeClosedIcon : EyeIcon
+  const autoRecordEyeClass = isAutoRecordSkipped
+    ? 'text-amber-600 dark:text-amber-300'
+    : isLive && isRecording
+      ? 'text-teal-600 dark:text-teal-400'
+      : 'text-teal-600/80 dark:text-teal-400/80'
+
+  const autoRecordTooltip = !isLive
+    ? t('subscribeCard.autoRecordStandby')
+    : isRecording
+      ? t('subscribeCard.autoRecordActive')
+      : t('subscribeCard.autoRecordLiveNotRecording')
+
+  const renderAutoRecordIcon = () => {
+    if (!autoRecord) {
+      return null
+    }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            className={`relative inline-flex size-4 shrink-0 items-center justify-center leading-none ${autoRecordEyeClass}`}
+            aria-label={autoRecordTooltip}
+          >
+            <AutoRecordIcon size={16} weight={autoRecordEyeWeight} className="block" />
+            {isLive && isRecording && (
+              <span
+                className="absolute -top-px -right-px size-1.5 rounded-full bg-current ring-1 ring-background"
+                aria-hidden
+              />
+            )}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{autoRecordTooltip}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const renderOnlineCountRow = (className?: string) => {
+    if (roomInfo.online === undefined) {
+      return null
+    }
+    return (
+      <div className={className ?? 'flex items-center gap-2 text-sm text-muted-foreground'}>
+        <UserIcon size={16} />
+        <span className="font-mono" title={t('subscribeCard.onlineCount')}>
+          {roomInfo.online.toLocaleString()}
+        </span>
+      </div>
+    )
+  }
+
+  const renderStatusRow = (className?: string) => (
+    <div className={className ?? 'flex min-h-5 items-center gap-2'}>
+      {renderAutoRecordIcon()}
+      {getLiveStatusBadge()}
+    </div>
+  )
 
   const getLiveStatusBadge = () => {
     if (roomInfo.lock_status === 1) {
@@ -150,34 +218,16 @@ export function SubscribeCard({ roomInfo, isRecording = false, onUnsubscribe, on
 
                 {/* Desktop: Show online count and status badge */}
                 <div className="hidden sm:flex flex-col items-end gap-2 ml-2 shrink-0">
-                  {roomInfo.online !== undefined && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <UserIcon size={16} />
-                      <span className="font-mono" title={t('subscribeCard.onlineCount')}>
-                        {roomInfo.online.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {getLiveStatusBadge()}
-                  </div>
+                  {renderOnlineCountRow()}
+                  {renderStatusRow()}
                 </div>
               </div>
 
               {/* Mobile: online + badge on one row */}
               <div className="sm:hidden flex items-center gap-2 text-sm text-muted-foreground mt-2 w-full justify-between">
-                {roomInfo.online !== undefined && (
-                  <div className="flex items-center gap-2">
-                    <UserIcon size={16} />
-                    <span className="font-mono" title={t('subscribeCard.onlineCount')}>
-                      {roomInfo.online.toLocaleString()}
-                    </span>
-                  </div>
-                )}
+                {renderOnlineCountRow('flex items-center gap-2 min-w-0') ?? <span />}
 
-                <div className="ml-2 shrink-0">
-                  {getLiveStatusBadge()}
-                </div>
+                {renderStatusRow('ml-2 shrink-0 flex items-center gap-2')}
               </div>
 
               {cleanDescription && (

@@ -77,6 +77,22 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
 
   const roomIds = subscribedRoomIds ?? []
 
+  const { data: autoRecordRoomIds = [] } = useSWR<number[]>(
+    'subscribe/auto-record-ids',
+    () => apiClient.getAutoRecordRooms(),
+    {
+      refreshInterval: isVisible ? 5000 : 0,
+      refreshWhenHidden: true,
+      revalidateOnFocus: true,
+      keepPreviousData: true,
+    }
+  )
+
+  const autoRecordRoomIdSet = useMemo(
+    () => new Set(autoRecordRoomIds),
+    [autoRecordRoomIds]
+  )
+
   const roomInfoKey =
     roomIds.length > 0 ? `subscribe/details/${roomIds.join(',')}` : null
 
@@ -113,16 +129,25 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
   )
 
   const rooms = useMemo(() => {
+    const sortRank = (room: RoomInfo) => {
+      const live = room.live_status === 1
+      const autoRecord = autoRecordRoomIdSet.has(room.room_id)
+      if (live && autoRecord) return 0
+      if (live && !autoRecord) return 1
+      if (!live && autoRecord) return 2
+      return 3
+    }
+
     return Object.values(details.roomInfos).sort((a, b) => {
       if (pinnedRoomId !== undefined && pinnedRoomId !== null) {
         if (a.room_id === pinnedRoomId) return -1
         if (b.room_id === pinnedRoomId) return 1
       }
-      if (a.live_status === 1 && b.live_status !== 1) return -1
-      if (a.live_status !== 1 && b.live_status === 1) return 1
+      const rankDiff = sortRank(a) - sortRank(b)
+      if (rankDiff !== 0) return rankDiff
       return 0
     })
-  }, [details.roomInfos, pinnedRoomId])
+  }, [details.roomInfos, pinnedRoomId, autoRecordRoomIdSet])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -461,6 +486,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
                             <SubscribeCard
                               roomInfo={room}
                               isRecording={recordingRoomIds.has(room.room_id)}
+                              autoRecord={autoRecordRoomIdSet.has(room.room_id)}
                               onUnsubscribe={handleUnsubscribe}
                               onStartRecord={handleStartRecord}
                             />
