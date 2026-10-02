@@ -442,7 +442,10 @@ export const resources = {
         confirmCancel: "確認取消",
         confirmStart: "確認啓動",
         copyRoomIdTitle: "複製 直播間 ID: {{roomId}}",
-        copyRoomIdAria: "複製 直播間 ID {{roomId}}"
+        copyRoomIdAria: "複製 直播間 ID {{roomId}}",
+        autoRecordStandby: "自動錄製待機",
+        autoRecordActive: "自動錄製中",
+        autoRecordLiveNotRecording: "跳過本場自動錄製"
       },
       roomConfig: {
         title: "房間配置",
@@ -452,7 +455,7 @@ export const resources = {
         updateFailed: "更新房間配置失敗",
         loading: "載入配置中...",
         autoRecord: "自動錄製",
-        autoRecordHint: "開播後自動啓動錄製。",
+        autoRecordHint: "開播後自動錄製，訂閱列表會以眼睛圖示標示。",
         notify: "開播通知",
         notifyHint: "收到直播檢測或自動錄製啓動通知。",
         recordDuration: "錄製時長",
@@ -965,7 +968,10 @@ export const resources = {
         confirmCancel: "确认取消",
         confirmStart: "确认启动",
         copyRoomIdTitle: "复制 直播间 ID: {{roomId}}",
-        copyRoomIdAria: "复制 直播间 ID {{roomId}}"
+        copyRoomIdAria: "复制 直播间 ID {{roomId}}",
+        autoRecordStandby: "自动录制待机",
+        autoRecordActive: "自动录制中",
+        autoRecordLiveNotRecording: "跳过本场自动录制"
       },
       roomConfig: {
         title: "房间配置",
@@ -975,7 +981,7 @@ export const resources = {
         updateFailed: "更新房间配置失败",
         loading: "加载配置中...",
         autoRecord: "自动录制",
-        autoRecordHint: "开播后自动启动录制。",
+        autoRecordHint: "开播后自动录制，订阅列表会以眼睛图标标示。",
         notify: "开播通知",
         notifyHint: "收到直播检测或自动录制启动通知。",        
         recordDuration: "录制时长",

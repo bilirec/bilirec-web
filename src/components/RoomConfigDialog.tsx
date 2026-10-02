@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api'
 import type { RoomConfig, RoomInfo } from '@/lib/types'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { mutate } from 'swr'
 
 interface RoomConfigDialogProps {
   roomInfo: RoomInfo
@@ -90,6 +91,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
         delete_oldest_on_low_disk: roomConfig.delete_oldest_on_low_disk ?? false,
       })
       setRoomConfig(updatedConfig)
+      void mutate('subscribe/auto-record-ids')
       onOpenChange(false)
       toast.success(t('roomConfig.updateSuccess'), { position: 'bottom-center' })
     } catch (error: any) {
