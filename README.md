@@ -4,7 +4,7 @@ Bilibili 直播录制管理 Web 界面（PWA），连接 [bilirec](https://githu
 
 线上地址：[app.bilirec.org](https://app.bilirec.org/)
 
-**交流与反馈：** QQ 群 [834229325](https://qm.qq.com/q/oMTN3EsGBy)，用于交流和问题反映。
+**交流与反馈：** BUG / 問題回報与建议请到主仓库 [bilirec Issues](https://github.com/bilirec/bilirec/issues/new/choose)（选 PWA 或功能建议模板）。**在本仓库开的 Issue 会被自动关闭。** 使用疑问见 [FAQ](https://www.bilirec.org/zh-cn/guides/faq/) 或 QQ 群 [834229325](https://qm.qq.com/q/oMTN3EsGBy)。
 
 ## 自行部署
 
