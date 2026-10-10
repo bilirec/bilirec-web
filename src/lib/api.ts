@@ -406,7 +406,9 @@ class ApiClient {
 
   // Room info methods
   async getRoomInfo(roomId: number): Promise<RoomInfo> {
-    const response = await this.client.get<RoomInfo>(`/room/${roomId}/info`);
+    const response = await this.client.get<RoomInfo>(`/room/${roomId}/info`, {
+      timeout: 15_000,
+    });
     return response.data;
   }
 

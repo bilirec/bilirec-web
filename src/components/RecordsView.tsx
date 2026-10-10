@@ -9,7 +9,7 @@ import {
   defaultRecordStartConfig,
   type RecordStartConfig,
 } from '@/lib/room-config'
-import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
+import { isNetworkError, markOnline, noteTransportFailure } from '@/lib/network-status'
 import { applyStreamIoRates } from '@/lib/stream-io-rates'
 import { toast } from 'sonner'
 import type { RecordTask, RoomInfo } from '@/lib/types'
@@ -67,7 +67,7 @@ export function RecordsView({ onRefresh }: RecordsViewProps) {
       onSuccess: () => markOnline(),
       onError: (err) => {
         if (isNetworkError(err)) {
-          markOffline()
+          noteTransportFailure(err)
         }
       },
     }

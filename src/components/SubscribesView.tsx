@@ -8,7 +8,7 @@ import { RoomIdInputWithConfirmDialog } from './RoomIdInputWithConfirmDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { apiClient } from '@/lib/api'
-import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
+import { isNetworkError, markOnline, noteTransportFailure } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordInfo, RecordStatus, RoomConfig, RoomInfo } from '@/lib/types'
 import { buildStartRecordParams } from '@/lib/room-config'
@@ -69,7 +69,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
       onSuccess: () => markOnline(),
       onError: (err) => {
         if (isNetworkError(err)) {
-          markOffline()
+          noteTransportFailure(err)
         }
       },
     }

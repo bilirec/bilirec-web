@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CaretLeftIcon } from '@phosphor-icons/react'
 import { SearchBar } from './SearchBar'
 import { apiClient } from '@/lib/api'
-import { isNetworkError, markOffline, markOnline } from '@/lib/network-status'
+import { isNetworkError, markOnline, noteTransportFailure } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RecordFile, RecordFileListResponse } from '@/lib/types'
 import { useTranslation } from 'react-i18next'
@@ -247,7 +247,7 @@ export function FilesView() {
   useEffect(() => {
     if (!isError) return
     if (isNetworkError(error)) {
-      markOffline()
+      noteTransportFailure(error)
       return
     }
     const err = error as { response?: { data?: string } }

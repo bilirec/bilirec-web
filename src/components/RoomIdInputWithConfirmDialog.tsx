@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { PlusIcon, UserIcon } from '@phosphor-icons/react'
 import { apiClient } from '@/lib/api'
+import { isNetworkError, isRequestTimeout } from '@/lib/network-status'
 import { toast } from 'sonner'
 import type { RoomInfo } from '@/lib/types'
 import { useTranslation } from 'react-i18next'
@@ -64,13 +65,18 @@ export function RoomIdInputWithConfirmDialog({
       setSkipReopenInputDialog(false)
       onConfirmDialogOpen?.()
       setIsConfirmDialogOpen(true)
-    } catch (error: any) {
-      if (error.response?.status === 404) {
+    } catch (error: unknown) {
+      const axiosErr = error as { response?: { status?: number; data?: string } }
+      if (axiosErr.response?.status === 404) {
         toast.error(t('roomInput.roomNotFound'))
-      } else if (error.response?.status === 400) {
+      } else if (axiosErr.response?.status === 400) {
         toast.error(t('roomInput.invalidRoomId'))
+      } else if (isRequestTimeout(error)) {
+        toast.error(t('roomInput.fetchTimeout'))
+      } else if (isNetworkError(error)) {
+        toast.error(t('roomInput.fetchUnreachable'))
       } else {
-        toast.error(error.response?.data || t('roomInput.fetchFailed'))
+        toast.error(axiosErr.response?.data || t('roomInput.fetchFailed'))
       }
     } finally {
       setIsFetchingRoomInfo(false)

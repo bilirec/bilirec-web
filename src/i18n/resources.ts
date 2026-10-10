@@ -465,6 +465,9 @@ export const resources = {
         roomNotFound: "找不到此房間",
         invalidRoomId: "無效的房間 ID",
         fetchFailed: "獲取房間資訊失敗",
+        fetchTimeout: "取得房間資訊逾時，請稍後再試",
+        fetchUnreachable:
+          "無法連線到本機服務，請確認 App 服務已啟動，並檢查登入頁的伺服器位址（可嘗試 http://127.0.0.1:8080）",
         inputPlaceholder: "輸入房間 ID",
         fetching: "獲取房間資訊中...",
         next: "下一步",
@@ -974,6 +977,9 @@ export const resources = {
         roomNotFound: "找不到此房间",
         invalidRoomId: "无效的房间 ID",
         fetchFailed: "获取房间信息失败",
+        fetchTimeout: "获取房间信息超时，请稍后再试",
+        fetchUnreachable:
+          "无法连接到本机服务，请确认 App 服务已启动，并检查登录页的服务器地址（可尝试 http://127.0.0.1:8080）",
         inputPlaceholder: "输入房间 ID",
         fetching: "获取房间信息中...",
         next: "下一步",
