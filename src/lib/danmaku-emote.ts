@@ -169,8 +169,11 @@ function mountBigEmoteImg(
     img.referrerPolicy = "no-referrer"
     img.draggable = false
     img.style.objectFit = "contain"
-    img.style.verticalAlign = "middle"
-    img.style.display = "inline-block"
+    // Block-level: the fixed-size wrapper already reserves the exact box, so the
+    // image must not join the parent's line box. As an inline-block with
+    // vertical-align:middle, the line-height/font metrics push it down and the
+    // wrapper's overflow:hidden clips ~10-15% off the image bottom.
+    img.style.display = "block"
     img.style.pointerEvents = "none"
 
     const restore = () => {
