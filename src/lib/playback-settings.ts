@@ -49,6 +49,21 @@ export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
 ]
 export const DEFAULT_OVERLAY_CORNER: OverlayCorner = "bottom-left"
 
+/** Desktop (windowed) playback chat side panel visibility; hidden by default. */
+export const DEFAULT_DESKTOP_CHAT_PANEL = false
+
+/** How the desktop chat panel is presented when open. */
+export type DesktopChatLayout = "auto" | "overlay" | "extend"
+export const DESKTOP_CHAT_LAYOUTS: readonly DesktopChatLayout[] = [
+  "auto",
+  "overlay",
+  "extend",
+]
+export const DEFAULT_DESKTOP_CHAT_LAYOUT: DesktopChatLayout = "auto"
+
+const DESKTOP_CHAT_PANEL_KEY = "bilirec.playback.desktopChatPanel"
+const DESKTOP_CHAT_LAYOUT_KEY = "bilirec.playback.desktopChatLayout"
+
 export type PlaybackSettingsValue = {
   rates: number[]
   frameStepMs: number
@@ -60,6 +75,7 @@ export type PlaybackSettingsValue = {
   danmakuArea: DanmakuArea
   danmakuPreventOverlap: boolean
   overlayCorner: OverlayCorner
+  desktopChatLayout: DesktopChatLayout
 }
 
 export const DEFAULT_PLAYBACK_SETTINGS: PlaybackSettingsValue = {
@@ -73,6 +89,7 @@ export const DEFAULT_PLAYBACK_SETTINGS: PlaybackSettingsValue = {
   danmakuArea: DEFAULT_DANMAKU_AREA,
   danmakuPreventOverlap: DEFAULT_DANMAKU_PREVENT_OVERLAP,
   overlayCorner: DEFAULT_OVERLAY_CORNER,
+  desktopChatLayout: DEFAULT_DESKTOP_CHAT_LAYOUT,
 }
 
 function readNumber(key: string, fallback: number): number {
@@ -278,6 +295,44 @@ export function loadOverlayCorner(): OverlayCorner {
 export function saveOverlayCorner(corner: OverlayCorner) {
   try {
     localStorage.setItem(OVERLAY_CORNER_KEY, corner)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDesktopChatPanel(): boolean {
+  try {
+    const raw = localStorage.getItem(DESKTOP_CHAT_PANEL_KEY)
+    if (raw == null || raw === "") return DEFAULT_DESKTOP_CHAT_PANEL
+    return raw === "true"
+  } catch {
+    return DEFAULT_DESKTOP_CHAT_PANEL
+  }
+}
+
+export function saveDesktopChatPanel(visible: boolean) {
+  try {
+    localStorage.setItem(DESKTOP_CHAT_PANEL_KEY, String(visible))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDesktopChatLayout(): DesktopChatLayout {
+  try {
+    const raw = localStorage.getItem(DESKTOP_CHAT_LAYOUT_KEY)
+    if (raw && (DESKTOP_CHAT_LAYOUTS as readonly string[]).includes(raw)) {
+      return raw as DesktopChatLayout
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_DESKTOP_CHAT_LAYOUT
+}
+
+export function saveDesktopChatLayout(layout: DesktopChatLayout) {
+  try {
+    localStorage.setItem(DESKTOP_CHAT_LAYOUT_KEY, layout)
   } catch {
     /* ignore */
   }

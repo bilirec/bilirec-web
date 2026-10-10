@@ -17,8 +17,15 @@ import { PlaybackChatDanmakuBody } from "@/components/playback/PlaybackChatDanma
 const CONTROL_RESERVE_PX = 100
 const STICK_BOTTOM_PX = 48
 const EST_ROW_PX = 36
+/** Overlay panel: keep clear of the dialog close button floating at the stage's top-right. */
+const PANEL_TOP_INSET_PX = 44
+const PANEL_RIGHT_INSET_PX = 8
+const PANEL_WIDTH_PX = 320
 
-type ChatListLayout = Extract<OverlayLayout, { mode: "letterbox" | "docked" }>
+type ChatListLayout =
+  | Extract<OverlayLayout, { mode: "letterbox" | "docked" }>
+  | { mode: "panel" }
+  | { mode: "column" }
 
 interface PlaybackChatListProps {
   items: PlaybackChatItem[]
@@ -145,7 +152,8 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
 }
 
 /**
- * Portrait chat timeline (virtualized): letterbox black bar, or translucent dock on vertical VODs.
+ * Portrait chat timeline (virtualized): letterbox black bar, translucent dock on
+ * vertical VODs, or a floating overlay panel on the desktop picture.
  * Follows playback (stick-to-bottom) until the user scrolls up.
  */
 export function PlaybackChatList({
@@ -195,30 +203,47 @@ export function PlaybackChatList({
 
   if (hidden) return null
 
+  const panel = layout.mode === "panel"
+  const column = layout.mode === "column"
   const docked = layout.mode === "docked"
-  const panelStyle: CSSProperties = docked
+  const panelStyle: CSSProperties | undefined = panel
     ? {
-        left: 0,
-        right: 0,
-        bottom: layout.bottomInset,
-        height: layout.panelHeight,
-      }
-    : {
-        top: layout.contentBottom + 4,
+        top: PANEL_TOP_INSET_PX,
+        right: PANEL_RIGHT_INSET_PX,
         bottom: CONTROL_RESERVE_PX,
-        left: 0,
-        right: 0,
+        width: PANEL_WIDTH_PX,
       }
+    : column
+      ? undefined
+      : docked
+        ? {
+            left: 0,
+            right: 0,
+            bottom: layout.bottomInset,
+            height: layout.panelHeight,
+          }
+        : {
+            top: layout.contentBottom + 4,
+            bottom: CONTROL_RESERVE_PX,
+            left: 0,
+            right: 0,
+          }
 
   return (
     <div
       className={cn(
-        "pointer-events-auto absolute z-19 flex flex-col",
+        "pointer-events-auto flex flex-col",
+        panel
+          ? "absolute z-19 rounded-md bg-linear-to-l from-black/75 via-black/50 to-black/10 backdrop-blur-[1px]"
+          : column
+            ? "relative h-full w-full"
+            : "absolute z-19",
         docked && "bg-linear-to-r from-black/75 via-black/50 to-black/10 backdrop-blur-[1px]",
         className
       )}
       style={panelStyle}
     >
+      {column ? <div aria-hidden className="h-11 shrink-0" /> : null}
       <div
         ref={parentRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]"
@@ -255,7 +280,13 @@ export function PlaybackChatList({
       {!stickBottom && visible.length > 0 ? (
         <button
           type="button"
-          className="absolute top-1 right-2 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-sm"
+          className={cn(
+            "absolute right-2 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/90 backdrop-blur-sm",
+            // Desktop panel + extend column: bottom-right keeps the pill clear
+            // of the dialog close button floating at the top-right. Mobile
+            // letterbox/docked keeps it at the top inside the visible dock.
+            panel || column ? "bottom-2" : "top-1"
+          )}
           onClick={() => {
             stickRef.current = true
             setStickBottom(true)

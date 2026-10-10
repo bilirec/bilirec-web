@@ -279,7 +279,14 @@ export const resources = {
         overlayCornerTopRight: "右上",
         overlayCornerBottomLeft: "左下",
         overlayCornerBottomRight: "右下",
-        overlayCornerHidden: "隱藏"
+        overlayCornerHidden: "隱藏",
+        desktopChatToggleLabel: "聊天列表",
+        desktopChatLayoutLabel: "聊天面板樣式",
+        desktopChatLayout_auto: "自動",
+        desktopChatLayout_overlay: "浮動面板",
+        desktopChatLayout_extend: "延展雙欄",
+        desktopChatLayoutHint:
+          "自動：視窗夠寬時延展成左影片右聊天列，否則改用浮動面板，影片皆不縮小。固定「延展雙欄」在較窄的視窗會縮小影片畫面。"
       },
       recordsView: {
         title: "錄製管理",
@@ -791,7 +798,14 @@ export const resources = {
         overlayCornerTopRight: "右上",
         overlayCornerBottomLeft: "左下",
         overlayCornerBottomRight: "右下",
-        overlayCornerHidden: "隐藏"
+        overlayCornerHidden: "隐藏",
+        desktopChatToggleLabel: "聊天列表",
+        desktopChatLayoutLabel: "聊天面板样式",
+        desktopChatLayout_auto: "自动",
+        desktopChatLayout_overlay: "浮动面板",
+        desktopChatLayout_extend: "延展双栏",
+        desktopChatLayoutHint:
+          "自动：窗口足够宽时延展成左视频右聊天栏，否则改用浮动面板，视频均不缩小。固定“延展双栏”在较窄的窗口会缩小视频画面。"
       },
       recordsView: {
         title: "录制管理",

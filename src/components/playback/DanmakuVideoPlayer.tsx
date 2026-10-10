@@ -26,6 +26,7 @@ import {
   CaretUpIcon,
   ChatCircleSlashIcon,
   ChatCircleTextIcon,
+  ChatCenteredDotsIcon,
   CornersOutIcon,
   CircleNotchIcon,
   GearSixIcon,
@@ -47,6 +48,7 @@ import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
   type PlaybackSettingsValue,
+  type DesktopChatLayout,
   type DanmakuArea,
   loadDanmakuFollowScreen,
   loadDanmakuOpacity,
@@ -56,6 +58,8 @@ import {
   loadDanmakuPreventOverlap,
   loadFrameStepMs,
   loadOverlayCorner,
+  loadDesktopChatPanel,
+  loadDesktopChatLayout,
   loadPlaybackRates,
   loadSeekOffsetSec,
   loadScreenDanmakuVisible,
@@ -67,6 +71,8 @@ import {
   saveDanmakuPreventOverlap,
   saveFrameStepMs,
   saveOverlayCorner,
+  saveDesktopChatPanel,
+  saveDesktopChatLayout,
   savePlaybackRates,
   saveSeekOffsetSec,
   saveScreenDanmakuVisible,
@@ -104,6 +110,7 @@ import {
   PORTRAIT_LANDSCAPE_VIDEO_ALIGNMENT,
   getObjectFitContentBox,
   measureEventOverlayBottomInset,
+  DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX,
   WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX,
   type ObjectFitMode,
 } from "@/lib/playback-layout"
@@ -129,6 +136,9 @@ interface DanmakuVideoPlayerProps {
   videoPath: string
   /** Display filename shown in the player chrome */
   fileName: string
+  /** Reports whether the chat panel currently uses the extended side column
+   *  (so the host dialog can widen instead of shrinking the video). */
+  onChatPanelExtendedChange?: (extended: boolean) => void
   className?: string
 }
 
@@ -167,6 +177,8 @@ function TextChipButton({
 const ADV_LABEL = "text-xs font-medium text-white/55 shrink-0"
 
 const PROGRESS_THROTTLE_MS = 100
+/** Matches the aside width transition used for the extended chat column. */
+const ASIDE_TRANSITION_MS = 220
 
 function buildInjectStyleKey(
   opts: DanmakuInjectStyleOptions,
@@ -186,6 +198,7 @@ export function DanmakuVideoPlayer({
   playbackUrl,
   videoPath,
   fileName,
+  onChatPanelExtendedChange,
   className,
 }: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
@@ -270,6 +283,15 @@ export function DanmakuVideoPlayer({
     loadDanmakuPreventOverlap()
   )
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
+  const [desktopChatPanel, setDesktopChatPanel] = useState(() => loadDesktopChatPanel())
+  const [desktopChatLayout, setDesktopChatLayout] = useState<DesktopChatLayout>(() =>
+    loadDesktopChatLayout()
+  )
+  const [viewportWideEnough, setViewportWideEnough] = useState(
+    () => typeof window !== "undefined" && window.innerWidth >= DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX
+  )
+  const onChatPanelExtendedRef = useRef(onChatPanelExtendedChange)
+  onChatPanelExtendedRef.current = onChatPanelExtendedChange
   const [danmakuScale, setDanmakuScale] = useState(
     () => resolveDanmakuFont(0, loadDanmakuFollowScreen(), loadDanmakuSize()).scale
   )
@@ -298,6 +320,7 @@ export function DanmakuVideoPlayer({
       danmakuArea,
       danmakuPreventOverlap,
       overlayCorner,
+      desktopChatLayout,
     }),
     [
       rates,
@@ -310,6 +333,7 @@ export function DanmakuVideoPlayer({
       danmakuArea,
       danmakuPreventOverlap,
       overlayCorner,
+      desktopChatLayout,
     ]
   )
 
@@ -345,6 +369,10 @@ export function DanmakuVideoPlayer({
       const height = window.visualViewport?.height ?? window.innerHeight
       setViewportLandscape((prev) => {
         const next = width > height
+        return prev === next ? prev : next
+      })
+      setViewportWideEnough((prev) => {
+        const next = width >= DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX
         return prev === next ? prev : next
       })
     }
@@ -879,6 +907,42 @@ export function DanmakuVideoPlayer({
   // Flying danmaku is optional only while the portrait chat list is on screen.
   // Landscape desktop/mobile has no chat panel, so ignore that hide preference.
   const screenDanmakuActive = chatLayout == null || screenDanmakuVisible
+  // Desktop-only chat side panel (windowed playback; hidden in fullscreen).
+  const desktopChatPanelVisible = !touchDevice && !stageFullscreen && desktopChatPanel
+  // "extend" widens the dialog into a left-video/right-chat column; "overlay"
+  // floats the panel over the picture; "auto" extends only when the viewport is
+  // wide enough to keep the video area untouched.
+  const chatPanelExtended =
+    desktopChatPanelVisible &&
+    (desktopChatLayout === "extend" ||
+      (desktopChatLayout === "auto" && viewportWideEnough))
+  const chatPanelFloating = desktopChatPanelVisible && !chatPanelExtended
+
+  useEffect(() => {
+    onChatPanelExtendedRef.current?.(chatPanelExtended)
+  }, [chatPanelExtended])
+
+  // Keep the extended aside mounted briefly after closing so its width can
+  // animate back to 0 instead of popping out of the layout.
+  const [asideMounted, setAsideMounted] = useState(false)
+  const [asideOpen, setAsideOpen] = useState(false)
+  useEffect(() => {
+    if (chatPanelExtended) {
+      setAsideMounted(true)
+      return
+    }
+    const timer = window.setTimeout(() => setAsideMounted(false), ASIDE_TRANSITION_MS)
+    return () => window.clearTimeout(timer)
+  }, [chatPanelExtended])
+  useEffect(() => {
+    if (!asideMounted) {
+      setAsideOpen(false)
+      return
+    }
+    // Flip the width class one frame after mount so the 0 -> 320px transition runs.
+    const raf = requestAnimationFrame(() => setAsideOpen(chatPanelExtended))
+    return () => cancelAnimationFrame(raf)
+  }, [asideMounted, chatPanelExtended])
   const effectsReady = danmakuStatus === "ready"
 
   useEffect(() => {
@@ -1312,6 +1376,8 @@ export function DanmakuVideoPlayer({
     danmakuPreventOverlapRef.current = next.danmakuPreventOverlap
     setOverlayCorner(next.overlayCorner)
     saveOverlayCorner(next.overlayCorner)
+    setDesktopChatLayout(next.desktopChatLayout)
+    saveDesktopChatLayout(next.desktopChatLayout)
   }, [])
 
   const fitLabel = t(`playbackPlayer.fit.${objectFit}`)
@@ -1454,7 +1520,15 @@ export function DanmakuVideoPlayer({
   ])
 
   return (
-    <div className={cn("relative flex h-full min-h-0 w-full flex-col bg-black", className)}>
+    <div
+      className={cn(
+        "relative flex h-full min-h-0 w-full bg-black",
+        // Stay in row layout while the aside is animating closed, otherwise the
+        // shrinking column would jump below the video mid-transition.
+        (chatPanelExtended || asideMounted) ? "flex-row" : "flex-col",
+        className
+      )}
+    >
       {headerTitle || statusHint || loadedDanmakuHint ? (
         <div
           className={cn(
@@ -1651,6 +1725,26 @@ export function DanmakuVideoPlayer({
                         <ChatCircleTextIcon className="size-5" weight="bold" />
                       )}
                     </MediaChromeButton>
+
+                    {!touchDevice && !stageFullscreen ? (
+                      <MediaChromeButton
+                        className={cn("bilirec-playback-touch", landscapeControlClass)}
+                        noTooltip
+                        title={t("playbackPlayer.desktopChatToggleLabel")}
+                        aria-label={t("playbackPlayer.desktopChatToggleLabel")}
+                        aria-pressed={desktopChatPanel}
+                        onClick={() => {
+                          const next = !desktopChatPanel
+                          setDesktopChatPanel(next)
+                          saveDesktopChatPanel(next)
+                        }}
+                      >
+                        <ChatCenteredDotsIcon
+                          className={cn("size-5", !desktopChatPanel && "opacity-70")}
+                          weight="bold"
+                        />
+                      </MediaChromeButton>
+                    ) : null}
                   </div>
 
                   <TextChipButton
@@ -1890,7 +1984,35 @@ export function DanmakuVideoPlayer({
             />
           )}
         </div>
+
+        {chatPanelFloating ? (
+          <PlaybackChatList
+            items={chatItems}
+            videoRef={videoRef}
+            hidden={danmakuHidden || !effectsReady}
+            layout={{ mode: "panel" }}
+            emotes={emoteMap}
+          />
+        ) : null}
       </div>
+
+      {asideMounted ? (
+        <aside
+          className={cn(
+            "relative shrink-0 overflow-hidden bg-zinc-950 transition-[width] duration-200 ease-out",
+            asideOpen ? "w-80 border-l border-white/10" : "w-0"
+          )}
+          aria-hidden={!chatPanelExtended}
+        >
+          <PlaybackChatList
+            items={chatItems}
+            videoRef={videoRef}
+            hidden={danmakuHidden || !effectsReady}
+            layout={{ mode: "column" }}
+            emotes={emoteMap}
+          />
+        </aside>
+      ) : null}
 
       {showCentralLoadOverlay ? (
         <div

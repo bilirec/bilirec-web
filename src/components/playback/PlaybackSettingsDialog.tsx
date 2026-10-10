@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import {
   type PlaybackSettingsValue,
   type OverlayCorner,
+  type DesktopChatLayout,
   type DanmakuArea,
   DEFAULT_PLAYBACK_SETTINGS,
   DEFAULT_DANMAKU_OPACITY,
@@ -28,6 +29,7 @@ import {
   DANMAKU_SPEED_MAX,
   DANMAKU_AREAS,
   OVERLAY_CORNERS,
+  DESKTOP_CHAT_LAYOUTS,
   parseRatesInput,
   parsePositiveNumber,
   clampDanmakuSize,
@@ -60,6 +62,9 @@ export function PlaybackSettingsDialog({
   const [areaDraft, setAreaDraft] = useState<DanmakuArea>(() => value.danmakuArea)
   const [preventOverlapDraft, setPreventOverlapDraft] = useState(() => value.danmakuPreventOverlap)
   const [overlayCornerDraft, setOverlayCornerDraft] = useState<OverlayCorner>(() => value.overlayCorner)
+  const [desktopChatLayoutDraft, setDesktopChatLayoutDraft] = useState<DesktopChatLayout>(
+    () => value.desktopChatLayout
+  )
 
   const prevOpenRef = useRef(open)
 
@@ -76,6 +81,7 @@ export function PlaybackSettingsDialog({
       setAreaDraft(value.danmakuArea)
       setPreventOverlapDraft(value.danmakuPreventOverlap)
       setOverlayCornerDraft(value.overlayCorner)
+      setDesktopChatLayoutDraft(value.desktopChatLayout)
     }
     prevOpenRef.current = open
   }, [open, value])
@@ -101,7 +107,8 @@ export function PlaybackSettingsDialog({
     normalizedSpeedDraft !== value.danmakuSpeed ||
     areaDraft !== value.danmakuArea ||
     preventOverlapDraft !== value.danmakuPreventOverlap ||
-    overlayCornerDraft !== value.overlayCorner
+    overlayCornerDraft !== value.overlayCorner ||
+    desktopChatLayoutDraft !== value.desktopChatLayout
 
   const handleApply = () => {
     if (parsedRatesDraft == null) {
@@ -128,6 +135,7 @@ export function PlaybackSettingsDialog({
       danmakuArea: areaDraft,
       danmakuPreventOverlap: preventOverlapDraft,
       overlayCorner: overlayCornerDraft,
+      desktopChatLayout: desktopChatLayoutDraft,
     }
 
     onApply(next)
@@ -146,6 +154,7 @@ export function PlaybackSettingsDialog({
     setAreaDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuArea)
     setPreventOverlapDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuPreventOverlap)
     setOverlayCornerDraft(DEFAULT_PLAYBACK_SETTINGS.overlayCorner)
+    setDesktopChatLayoutDraft(DEFAULT_PLAYBACK_SETTINGS.desktopChatLayout)
 
     onApply(DEFAULT_PLAYBACK_SETTINGS)
   }
@@ -422,6 +431,39 @@ export function PlaybackSettingsDialog({
                   })}
                 </div>
                 <p className="text-xs text-zinc-400">{t("playbackPlayer.overlayCornerHint")}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-zinc-200">
+                  {t("playbackPlayer.desktopChatLayoutLabel")}
+                </Label>
+                <div
+                  className="grid grid-cols-3 gap-1.5"
+                  role="radiogroup"
+                  aria-label={t("playbackPlayer.desktopChatLayoutLabel")}
+                >
+                  {DESKTOP_CHAT_LAYOUTS.map((layout) => {
+                    const isSelected = desktopChatLayoutDraft === layout
+                    return (
+                      <Button
+                        key={layout}
+                        type="button"
+                        size="sm"
+                        aria-pressed={isSelected}
+                        className={cn(
+                          "h-8 text-xs transition-colors",
+                          isSelected
+                            ? "border-white bg-white font-semibold text-zinc-950 shadow-xs hover:bg-zinc-100 hover:text-zinc-950"
+                            : "border-white/15 bg-zinc-950/40 text-zinc-300 hover:border-white/25 hover:bg-white/10 hover:text-white"
+                        )}
+                        onClick={() => setDesktopChatLayoutDraft(layout)}
+                      >
+                        {t(`playbackPlayer.desktopChatLayout_${layout}`)}
+                      </Button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-zinc-400">{t("playbackPlayer.desktopChatLayoutHint")}</p>
               </div>
             </TabsContent>
           </div>
