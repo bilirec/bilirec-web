@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { useVideoPlaybackTime } from "@/hooks/use-video-playback-time"
+import { remainingRatio, useOverlayEventQueue } from "@/hooks/use-overlay-event-queue"
 import type { OverlayEvent } from "@/lib/danmaku"
 import { guardLevelColor, guardLevelIcon, guardLevelLabel, resolveSuperChatTheme } from "@/lib/danmaku"
 import type { OverlayCorner } from "@/lib/playback-settings"
@@ -10,71 +10,8 @@ import {
   resolveWindowedBottomCornerPx,
 } from "@/lib/playback-layout"
 
-const SC_FALLBACK_SEC = 4.5
-const GUARD_LIFE_SEC = 10
-const GIFT_LIFE_SEC = 3
-/** Exit animation length in wall-clock ms (CSS-driven, rate-independent). */
-const EXIT_MS = 280
-const MAX_HANG = 3
-const MAX_TOAST = 4
 const DESKTOP_FULLSCREEN_SCALE = 1.45
 const MOBILE_OVERLAY_HEIGHT_RATIO = 0.4
-
-function lifeSecFor(ev: OverlayEvent): number {
-  if (ev.kind === "gift") return GIFT_LIFE_SEC
-  if (ev.kind === "guard") return GUARD_LIFE_SEC
-  // super_chat: JSONL `time` is bilibili hang duration in seconds
-  if (ev.lifeSec != null && ev.lifeSec > 0) return ev.lifeSec
-  return SC_FALLBACK_SEC
-}
-
-interface ActiveItem {
-  event: OverlayEvent
-  /** Video-time seconds when the event entered the overlay. */
-  startAtSec: number
-  /** Video-time seconds at which the item should start its exit animation. */
-  hideAtSec: number
-  /** Wall-clock ms at which to remove the DOM after entering exit. Undefined until exiting. */
-  removeAtWall?: number
-  exiting: boolean
-}
-
-function activate(ev: OverlayEvent, videoSec: number, startAtSec = videoSec): ActiveItem {
-  return {
-    event: ev,
-    startAtSec,
-    hideAtSec: startAtSec + lifeSecFor(ev),
-    exiting: false,
-  }
-}
-
-function remainingRatio(item: ActiveItem, videoSec: number): number {
-  const duration = item.hideAtSec - item.startAtSec
-  if (duration <= 0) return 0
-  return Math.max(0, Math.min(1, (item.hideAtSec - videoSec) / duration))
-}
-
-function pruneActive(items: ActiveItem[], videoSec: number, wallMs: number): ActiveItem[] {
-  let changed = false
-  const next: ActiveItem[] = []
-  for (const item of items) {
-    if (item.exiting) {
-      if (item.removeAtWall != null && wallMs >= item.removeAtWall) {
-        changed = true
-        continue
-      }
-      next.push(item)
-      continue
-    }
-    if (videoSec >= item.hideAtSec) {
-      changed = true
-      next.push({ ...item, exiting: true, removeAtWall: wallMs + EXIT_MS })
-      continue
-    }
-    next.push(item)
-  }
-  return changed ? next : items
-}
 
 /** Portrait chat-list layout: letterbox bars, or translucent dock on the picture. */
 export type OverlayLayout =
@@ -176,24 +113,71 @@ export function GuardIcon({ level, color }: { level: number | undefined; color: 
   )
 }
 
-function useWallClock() {
-  const [now, setNow] = useState(() => performance.now())
-  useEffect(() => {
-    let raf = 0
-    const loop = () => {
-      setNow(performance.now())
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-  return now
-}
-
 function overlayMotionClass(exiting: boolean, variant: "hang" | "toast") {
   return cn(
     variant === "hang" ? "bilirec-overlay-hang" : "bilirec-overlay-toast",
     exiting ? "bilirec-overlay-exit" : "bilirec-overlay-enter"
+  )
+}
+
+/** Guard (艦長/提督/總督) hanging card — shared by the hang lane and the
+ *  lower coverable lane where guards rotate together with gift toasts. */
+function GuardCard({
+  event,
+  exiting,
+  variant,
+  className,
+}: {
+  event: OverlayEvent
+  exiting: boolean
+  variant: "hang" | "toast"
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const color = guardLevelColor(event.level)
+  const label = guardLevelLabel(event.level)
+  const count = event.giftCount ?? 1
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm",
+        overlayMotionClass(exiting, variant),
+        className
+      )}
+      style={{
+        border: `1px solid ${color}66`,
+        boxShadow: `0 0 12px ${color}40, 1px 1px 5px rgb(0 0 0 / 0.75)`,
+      }}
+    >
+      {/* Left tier color bar — signals importance at a glance */}
+      <div
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ backgroundColor: color }}
+      />
+      <div className="flex items-center gap-2 pl-3.5 pr-2.5 py-1.5">
+        {/* Tier medal — official 大航海 icon with shield fallback */}
+        <GuardIcon level={event.level} color={color} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] sm:text-xs font-bold leading-tight" style={{ color }}>
+              {label}
+            </span>
+            <span className="text-[10px] sm:text-[11px] text-white/55 leading-tight">
+              {t("playbackPlayer.guardAction")}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1">
+            <span className="truncate text-xs sm:text-sm font-medium leading-tight text-white">
+              {event.user}
+            </span>
+            {count > 1 ? (
+              <span className="shrink-0 text-[11px] sm:text-xs text-white/60">×{count}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -210,15 +194,14 @@ export function EventOverlayLayer({
   className,
 }: EventOverlayLayerProps) {
   const { t } = useTranslation()
-  const currentTime = useVideoPlaybackTime(videoRef)
-  const cursorRef = useRef(0)
-  const currentTimeRef = useRef(currentTime)
+  const { currentTime, hangActive, guardActive, gifts } = useOverlayEventQueue({
+    events,
+    videoRef,
+    hidden,
+    seekEpoch,
+  })
   const zoneRef = useRef<HTMLDivElement>(null)
-  currentTimeRef.current = currentTime
-  const [hang, setHang] = useState<ActiveItem[]>([])
-  const [toasts, setToasts] = useState<ActiveItem[]>([])
   const [mobileLayoutScale, setMobileLayoutScale] = useState(1)
-  const now = useWallClock()
 
   useEffect(() => {
     let frame = 0
@@ -244,61 +227,9 @@ export function EventOverlayLayer({
     return () => cancelAnimationFrame(frame)
   }, [overlayMode, chromeBottomInset])
 
-  useEffect(() => {
-    const t0 = currentTimeRef.current
-    const activeAtCurrentTime = hidden
-      ? []
-      : events.filter((ev) => ev.ts <= t0 && ev.ts + lifeSecFor(ev) > t0)
-    setHang(
-      activeAtCurrentTime
-        .filter((ev) => ev.kind !== "gift")
-        .map((ev) => activate(ev, t0, ev.ts))
-        .slice(-MAX_HANG)
-    )
-    setToasts(
-      activeAtCurrentTime
-        .filter((ev) => ev.kind === "gift")
-        .map((ev) => activate(ev, t0, ev.ts))
-        .slice(-MAX_TOAST)
-    )
-    let i = 0
-    while (i < events.length && events[i].ts <= t0) i += 1
-    cursorRef.current = i
-  }, [seekEpoch, events, hidden])
-
-  useEffect(() => {
-    if (hidden || events.length === 0) return
-    const videoSec = currentTime
-    const nextHang: ActiveItem[] = []
-    const nextToast: ActiveItem[] = []
-    let i = cursorRef.current
-    while (i < events.length && events[i].ts <= currentTime + 0.05) {
-      const ev = events[i]
-      i += 1
-      if (ev.kind === "gift") {
-        nextToast.push(activate(ev, videoSec))
-      } else {
-        nextHang.push(activate(ev, videoSec))
-      }
-    }
-    cursorRef.current = i
-    if (nextHang.length === 0 && nextToast.length === 0) return
-    if (nextHang.length) {
-      setHang((prev) => [...prev, ...nextHang].slice(-MAX_HANG))
-    }
-    if (nextToast.length) {
-      setToasts((prev) => [...prev, ...nextToast].slice(-MAX_TOAST))
-    }
-  }, [currentTime, events, hidden])
-
-  useEffect(() => {
-    if (hidden) return
-    setHang((prev) => pruneActive(prev, currentTime, now))
-    setToasts((prev) => pruneActive(prev, currentTime, now))
-  }, [now, currentTime, hidden])
-
-  const visibleHang = useMemo(() => (hidden ? [] : hang), [hang, hidden])
-  const visibleToasts = useMemo(() => (hidden ? [] : toasts), [toasts, hidden])
+  const visibleHang = hangActive
+  const visibleGuards = guardActive
+  const visibleGifts = gifts
   const scale =
     overlayMode === "desktop"
       ? DESKTOP_FULLSCREEN_SCALE
@@ -333,8 +264,8 @@ export function EventOverlayLayer({
       className={cn("pointer-events-none absolute inset-0 z-19 overflow-hidden", className)}
       aria-hidden
     >
-      {/* Keep hang cards and gifts in one anchored group so scaling preserves
-          the position of the complete visual effect, including the gift lane. */}
+      {/* Keep hang SC cards, guard cards and gift toasts in one anchored group so
+          scaling preserves the position of the complete visual effect. */}
       <div
         ref={zoneRef}
         className={cn("absolute", corner.className)}
@@ -412,57 +343,31 @@ export function EventOverlayLayer({
                 </div>
               )
             }
-            const color = guardLevelColor(event.level)
-            const label = guardLevelLabel(event.level)
-            const count = event.giftCount ?? 1
             return (
-              <div
+              <GuardCard
                 key={event.id}
-                className={cn(
-                  "relative overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm",
-                  overlayMotionClass(exiting, "hang"),
-                  mobileEffectWidthClass
-                )}
-                style={{
-                  border: `1px solid ${color}66`,
-                  boxShadow: `0 0 12px ${color}40, 1px 1px 5px rgb(0 0 0 / 0.75)`,
-                }}
-              >
-                {/* Left tier color bar — signals importance at a glance */}
-                <div
-                  aria-hidden
-                  className="absolute inset-y-0 left-0 w-1.5"
-                  style={{ backgroundColor: color }}
-                />
-                <div className="flex items-center gap-2 pl-3.5 pr-2.5 py-1.5">
-                  {/* Tier medal — official 大航海 icon with shield fallback */}
-                  <GuardIcon level={event.level} color={color} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] sm:text-xs font-bold leading-tight" style={{ color }}>
-                        {label}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] text-white/55 leading-tight">
-                        {t("playbackPlayer.guardAction")}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1">
-                      <span className="truncate text-xs sm:text-sm font-medium leading-tight text-white">
-                        {event.user}
-                      </span>
-                      {count > 1 ? (
-                        <span className="shrink-0 text-[11px] sm:text-xs text-white/60">×{count}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                event={event}
+                exiting={exiting}
+                variant="hang"
+                className={mobileEffectWidthClass}
+              />
             )
           })}
           </div>
 
           <div className="flex flex-col items-stretch gap-1">
-          {visibleToasts.map(({ event, exiting }) => (
+          {/* Guards always sit above gifts and can only ever be covered by
+              other guards (same SC settle mechanics, tier-priced priority). */}
+          {visibleGuards.map((item) => (
+            <GuardCard
+              key={item.event.id}
+              event={item.event}
+              exiting={item.exiting}
+              variant="toast"
+              className={mobileEffectWidthClass}
+            />
+          ))}
+          {visibleGifts.map(({ event, exiting }) => (
             <div
               key={event.id}
               className={cn(
