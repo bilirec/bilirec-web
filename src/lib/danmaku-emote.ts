@@ -47,11 +47,40 @@ export function loadEmoteMap(): Promise<EmoteMap | null> {
       .then((res) => (res.ok ? res.json() : null))
       .then((body: { emotes?: Record<string, string> } | null) => {
         if (!body?.emotes || typeof body.emotes !== "object") return null
+        warmEmoteCache(Object.values(body.emotes))
         return body.emotes
       })
       .catch(() => null)
   }
   return emoteMapPromise
+}
+
+/**
+ * Trickle-fetch every known emote once so the service worker's cache-first
+ * handler stores them. Prevents the burst of concurrent CDN requests when
+ * many emote danmaku spawn at once (which made some images fail and fall
+ * back to plain text). No-op when the service worker is not controlling the
+ * page (e.g. dev server, first visit before activation).
+ */
+function warmEmoteCache(urls: readonly string[]): void {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.serviceWorker?.controller
+  ) {
+    return
+  }
+  const queue = urls.filter((url) => /^https?:\/\//.test(url))
+  const CONCURRENCY = 4
+  const runNext = (): void => {
+    const url = queue.shift()
+    if (!url) return
+    fetch(url, { mode: "no-cors", referrerPolicy: "no-referrer" })
+      .catch(() => undefined)
+      .finally(runNext)
+  }
+  for (let i = 0; i < CONCURRENCY && i < queue.length; i++) {
+    runNext()
+  }
 }
 
 function baseFontPx(ctx: EmoteRenderContext): number {
@@ -176,17 +205,31 @@ function mountBigEmoteImg(
     img.style.display = "block"
     img.style.pointerEvents = "none"
 
-    const restore = () => {
-      element.replaceChildren(document.createTextNode(fallbackText))
-    }
+    // Under dense danmaku the CDN can momentarily fail; retry once before
+    // giving up and rendering the plain text fallback.
+    let retried = false
+    img.addEventListener("error", () => {
+      if (!retried) {
+        retried = true
+        img!.src = url
+        return
+      }
+      restore()
+    })
+    img.addEventListener("load", () => {
+      retried = true
+    }, { once: true })
 
-    img.addEventListener("error", restore, { once: true })
     element.replaceChildren(img)
   }
 
   img.style.height = `${heightPx}px`
   img.style.width = `${heightPx}px`
   applyBigEmoteWrapperBox(element, heightPx)
+
+  function restore() {
+    element.replaceChildren(document.createTextNode(fallbackText))
+  }
 }
 
 /** Must run before n-danmaku `setDanmakuPos` so collision uses image bounds. */

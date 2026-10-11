@@ -52,6 +52,9 @@ function isPushPayload(value: unknown): value is PushPayload {
 
 // ── Constants ──────────────────────────────────────────────
 const CACHE_NAME = "bilirec-cache-v2";
+const EMOTE_CACHE_NAME = "bilirec-emotes-v2";
+/** Cap for the runtime emote image cache (entries are tiny PNGs). */
+const EMOTE_CACHE_MAX_ENTRIES = 400;
 const APP_SUBSCRIBE_URL = "/?tab=subscribe";
 const PUSH_PUBLIC_KEY_PATH = "/notify/public-key";
 const PUSH_SUBSCRIBE_PATH = "/notify/subscription";
@@ -104,7 +107,9 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) =>
       Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter(
+            (name) => name !== CACHE_NAME && name !== EMOTE_CACHE_NAME
+          )
           .map((name) => {
             console.debug("[SW] deleting old cache:", name);
             return caches.delete(name);
@@ -138,6 +143,11 @@ self.addEventListener("fetch", (event) => {
   // Only handle same-origin requests
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) {
+    // Emote images (Bilibili CDN): cache-first so dense danmaku bursts do not
+    // re-hit the CDN and fail (falling back to plain text on the player).
+    if (request.method === "GET" && isEmoteImageRequest(url)) {
+      fetchEvent.respondWith(serveEmoteImage(request));
+    }
     return;
   }
 
@@ -307,6 +317,42 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 });
 
 // ── Helpers ───────────────────────────────────────────────
+
+/** Danmaku emote / face images are all served from hdslb.com CDNs. */
+function isEmoteImageRequest(url: URL): boolean {
+  return url.hostname === "hdslb.com" || url.hostname.endsWith(".hdslb.com");
+}
+
+async function serveEmoteImage(request: Request): Promise<Response> {
+  const cache = await caches.open(EMOTE_CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) {
+    return cached;
+  }
+  try {
+    const response = await fetch(request, { referrerPolicy: "no-referrer" });
+    // Cross-origin no-cors responses are opaque (status 0) but cacheable.
+    // hdslb rejects requests bearing a foreign Referer with 403, so always
+    // strip it here to match the <img referrerpolicy="no-referrer"> behavior.
+    if (response && (response.ok || response.type === "opaque")) {
+      await cache.put(request, response.clone());
+      void trimEmoteCache(cache);
+    }
+    return response;
+  } catch {
+    return Response.error();
+  }
+}
+
+async function trimEmoteCache(cache: Cache): Promise<void> {
+  const keys = await cache.keys();
+  if (keys.length <= EMOTE_CACHE_MAX_ENTRIES) {
+    return;
+  }
+  // keys() is insertion-ordered in practice; drop the oldest entries.
+  const excess = keys.slice(0, keys.length - EMOTE_CACHE_MAX_ENTRIES);
+  await Promise.all(excess.map((request) => cache.delete(request)));
+}
 
 function parsePushPayload(
   data: PushMessageData | null | undefined
