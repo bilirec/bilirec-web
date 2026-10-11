@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { useVideoPlaybackTime } from "@/hooks/use-video-playback-time"
 import {
   chatItemsVisibleEnd,
+  guardDurationMonths,
   guardLevelColor,
   guardLevelLabel,
   resolveSuperChatTheme,
@@ -121,6 +122,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
 
   const color = guardLevelColor(item.level)
   const label = guardLevelLabel(item.level)
+  const months = guardDurationMonths(item)
   return (
     <div
       className="relative mx-2 my-1 overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm"
@@ -141,11 +143,12 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
           </div>
           <div className="mt-0.5 flex items-center gap-1">
             <span className="truncate text-xs font-medium leading-tight text-white">{item.user}</span>
-            {(item.giftCount ?? 1) > 1 ? (
-              <span className="shrink-0 text-[11px] text-white/60">×{item.giftCount}</span>
-            ) : null}
           </div>
         </div>
+        {/* Duration pinned to the right edge so long nicknames never shift it */}
+        <span className="shrink-0 self-center text-[11px] text-white/60">
+          {t("playbackPlayer.guardMonths", { months })}
+        </span>
       </div>
     </div>
   )

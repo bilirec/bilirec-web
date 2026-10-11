@@ -361,6 +361,12 @@ export function guardLevelLabel(level: number | undefined): string {
   }
 }
 
+/** Guard purchase length in months from JSONL `count` (GUARD_BUY `num`). */
+export function guardDurationMonths(event: { giftCount?: number }): number {
+  const months = event.giftCount ?? 1
+  return months > 0 ? months : 1
+}
+
 export function guardLevelColor(level: number | undefined): string {
   switch (level) {
     case 1:

@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { remainingRatio, useOverlayEventQueue } from "@/hooks/use-overlay-event-queue"
 import type { OverlayEvent } from "@/lib/danmaku"
-import { guardLevelColor, guardLevelIcon, guardLevelLabel, resolveSuperChatTheme } from "@/lib/danmaku"
+import {
+  guardDurationMonths,
+  guardLevelColor,
+  guardLevelIcon,
+  guardLevelLabel,
+  resolveSuperChatTheme,
+} from "@/lib/danmaku"
 import type { OverlayCorner } from "@/lib/playback-settings"
 import {
   DESKTOP_EVENT_OVERLAY_PICTURE_FLOOR_PX,
@@ -136,7 +142,7 @@ function GuardCard({
   const { t } = useTranslation()
   const color = guardLevelColor(event.level)
   const label = guardLevelLabel(event.level)
-  const count = event.giftCount ?? 1
+  const months = guardDurationMonths(event)
   return (
     <div
       className={cn(
@@ -171,11 +177,12 @@ function GuardCard({
             <span className="truncate text-xs sm:text-sm font-medium leading-tight text-white">
               {event.user}
             </span>
-            {count > 1 ? (
-              <span className="shrink-0 text-[11px] sm:text-xs text-white/60">×{count}</span>
-            ) : null}
           </div>
         </div>
+        {/* Duration pinned to the right edge so long nicknames never shift it */}
+        <span className="shrink-0 self-center text-[11px] sm:text-xs text-white/60">
+          {t("playbackPlayer.guardMonths", { months })}
+        </span>
       </div>
     </div>
   )
