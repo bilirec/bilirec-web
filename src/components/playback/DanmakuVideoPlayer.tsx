@@ -49,6 +49,7 @@ import {
   type OverlayCorner,
   type PlaybackSettingsValue,
   type DesktopChatLayout,
+  DEFAULT_DESKTOP_CHAT_PANEL,
   type DanmakuArea,
   type DanmakuOverlapMode,
   loadDanmakuFollowScreen,
@@ -60,7 +61,6 @@ import {
   loadDanmakuOverlapMode,
   loadFrameStepMs,
   loadOverlayCorner,
-  loadDesktopChatPanel,
   loadDesktopChatLayout,
   loadPlaybackRates,
   loadSeekOffsetSec,
@@ -74,7 +74,6 @@ import {
   saveDanmakuOverlapMode,
   saveFrameStepMs,
   saveOverlayCorner,
-  saveDesktopChatPanel,
   saveDesktopChatLayout,
   savePlaybackRates,
   saveSeekOffsetSec,
@@ -291,7 +290,8 @@ export function DanmakuVideoPlayer({
     loadDanmakuOverlapMode()
   )
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
-  const [desktopChatPanel, setDesktopChatPanel] = useState(() => loadDesktopChatPanel())
+  // Not persisted: every new playback starts with the chat list closed.
+  const [desktopChatPanel, setDesktopChatPanel] = useState(DEFAULT_DESKTOP_CHAT_PANEL)
   const [desktopChatLayout, setDesktopChatLayout] = useState<DesktopChatLayout>(() =>
     loadDesktopChatLayout()
   )
@@ -1753,9 +1753,7 @@ export function DanmakuVideoPlayer({
                         aria-label={t("playbackPlayer.desktopChatToggleLabel")}
                         aria-pressed={desktopChatPanel}
                         onClick={() => {
-                          const next = !desktopChatPanel
-                          setDesktopChatPanel(next)
-                          saveDesktopChatPanel(next)
+                          setDesktopChatPanel((prev) => !prev)
                         }}
                       >
                         <ChatCenteredDotsIcon

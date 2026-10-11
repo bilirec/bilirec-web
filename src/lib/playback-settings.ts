@@ -55,7 +55,8 @@ export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
 ]
 export const DEFAULT_OVERLAY_CORNER: OverlayCorner = "bottom-left"
 
-/** Desktop (windowed) playback chat side panel visibility; hidden by default. */
+/** Desktop (windowed) playback chat side panel visibility; hidden by default.
+ *  Deliberately not persisted — every new playback starts with it closed. */
 export const DEFAULT_DESKTOP_CHAT_PANEL = false
 
 /** How the desktop chat panel is presented when open. */
@@ -67,7 +68,6 @@ export const DESKTOP_CHAT_LAYOUTS: readonly DesktopChatLayout[] = [
 ]
 export const DEFAULT_DESKTOP_CHAT_LAYOUT: DesktopChatLayout = "auto"
 
-const DESKTOP_CHAT_PANEL_KEY = "bilirec.playback.desktopChatPanel"
 const DESKTOP_CHAT_LAYOUT_KEY = "bilirec.playback.desktopChatLayout"
 
 export type PlaybackSettingsValue = {
@@ -323,24 +323,6 @@ export function loadOverlayCorner(): OverlayCorner {
 export function saveOverlayCorner(corner: OverlayCorner) {
   try {
     localStorage.setItem(OVERLAY_CORNER_KEY, corner)
-  } catch {
-    /* ignore */
-  }
-}
-
-export function loadDesktopChatPanel(): boolean {
-  try {
-    const raw = localStorage.getItem(DESKTOP_CHAT_PANEL_KEY)
-    if (raw == null || raw === "") return DEFAULT_DESKTOP_CHAT_PANEL
-    return raw === "true"
-  } catch {
-    return DEFAULT_DESKTOP_CHAT_PANEL
-  }
-}
-
-export function saveDesktopChatPanel(visible: boolean) {
-  try {
-    localStorage.setItem(DESKTOP_CHAT_PANEL_KEY, String(visible))
   } catch {
     /* ignore */
   }
