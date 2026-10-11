@@ -93,12 +93,14 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
           </span>
         </div>
         {item.text ? (
-          <p
-            className="px-2.5 py-1.5 text-xs leading-snug line-clamp-3 wrap-break-word"
-            style={{ color: theme.message }}
-          >
-            {item.text}
-          </p>
+          <div className="px-2.5 py-1.5">
+            <p
+              className="text-xs leading-snug line-clamp-4 wrap-break-word"
+              style={{ color: theme.message }}
+            >
+              {item.text}
+            </p>
+          </div>
         ) : null}
       </div>
     )

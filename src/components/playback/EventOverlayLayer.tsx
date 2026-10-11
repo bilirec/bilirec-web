@@ -256,8 +256,8 @@ export function EventOverlayLayer({
     : undefined
   const windowedOverlay = maxZoneWidthPx != null
   const scMessageClass = windowedOverlay
-    ? "overflow-hidden px-2.5 py-1.5 text-xs leading-snug line-clamp-4 wrap-break-word"
-    : "overflow-hidden px-2.5 py-1.5 text-xs sm:text-sm leading-snug line-clamp-3 wrap-break-word"
+    ? "text-xs leading-snug line-clamp-4 wrap-break-word"
+    : "text-xs sm:text-sm leading-snug line-clamp-4 wrap-break-word"
   const corner = cornerAnchor(overlayCorner)
   const zoneBottom = resolveBottomCornerInset(
     overlayCorner,
@@ -344,9 +344,13 @@ export function EventOverlayLayer({
                       }}
                     />
                   </div>
-                  <p className={scMessageClass} style={{ color: theme.message }}>
-                    {event.text}
-                  </p>
+                  {/* Padding lives on the wrapper: line-clamp on a padded box lets
+                      the next (clipped) line peek through the bottom padding. */}
+                  <div className="px-2.5 py-1.5">
+                    <p className={scMessageClass} style={{ color: theme.message }}>
+                      {event.text}
+                    </p>
+                  </div>
                 </div>
               )
             }
