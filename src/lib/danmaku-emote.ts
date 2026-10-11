@@ -18,14 +18,20 @@ export type BilirecBigEmoteStyleHints = {
 
 const BIG_EMOTE_IMG_ATTR = "data-bilirec-big-emote"
 
-/** Whole-message room / official emoticon (JSONL dm_type === 1). */
+/** Whole-message user-uploaded sticker (JSONL emoticon_unique "upower_*"); renders enlarged. */
 export type DanmakuBigEmoteMeta = {
   dmType: 1
   emoticonUrl: string
 }
 
+/** Official Bilibili emoji (emoticon_unique "official_*"); renders at normal inline size. */
+export type DanmakuEmojiMeta = {
+  emoticonUrl: string
+}
+
 export type BilirecDanmakuListItem = DanmakuListItem & {
   bigEmote?: DanmakuBigEmoteMeta
+  emoji?: DanmakuEmojiMeta
 }
 
 export type EmoteMap = Readonly<Record<string, string>>
@@ -248,6 +254,11 @@ function inlineImg(url: string, alt: string): HTMLImageElement {
   img.draggable = false
   img.style.height = "1em"
   img.style.width = "auto"
+  // n-danmaku's garbageCollect revokes elements with offsetWidth <= 0 on the
+  // next spawn; an unloaded img has zero width and would be killed before it
+  // ever paints. Reserve one em immediately.
+  img.style.minWidth = "1em"
+  img.style.objectFit = "contain"
   img.style.verticalAlign = "text-bottom"
   img.style.display = "inline"
   img.style.pointerEvents = "none"
@@ -276,6 +287,26 @@ function replaceInlineEmotes(element: HTMLElement, text: string, map: EmoteMap):
   element.replaceChildren(frag)
 }
 
+/**
+ * True when the whole message consists solely of `[token]`s that all resolve
+ * in the room emote map (e.g. upower_[笑哭], [dog]). Such messages are
+ * standard faces and render inline at 1em, never as enlarged stickers.
+ */
+function isPureResolvableTokens(text: string, map: EmoteMap | null): boolean {
+  if (!map || !text.includes("[")) return false
+  let hasToken = false
+  for (const part of text.split(INLINE_EMOTE_TOKEN)) {
+    if (!part) continue
+    if (part.startsWith("[") && part.endsWith("]")) {
+      if (!map[part]) return false
+      hasToken = true
+    } else {
+      return false
+    }
+  }
+  return hasToken
+}
+
 export function attachEmoteRendering(
   item: BilirecDanmakuListItem,
   ctx: EmoteRenderContext
@@ -284,21 +315,24 @@ export function attachEmoteRendering(
   const map = ctx.emotes
   const fallbackText = item.text
   const bigUrl = big?.emoticonUrl ?? ""
-  const needsBigFromMeta = big?.dmType === 1 && Boolean(bigUrl)
-  const wholeLineUrl = wholeLineEmoteUrl(fallbackText, map)
-  const needsBigLayout = needsBigFromMeta || Boolean(wholeLineUrl)
-  const layoutUrl = bigUrl || wholeLineUrl || ""
+  // Official emoji (dmType absent, `emoji` meta set) render the image at
+  // normal 1em size in place of the text.
+  const emojiUrl = big?.dmType === 1 ? "" : item.emoji?.emoticonUrl ?? ""
+  // A sticker whose tokens all resolve in the room emote map (upower_[笑哭]
+  // and friends) is a standard face: downgrade to inline 1em.
+  const pureTokens = isPureResolvableTokens(fallbackText, map)
+  const needsBigLayout = big?.dmType === 1 && Boolean(bigUrl) && !pureTokens
   const needsInline =
-    Boolean(map && fallbackText.includes("[")) && !needsBigLayout
+    (pureTokens || Boolean(map && fallbackText.includes("["))) && !emojiUrl
 
-  if (!needsBigLayout && !needsInline) return item
+  if (!needsBigLayout && !emojiUrl && !needsInline) return item
 
   const bigHeightPx = computeBigEmoteHeightPx(ctx)
   const styles = { ...item.styles } as NonNullable<typeof item.styles> &
     BilirecBigEmoteStyleHints
 
-  if (needsBigLayout && layoutUrl) {
-    stampBigEmoteAnchorStyles(styles, layoutUrl, bigHeightPx, fallbackText)
+  if (needsBigLayout && bigUrl) {
+    stampBigEmoteAnchorStyles(styles, bigUrl, bigHeightPx, fallbackText)
     styles.bottom_space = Math.max(styles.bottom_space ?? 0, 4)
   }
 
@@ -307,10 +341,14 @@ export function attachEmoteRendering(
     styles,
     created: (element, id) => {
       item.created?.(element, id)
-      if (needsBigLayout && layoutUrl) {
+      if (needsBigLayout && bigUrl) {
         const liveCtx = emoteLayoutContextProvider?.() ?? ctx
         const heightPx = computeBigEmoteHeightPx(liveCtx)
-        mountBigEmoteImg(element, layoutUrl, fallbackText, heightPx)
+        mountBigEmoteImg(element, bigUrl, fallbackText, heightPx)
+        return
+      }
+      if (emojiUrl) {
+        element.replaceChildren(inlineImg(emojiUrl, fallbackText))
         return
       }
       if (needsInline && map) {

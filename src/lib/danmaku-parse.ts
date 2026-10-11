@@ -231,7 +231,15 @@ export function parseJsonlDanmaku(
             styles,
           }
           if (emoticonUrl) {
-            bullet.bigEmote = { dmType: 1, emoticonUrl }
+            // Only Bilibili's official emoji set ("official_*") renders at
+            // normal inline size; every other prefix — upower_* stickers and
+            // any unknown/future kind — renders as a big emote so unknown
+            // prefixes never get silently shrunk.
+            if (/^official(_|$)/.test(asString(obj.emoticon_unique))) {
+              bullet.emoji = { emoticonUrl }
+            } else {
+              bullet.bigEmote = { dmType: 1, emoticonUrl }
+            }
           }
           bullets.push(bullet)
           bulletCount += 1
