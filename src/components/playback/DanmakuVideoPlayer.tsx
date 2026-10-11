@@ -1161,12 +1161,7 @@ export function DanmakuVideoPlayer({
 
   useEffect(() => {
     const video = videoRef.current
-    if (
-      !video ||
-      !showAudioOnlyPlayback ||
-      typeof navigator === "undefined" ||
-      !("mediaSession" in navigator)
-    ) {
+    if (!video || typeof navigator === "undefined" || !("mediaSession" in navigator)) {
       return
     }
 
@@ -1241,7 +1236,12 @@ export function DanmakuVideoPlayer({
       mediaSession.metadata = new MediaMetadata({ ...metadataBase, artwork })
     }
 
-    setSessionMetadata(buildAudioMediaSessionArtwork(artworkLabel))
+    if (showAudioOnlyPlayback) {
+      setSessionMetadata(buildAudioMediaSessionArtwork(artworkLabel))
+    } else {
+      // Video: metadata only — the room cover replaces it once fetched.
+      setSessionMetadata([])
+    }
     if (roomId) {
       void apiClient.getRoomInfo(roomId).then((info) => {
         if (cancelled || !info.cover) return
