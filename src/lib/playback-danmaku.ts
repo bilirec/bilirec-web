@@ -264,7 +264,11 @@ function parseAnimationDurationMs(element: HTMLElement): number {
   return Number.isFinite(n) && n > 0 ? n * 1000 : 5000
 }
 
-function readScrollAnimationProgress(element: HTMLElement, fallbackLifeMs: number): number {
+function readScrollAnimationProgress(
+  element: HTMLElement,
+  fallbackLifeMs: number,
+  startMs?: number
+): number {
   const anim = element.getAnimations?.()?.[0]
   if (anim?.effect && typeof anim.currentTime === "number") {
     const timing = (anim.effect as KeyframeEffect).getTiming()
@@ -277,7 +281,10 @@ function readScrollAnimationProgress(element: HTMLElement, fallbackLifeMs: numbe
     }
   }
   const life = parseAnimationDurationMs(element) || fallbackLifeMs
-  void life
+  if (startMs != null && life > 0) {
+    const elapsed = nowMs() - startMs
+    return Math.min(1, Math.max(0, elapsed / life))
+  }
   return 0
 }
 
@@ -298,11 +305,12 @@ function readStoredScrollWidth(element: HTMLElement): number | null {
 function scrollOccupancyReleased(
   element: HTMLElement,
   lifeMs: number,
-  layerWidth: number
+  layerWidth: number,
+  startMs?: number
 ): boolean {
   const w = readStoredScrollWidth(element)
   if (w == null || layerWidth <= 0) return true
-  const progress = readScrollAnimationProgress(element, lifeMs)
+  const progress = readScrollAnimationProgress(element, lifeMs, startMs)
   return progress >= w / (layerWidth + w)
 }
 
@@ -361,7 +369,7 @@ function bilirecDanmakuAnchor(
       let released = false
       switch (attrs.type) {
         case "scroll":
-          released = scrollOccupancyReleased(dmEl, lane.dm.life, layerWidth)
+          released = scrollOccupancyReleased(dmEl, lane.dm.life, layerWidth, lane.dm.start)
           break
         case "top":
         case "bottom":
@@ -404,10 +412,9 @@ function bilirecDanmakuAnchor(
 
   if (anchorTopPx === -1) {
     if (!retry) {
-      hitBox.refreshHitSets(attrs.type)
       return bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, true)
     }
-    anchorTopPx = 0
+    return -1
   }
   return anchorTopPx
 }
