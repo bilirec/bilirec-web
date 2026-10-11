@@ -50,12 +50,14 @@ import {
   type PlaybackSettingsValue,
   type DesktopChatLayout,
   type DanmakuArea,
+  type DanmakuOverlapMode,
   loadDanmakuFollowScreen,
   loadDanmakuOpacity,
   loadDanmakuSize,
   loadDanmakuSpeed,
   loadDanmakuArea,
   loadDanmakuPreventOverlap,
+  loadDanmakuOverlapMode,
   loadFrameStepMs,
   loadOverlayCorner,
   loadDesktopChatPanel,
@@ -69,6 +71,7 @@ import {
   saveDanmakuSpeed,
   saveDanmakuArea,
   saveDanmakuPreventOverlap,
+  saveDanmakuOverlapMode,
   saveFrameStepMs,
   saveOverlayCorner,
   saveDesktopChatPanel,
@@ -226,6 +229,7 @@ export function DanmakuVideoPlayer({
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
   const danmakuPreventOverlapRef = useRef(loadDanmakuPreventOverlap())
+  const danmakuOverlapModeRef = useRef<DanmakuOverlapMode>(loadDanmakuOverlapMode())
   const emoteMapRef = useRef<EmoteMap | null>(null)
   const [emoteMap, setEmoteMap] = useState<EmoteMap | null>(null)
   const touchDeviceRef = useRef(
@@ -282,6 +286,9 @@ export function DanmakuVideoPlayer({
   const [danmakuPreventOverlap, setDanmakuPreventOverlap] = useState(() =>
     loadDanmakuPreventOverlap()
   )
+  const [danmakuOverlapMode, setDanmakuOverlapMode] = useState<DanmakuOverlapMode>(() =>
+    loadDanmakuOverlapMode()
+  )
   const [overlayCorner, setOverlayCorner] = useState<OverlayCorner>(() => loadOverlayCorner())
   const [desktopChatPanel, setDesktopChatPanel] = useState(() => loadDesktopChatPanel())
   const [desktopChatLayout, setDesktopChatLayout] = useState<DesktopChatLayout>(() =>
@@ -307,6 +314,7 @@ export function DanmakuVideoPlayer({
   const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
+  danmakuOverlapModeRef.current = danmakuOverlapMode
 
   const settingsValue = useMemo<PlaybackSettingsValue>(
     () => ({
@@ -319,6 +327,7 @@ export function DanmakuVideoPlayer({
       danmakuSpeed,
       danmakuArea,
       danmakuPreventOverlap,
+      danmakuOverlapMode,
       overlayCorner,
       desktopChatLayout,
     }),
@@ -332,6 +341,7 @@ export function DanmakuVideoPlayer({
       danmakuSpeed,
       danmakuArea,
       danmakuPreventOverlap,
+      danmakuOverlapMode,
       overlayCorner,
       desktopChatLayout,
     ]
@@ -677,7 +687,9 @@ export function DanmakuVideoPlayer({
     // Host is sized to the video picture box; layer fills the host
     const instance = new NDanmaku(host, "bilirec", "1")
     instance.dmLayer.style.pointerEvents = "none"
-    attachDanmakuOverlapControl(instance, () => danmakuPreventOverlapRef.current)
+    attachDanmakuOverlapControl(instance, () => danmakuPreventOverlapRef.current, {
+      getMode: () => danmakuOverlapModeRef.current,
+    })
     setEmoteLayoutContextProvider(() => getEmoteRenderContextRef.current())
     danmakuRef.current = instance
     listReadyRef.current = false
@@ -1374,6 +1386,9 @@ export function DanmakuVideoPlayer({
     setDanmakuPreventOverlap(next.danmakuPreventOverlap)
     saveDanmakuPreventOverlap(next.danmakuPreventOverlap)
     danmakuPreventOverlapRef.current = next.danmakuPreventOverlap
+    setDanmakuOverlapMode(next.danmakuOverlapMode)
+    saveDanmakuOverlapMode(next.danmakuOverlapMode)
+    danmakuOverlapModeRef.current = next.danmakuOverlapMode
     setOverlayCorner(next.overlayCorner)
     saveOverlayCorner(next.overlayCorner)
     setDesktopChatLayout(next.desktopChatLayout)

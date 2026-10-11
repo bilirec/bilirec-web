@@ -7,6 +7,7 @@ const DANMAKU_FOLLOW_SCREEN_KEY = "bilirec.playback.danmakuFollowScreen"
 const DANMAKU_SPEED_KEY = "bilirec.playback.danmakuSpeed"
 const DANMAKU_AREA_KEY = "bilirec.playback.danmakuArea"
 const DANMAKU_PREVENT_OVERLAP_KEY = "bilirec.playback.danmakuPreventOverlap"
+const DANMAKU_OVERLAP_MODE_KEY = "bilirec.playback.danmakuOverlapMode"
 const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
 const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
 
@@ -38,6 +39,11 @@ export const DANMAKU_AREAS: readonly DanmakuArea[] = [
 export const DEFAULT_DANMAKU_AREA: DanmakuArea = "full"
 /** Drop new scroll/top/bottom danmaku when no lane is free instead of stacking. */
 export const DEFAULT_DANMAKU_PREVENT_OVERLAP = true
+
+/** What happens when prevent-overlap is on and no lane is free. */
+export type DanmakuOverlapMode = "drop" | "queue"
+export const DANMAKU_OVERLAP_MODES: readonly DanmakuOverlapMode[] = ["drop", "queue"]
+export const DEFAULT_DANMAKU_OVERLAP_MODE: DanmakuOverlapMode = "queue"
 
 export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
 export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
@@ -74,6 +80,7 @@ export type PlaybackSettingsValue = {
   danmakuSpeed: number
   danmakuArea: DanmakuArea
   danmakuPreventOverlap: boolean
+  danmakuOverlapMode: DanmakuOverlapMode
   overlayCorner: OverlayCorner
   desktopChatLayout: DesktopChatLayout
 }
@@ -88,6 +95,7 @@ export const DEFAULT_PLAYBACK_SETTINGS: PlaybackSettingsValue = {
   danmakuSpeed: DEFAULT_DANMAKU_SPEED,
   danmakuArea: DEFAULT_DANMAKU_AREA,
   danmakuPreventOverlap: DEFAULT_DANMAKU_PREVENT_OVERLAP,
+  danmakuOverlapMode: DEFAULT_DANMAKU_OVERLAP_MODE,
   overlayCorner: DEFAULT_OVERLAY_CORNER,
   desktopChatLayout: DEFAULT_DESKTOP_CHAT_LAYOUT,
 }
@@ -223,6 +231,26 @@ export function loadDanmakuPreventOverlap(): boolean {
 export function saveDanmakuPreventOverlap(prevent: boolean) {
   try {
     localStorage.setItem(DANMAKU_PREVENT_OVERLAP_KEY, String(prevent))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDanmakuOverlapMode(): DanmakuOverlapMode {
+  try {
+    const raw = localStorage.getItem(DANMAKU_OVERLAP_MODE_KEY)
+    if (raw && (DANMAKU_OVERLAP_MODES as readonly string[]).includes(raw)) {
+      return raw as DanmakuOverlapMode
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_DANMAKU_OVERLAP_MODE
+}
+
+export function saveDanmakuOverlapMode(mode: DanmakuOverlapMode) {
+  try {
+    localStorage.setItem(DANMAKU_OVERLAP_MODE_KEY, mode)
   } catch {
     /* ignore */
   }

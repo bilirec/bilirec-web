@@ -19,6 +19,7 @@ import {
   type OverlayCorner,
   type DesktopChatLayout,
   type DanmakuArea,
+  type DanmakuOverlapMode,
   DEFAULT_PLAYBACK_SETTINGS,
   DEFAULT_DANMAKU_OPACITY,
   DEFAULT_DANMAKU_SIZE,
@@ -28,6 +29,7 @@ import {
   DANMAKU_SPEED_MIN,
   DANMAKU_SPEED_MAX,
   DANMAKU_AREAS,
+  DANMAKU_OVERLAP_MODES,
   OVERLAY_CORNERS,
   DESKTOP_CHAT_LAYOUTS,
   parseRatesInput,
@@ -61,6 +63,9 @@ export function PlaybackSettingsDialog({
   const [speedDraft, setSpeedDraft] = useState(() => value.danmakuSpeed)
   const [areaDraft, setAreaDraft] = useState<DanmakuArea>(() => value.danmakuArea)
   const [preventOverlapDraft, setPreventOverlapDraft] = useState(() => value.danmakuPreventOverlap)
+  const [overlapModeDraft, setOverlapModeDraft] = useState<DanmakuOverlapMode>(
+    () => value.danmakuOverlapMode
+  )
   const [overlayCornerDraft, setOverlayCornerDraft] = useState<OverlayCorner>(() => value.overlayCorner)
   const [desktopChatLayoutDraft, setDesktopChatLayoutDraft] = useState<DesktopChatLayout>(
     () => value.desktopChatLayout
@@ -80,6 +85,7 @@ export function PlaybackSettingsDialog({
       setSpeedDraft(value.danmakuSpeed)
       setAreaDraft(value.danmakuArea)
       setPreventOverlapDraft(value.danmakuPreventOverlap)
+      setOverlapModeDraft(value.danmakuOverlapMode)
       setOverlayCornerDraft(value.overlayCorner)
       setDesktopChatLayoutDraft(value.desktopChatLayout)
     }
@@ -107,6 +113,7 @@ export function PlaybackSettingsDialog({
     normalizedSpeedDraft !== value.danmakuSpeed ||
     areaDraft !== value.danmakuArea ||
     preventOverlapDraft !== value.danmakuPreventOverlap ||
+    overlapModeDraft !== value.danmakuOverlapMode ||
     overlayCornerDraft !== value.overlayCorner ||
     desktopChatLayoutDraft !== value.desktopChatLayout
 
@@ -134,6 +141,7 @@ export function PlaybackSettingsDialog({
       danmakuSpeed: normalizedSpeedDraft,
       danmakuArea: areaDraft,
       danmakuPreventOverlap: preventOverlapDraft,
+      danmakuOverlapMode: overlapModeDraft,
       overlayCorner: overlayCornerDraft,
       desktopChatLayout: desktopChatLayoutDraft,
     }
@@ -153,6 +161,7 @@ export function PlaybackSettingsDialog({
     setSpeedDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuSpeed)
     setAreaDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuArea)
     setPreventOverlapDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuPreventOverlap)
+    setOverlapModeDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuOverlapMode)
     setOverlayCornerDraft(DEFAULT_PLAYBACK_SETTINGS.overlayCorner)
     setDesktopChatLayoutDraft(DEFAULT_PLAYBACK_SETTINGS.desktopChatLayout)
 
@@ -349,6 +358,48 @@ export function PlaybackSettingsDialog({
                 </div>
                 <p className="text-xs text-zinc-400">
                   {t("playbackPlayer.danmakuPreventOverlapHint")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  className={cn("text-zinc-200", !preventOverlapDraft && "text-zinc-500")}
+                >
+                  {t("playbackPlayer.danmakuOverlapModeLabel")}
+                </Label>
+                <div
+                  className="grid grid-cols-2 gap-1.5"
+                  role="radiogroup"
+                  aria-label={t("playbackPlayer.danmakuOverlapModeLabel")}
+                >
+                  {DANMAKU_OVERLAP_MODES.map((mode) => {
+                    const isSelected = overlapModeDraft === mode
+                    return (
+                      <Button
+                        key={mode}
+                        type="button"
+                        size="sm"
+                        disabled={!preventOverlapDraft}
+                        aria-pressed={isSelected}
+                        className={cn(
+                          "h-8 text-xs transition-colors",
+                          isSelected
+                            ? "border-white bg-white font-semibold text-zinc-950 shadow-xs hover:bg-zinc-100 hover:text-zinc-950"
+                            : "border-white/15 bg-zinc-950/40 text-zinc-300 hover:border-white/25 hover:bg-white/10 hover:text-white"
+                        )}
+                        onClick={() => setOverlapModeDraft(mode)}
+                      >
+                        {t(
+                          mode === "queue"
+                            ? "playbackPlayer.danmakuOverlapModeQueue"
+                            : "playbackPlayer.danmakuOverlapModeDrop"
+                        )}
+                      </Button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-zinc-400">
+                  {t("playbackPlayer.danmakuOverlapModeHint")}
                 </p>
               </div>
 

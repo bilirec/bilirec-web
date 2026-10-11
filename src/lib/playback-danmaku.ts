@@ -14,6 +14,7 @@ import {
   DEFAULT_DANMAKU_SIZE,
   DEFAULT_DANMAKU_SPEED,
   type DanmakuArea,
+  type DanmakuOverlapMode,
   type OverlayCorner,
 } from "@/lib/playback-settings"
 
@@ -41,6 +42,11 @@ export const DANMAKU_TICK_UNCERTAINTY_MS = 120
 /** n-danmaku must not be ticked for every animation frame; its ranges overlap. */
 export const DANMAKU_TICK_INTERVAL_MS = 160
 export const DANMAKU_LOAD_CHUNK_SIZE = 1000
+
+/** Queue mode: max video-time a scroll danmaku may wait for a free lane before dropping. */
+export const DANMAKU_QUEUE_MAX_DELAY_MS = 3000
+/** Queue mode: hard cap on buffered items (memory bound; oldest is dropped first). */
+export const DANMAKU_QUEUE_MAX_ITEMS = 200
 
 function isHangType(type: DanmakuType | undefined): boolean {
   return type === "top" || type === "bottom" || type === "midhang"
@@ -464,7 +470,11 @@ function resolveLayerWidth(dm: NDanmaku, hitBox: HitBoxWithLanes): number {
  */
 export function attachDanmakuOverlapControl(
   dm: NDanmaku,
-  isPreventOverlapEnabled: () => boolean
+  isPreventOverlapEnabled: () => boolean,
+  options?: {
+    /** Overflow strategy when a lane cannot be found; default is drop. */
+    getMode?: () => DanmakuOverlapMode
+  }
 ): void {
   const hitBox = (dm as unknown as { hitBox?: HitBoxWithLanes }).hitBox
   if (!hitBox?.danmakuAnchor || !hitBox.setDanmakuPos || !hitBox.refreshHitSets) return
@@ -473,16 +483,66 @@ export function attachDanmakuOverlapControl(
 
   const skippedTypes = new Set<DanmakuType>()
 
+  const getMode = options?.getMode ?? ((): DanmakuOverlapMode => "drop")
   const currentAnchorType = (): DanmakuType | undefined => {
     const type = (dm as unknown as { currentAttrs?: { type?: DanmakuType } }).currentAttrs?.type
     return type && ANCHOR_TYPES.has(type) ? type : undefined
+  }
+
+  // ---- queue mode (scroll danmaku only): defer overflow until a lane frees up ----
+  type QueuedScroll = { text: string; attrs: DanmakuAttrs; dueMs: number }
+  const queuedScrolls: QueuedScroll[] = []
+  let lastVideoMs = 0
+  let flushing = false
+
+  const snapshotAttrs = (): DanmakuAttrs | null => {
+    const attrs = (dm as unknown as { currentAttrs?: DanmakuAttrs }).currentAttrs
+    return attrs ? { ...attrs } : null
+  }
+
+  const enqueueScroll = (text: string, attrs: DanmakuAttrs | null): void => {
+    if (attrs == null) return
+    if (queuedScrolls.length >= DANMAKU_QUEUE_MAX_ITEMS) queuedScrolls.shift()
+    queuedScrolls.push({ text, attrs, dueMs: lastVideoMs })
+  }
+
+  const flushQueuedScrolls = (videoMs: number): void => {
+    if (queuedScrolls.length === 0) return
+    if (!isPreventOverlapEnabled() || getMode() !== "queue") {
+      queuedScrolls.length = 0
+      return
+    }
+    flushing = true
+    try {
+      while (queuedScrolls.length > 0) {
+        const head = queuedScrolls[0]!
+        // Drop items that waited past the budget, or that were queued "in the
+        // future" relative to the current video time (i.e. after a seek back).
+        if (videoMs - head.dueMs > DANMAKU_QUEUE_MAX_DELAY_MS || head.dueMs > videoMs + 1000) {
+          queuedScrolls.shift()
+          continue
+        }
+        dm.attrs(head.attrs)
+        let placed = false
+        dm.create(head.text, () => {
+          placed = true
+        })
+        // Still no lane: stop here and retry on the next tick.
+        if (!placed) break
+        queuedScrolls.shift()
+      }
+    } finally {
+      flushing = false
+    }
   }
 
   const originalTick = dm.list.tick.bind(dm.list)
   dm.list.tick = (time: number) => {
     skippedTypes.clear()
     tickLayerWidth = resolveLayerWidth(dm, hitBox)
+    lastVideoMs = time
     originalTick(time)
+    flushQueuedScrolls(time)
   }
 
   const originalAnchor = hitBox.danmakuAnchor.bind(hitBox)
@@ -526,16 +586,26 @@ export function attachDanmakuOverlapControl(
 
   const originalCreate = dm.create.bind(dm)
   dm.create = (text, created, callback) => {
-    if (isPreventOverlapEnabled()) {
-      const type = currentAnchorType()
-      if (type && skippedTypes.has(type)) return dm
+    const mode = getMode()
+    const type = currentAnchorType()
+    // Queue mode applies to scroll danmaku only: top/bottom hang for their whole
+    // life, so deferring them just makes pinned comments arrive late.
+    const queueEligible =
+      isPreventOverlapEnabled() && mode === "queue" && type === "scroll" && !flushing
+    if (isPreventOverlapEnabled() && type && skippedTypes.has(type)) {
+      if (queueEligible) enqueueScroll(text, snapshotAttrs())
+      return dm
     }
+    const attrsSnapshot = queueEligible ? snapshotAttrs() : null
     return originalCreate(
       text,
       (element, id) => {
         if (element.getAttribute(DISCARD_ATTR) === "1") {
-          const type = currentAnchorType()
-          if (type) skippedTypes.add(type)
+          if (queueEligible) {
+            enqueueScroll(text, attrsSnapshot)
+          } else if (type) {
+            skippedTypes.add(type)
+          }
           dm.clear(id)
           return
         }
