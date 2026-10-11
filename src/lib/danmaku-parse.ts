@@ -231,6 +231,10 @@ export function parseJsonlDanmaku(
             styles,
           }
           if (emoticonUrl) {
+            // Any emoticon danmaku renders as a big emote on the video layer
+            // (B站 parity), except standard faces whose token resolves in the
+            // room emote map — those downgrade to inline size at render time
+            // (see attachEmoteRendering).
             bullet.bigEmote = { dmType: 1, emoticonUrl }
           }
           bullets.push(bullet)

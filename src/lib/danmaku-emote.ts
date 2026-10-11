@@ -18,7 +18,7 @@ export type BilirecBigEmoteStyleHints = {
 
 const BIG_EMOTE_IMG_ATTR = "data-bilirec-big-emote"
 
-/** Whole-message room / official emoticon (JSONL dm_type === 1). */
+/** Whole-message emoticon danmaku (JSONL dm_type === 1); renders enlarged on the video layer. */
 export type DanmakuBigEmoteMeta = {
   dmType: 1
   emoticonUrl: string
@@ -248,6 +248,11 @@ function inlineImg(url: string, alt: string): HTMLImageElement {
   img.draggable = false
   img.style.height = "1em"
   img.style.width = "auto"
+  // n-danmaku's garbageCollect revokes elements with offsetWidth <= 0 on the
+  // next spawn; an unloaded img has zero width and would be killed before it
+  // ever paints. Reserve one em immediately.
+  img.style.minWidth = "1em"
+  img.style.objectFit = "contain"
   img.style.verticalAlign = "text-bottom"
   img.style.display = "inline"
   img.style.pointerEvents = "none"
@@ -284,12 +289,11 @@ export function attachEmoteRendering(
   const map = ctx.emotes
   const fallbackText = item.text
   const bigUrl = big?.emoticonUrl ?? ""
-  const needsBigFromMeta = big?.dmType === 1 && Boolean(bigUrl)
-  const wholeLineUrl = wholeLineEmoteUrl(fallbackText, map)
-  const needsBigLayout = needsBigFromMeta || Boolean(wholeLineUrl)
-  const layoutUrl = bigUrl || wholeLineUrl || ""
-  const needsInline =
-    Boolean(map && fallbackText.includes("[")) && !needsBigLayout
+  // Emoticon danmaku carries its own sticker-variant image (upower_*), which
+  // B站 renders enlarged even when the same token also has a smaller standard
+  // face in the room emote map — so never downgrade these to inline.
+  const needsBigLayout = big?.dmType === 1 && Boolean(bigUrl)
+  const needsInline = Boolean(map && fallbackText.includes("[")) && !needsBigLayout
 
   if (!needsBigLayout && !needsInline) return item
 
@@ -297,8 +301,8 @@ export function attachEmoteRendering(
   const styles = { ...item.styles } as NonNullable<typeof item.styles> &
     BilirecBigEmoteStyleHints
 
-  if (needsBigLayout && layoutUrl) {
-    stampBigEmoteAnchorStyles(styles, layoutUrl, bigHeightPx, fallbackText)
+  if (needsBigLayout && bigUrl) {
+    stampBigEmoteAnchorStyles(styles, bigUrl, bigHeightPx, fallbackText)
     styles.bottom_space = Math.max(styles.bottom_space ?? 0, 4)
   }
 
@@ -307,10 +311,10 @@ export function attachEmoteRendering(
     styles,
     created: (element, id) => {
       item.created?.(element, id)
-      if (needsBigLayout && layoutUrl) {
+      if (needsBigLayout && bigUrl) {
         const liveCtx = emoteLayoutContextProvider?.() ?? ctx
         const heightPx = computeBigEmoteHeightPx(liveCtx)
-        mountBigEmoteImg(element, layoutUrl, fallbackText, heightPx)
+        mountBigEmoteImg(element, bigUrl, fallbackText, heightPx)
         return
       }
       if (needsInline && map) {
