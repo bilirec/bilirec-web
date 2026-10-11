@@ -490,7 +490,13 @@ export function attachDanmakuOverlapControl(
   }
 
   // ---- queue mode (scroll danmaku only): defer overflow until a lane frees up ----
-  type QueuedScroll = { text: string; attrs: DanmakuAttrs; dueMs: number }
+  type QueuedScroll = {
+    text: string
+    attrs: DanmakuAttrs
+    /** Per-item rendering hook (e.g. inline `[emote]` → `<img>`); must survive the queue. */
+    created?: ((element: HTMLElement, id: number) => void) | null
+    dueMs: number
+  }
   const queuedScrolls: QueuedScroll[] = []
   let lastVideoMs = 0
   let flushing = false
@@ -500,10 +506,14 @@ export function attachDanmakuOverlapControl(
     return attrs ? { ...attrs } : null
   }
 
-  const enqueueScroll = (text: string, attrs: DanmakuAttrs | null): void => {
+  const enqueueScroll = (
+    text: string,
+    attrs: DanmakuAttrs | null,
+    created?: ((element: HTMLElement, id: number) => void) | null
+  ): void => {
     if (attrs == null) return
     if (queuedScrolls.length >= DANMAKU_QUEUE_MAX_ITEMS) queuedScrolls.shift()
-    queuedScrolls.push({ text, attrs, dueMs: lastVideoMs })
+    queuedScrolls.push({ text, attrs, created, dueMs: lastVideoMs })
   }
 
   const flushQueuedScrolls = (videoMs: number): void => {
@@ -516,16 +526,23 @@ export function attachDanmakuOverlapControl(
     try {
       while (queuedScrolls.length > 0) {
         const head = queuedScrolls[0]!
-        // Drop items that waited past the budget, or that were queued "in the
-        // future" relative to the current video time (i.e. after a seek back).
-        if (videoMs - head.dueMs > DANMAKU_QUEUE_MAX_DELAY_MS || head.dueMs > videoMs + 1000) {
+        // Drop items that waited past the budget, or that sit "in the future"
+        // relative to the current video time (only possible after a seek back).
+        if (videoMs - head.dueMs > DANMAKU_QUEUE_MAX_DELAY_MS || head.dueMs > videoMs) {
           queuedScrolls.shift()
           continue
         }
+        dm.resetAttrs()
         dm.attrs(head.attrs)
         let placed = false
-        dm.create(head.text, () => {
-          placed = true
+        dm.create(head.text, (element, id) => {
+          try {
+            head.created?.(element, id)
+          } catch {
+            /* per-item render hook must not break the flush loop */
+          } finally {
+            placed = true
+          }
         })
         // Still no lane: stop here and retry on the next tick.
         if (!placed) break
@@ -540,6 +557,9 @@ export function attachDanmakuOverlapControl(
   dm.list.tick = (time: number) => {
     skippedTypes.clear()
     tickLayerWidth = resolveLayerWidth(dm, hitBox)
+    // Backward jump (seek): queued items were already re-emitted by the timeline
+    // reset; flushing them again would duplicate danmaku.
+    if (time < lastVideoMs) queuedScrolls.length = 0
     lastVideoMs = time
     originalTick(time)
     flushQueuedScrolls(time)
@@ -593,7 +613,7 @@ export function attachDanmakuOverlapControl(
     const queueEligible =
       isPreventOverlapEnabled() && mode === "queue" && type === "scroll" && !flushing
     if (isPreventOverlapEnabled() && type && skippedTypes.has(type)) {
-      if (queueEligible) enqueueScroll(text, snapshotAttrs())
+      if (queueEligible) enqueueScroll(text, snapshotAttrs(), created)
       return dm
     }
     const attrsSnapshot = queueEligible ? snapshotAttrs() : null
@@ -602,7 +622,7 @@ export function attachDanmakuOverlapControl(
       (element, id) => {
         if (element.getAttribute(DISCARD_ATTR) === "1") {
           if (queueEligible) {
-            enqueueScroll(text, attrsSnapshot)
+            enqueueScroll(text, attrsSnapshot, created)
           } else if (type) {
             skippedTypes.add(type)
           }
@@ -614,6 +634,18 @@ export function attachDanmakuOverlapControl(
       callback
     )
   }
+
+  ;(dm as unknown as { bilirecClearOverlapQueue?: () => void }).bilirecClearOverlapQueue =
+    () => {
+      queuedScrolls.length = 0
+    }
+}
+
+/** Drop queued overflow danmaku (call on seek / clear / reload so they are not re-created). */
+export function clearDanmakuOverlapQueue(dm: NDanmaku): void {
+  const clearer = (dm as unknown as { bilirecClearOverlapQueue?: () => void })
+    .bilirecClearOverlapQueue
+  clearer?.()
 }
 
 export interface DanmakuInjectStyleOptions {

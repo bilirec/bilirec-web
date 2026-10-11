@@ -90,6 +90,7 @@ import {
   type DanmakuInjectStyleOptions,
   resolveDanmakuFont,
   attachDanmakuOverlapControl,
+  clearDanmakuOverlapQueue,
   resyncDanmakuScrollMotionAfterResize,
 } from "@/lib/playback-danmaku"
 import { loadEmoteMap, setEmoteLayoutContextProvider, type EmoteMap } from "@/lib/danmaku-emote"
@@ -446,6 +447,7 @@ export function DanmakuVideoPlayer({
     const dm = danmakuRef.current
     if (!dm) return
     dm.clear()
+    clearDanmakuOverlapQueue(dm)
     const list = dm.list as unknown as { lastTickRange: [number, number] }
     list.lastTickRange = [0, 0]
     lastDanmakuTickMsRef.current = null
@@ -963,6 +965,7 @@ export function DanmakuVideoPlayer({
     const visible = effectsReady && !danmakuHidden && screenDanmakuActive
     layer.style.display = visible ? "block" : "none"
     if (!visible) {
+      if (danmakuRef.current) clearDanmakuOverlapQueue(danmakuRef.current)
       danmakuRef.current?.clear()
       return
     }
@@ -1088,6 +1091,7 @@ export function DanmakuVideoPlayer({
     const onSeeking = () => {
       danmakuSeekingRef.current = true
       lastDanmakuTickMsRef.current = null
+      if (danmakuRef.current) clearDanmakuOverlapQueue(danmakuRef.current)
       danmakuRef.current?.clear()
     }
     const onSeeked = () => {
