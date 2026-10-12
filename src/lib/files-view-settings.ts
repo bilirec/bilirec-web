@@ -3,7 +3,7 @@ const ONLY_MEDIA_KEY = 'bilirec.files.onlyMedia'
 export function loadOnlyMediaFiles(): boolean {
   try {
     const raw = localStorage.getItem(ONLY_MEDIA_KEY)
-    if (raw === null) return false
+    if (raw === null) return true
     return raw === 'true'
   } catch {
     return false
