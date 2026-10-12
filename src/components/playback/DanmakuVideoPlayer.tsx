@@ -1060,6 +1060,15 @@ export function DanmakuVideoPlayer({
         audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
       )
     }
+    // Some mobile browsers fire loadedmetadata while videoWidth/Height are still 0,
+    // which would wrongly latch audio-only mode for an MP4. Undo it once the real
+    // picture size shows up.
+    const onVideoSizeKnown = () => {
+      if (audioOnlyFileByName) return
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        setAudioOnlyPlayback(false)
+      }
+    }
     const onPlay = () => {
       const playbackBlocked = shouldBlockPlayback({
         videoMetadataReady,
@@ -1118,6 +1127,9 @@ export function DanmakuVideoPlayer({
     video.addEventListener("timeupdate", onTimeUpdate)
     video.addEventListener("loadstart", onLoadStart)
     video.addEventListener("loadedmetadata", onLoadedMetadata)
+    video.addEventListener("loadeddata", onVideoSizeKnown)
+    video.addEventListener("canplay", onVideoSizeKnown)
+    video.addEventListener("resize", onVideoSizeKnown)
     video.addEventListener("durationchange", syncVideoDuration)
     video.addEventListener("play", onPlay)
     video.addEventListener("pause", onPause)
@@ -1141,6 +1153,9 @@ export function DanmakuVideoPlayer({
       video.removeEventListener("timeupdate", onTimeUpdate)
       video.removeEventListener("loadstart", onLoadStart)
       video.removeEventListener("loadedmetadata", onLoadedMetadata)
+      video.removeEventListener("loadeddata", onVideoSizeKnown)
+      video.removeEventListener("canplay", onVideoSizeKnown)
+      video.removeEventListener("resize", onVideoSizeKnown)
       video.removeEventListener("durationchange", syncVideoDuration)
       video.removeEventListener("play", onPlay)
       video.removeEventListener("pause", onPause)
