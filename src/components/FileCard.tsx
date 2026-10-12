@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { MoreVerticalIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, EyeIcon, FileAudioIcon } from '@phosphor-icons/react'
+import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, PlayIcon, FileAudioIcon } from '@phosphor-icons/react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
 import { formatFileSize, isConvertibleVideoFile, isDanmakuSidecarFile } from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
@@ -327,37 +327,58 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
 
           <div className="flex flex-col gap-2 w-full mt-1">
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                className={cn("flex-1 relative overflow-hidden", isDownloading ? 'cursor-wait' : '')}
-                disabled={isDownloading || isRecording || isDeleting}
-                onClick={handleDownload}
-                title={isRecording ? t('fileCard.inRecordingDownloadBlocked') : undefined}
-                aria-disabled={isRecording || isDownloading || isDeleting}
-              >
-                <span className={isDownloading ? 'animate-ping relative z-10' : 'relative z-10'} aria-hidden>
-                  <DownloadSimpleIcon size={16} />
-                </span>
-                <span className="relative z-10">
-                  {isRecording ? t('fileCard.recordingBadge') : isDownloading ? t('fileCard.downloadingLabel') : t('fileCard.download')}
-                </span>
-              </Button>
+              {canPlayback ? (
+                <Button
+                  size="sm"
+                  className="flex-1 relative overflow-hidden"
+                  disabled={isRecording || isDeleting || isDownloading}
+                  onClick={handlePlayback}
+                  title={isRecording ? t('fileCard.inRecordingPlaybackBlocked') : t('fileCard.playback')}
+                  aria-label={t('fileCard.playbackAria', { name })}
+                >
+                  <span className="relative z-10" aria-hidden>
+                    <PlayIcon size={16} weight="fill" />
+                  </span>
+                  <span className="relative z-10">
+                    {isRecording ? t('fileCard.recordingBadge') : t('fileCard.playback')}
+                  </span>
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className={cn("flex-1 relative overflow-hidden", isDownloading ? 'cursor-wait' : '')}
+                  disabled={isDownloading || isRecording || isDeleting}
+                  onClick={handleDownload}
+                  title={isRecording ? t('fileCard.inRecordingDownloadBlocked') : undefined}
+                  aria-disabled={isRecording || isDownloading || isDeleting}
+                >
+                  <span className={isDownloading ? 'animate-ping relative z-10' : 'relative z-10'} aria-hidden>
+                    <DownloadSimpleIcon size={16} />
+                  </span>
+                  <span className="relative z-10">
+                    {isRecording ? t('fileCard.recordingBadge') : isDownloading ? t('fileCard.downloadingLabel') : t('fileCard.download')}
+                  </span>
+                </Button>
+              )}
 
-              {/* Desktop actions: show playback (mp4/m4a), share, convert (ts/fmp4/flv) & delete on sm+ */}
+              {canPlayback && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className={cn("p-2 rounded-md h-8 w-8 flex items-center justify-center shrink-0", isDownloading ? 'cursor-wait' : '')}
+                  disabled={isDownloading || isRecording || isDeleting}
+                  onClick={handleDownload}
+                  aria-label={t('fileCard.download')}
+                  title={isRecording ? t('fileCard.inRecordingDownloadBlocked') : isDownloading ? t('fileCard.downloadingLabel') : t('fileCard.download')}
+                >
+                  <span className={isDownloading ? 'animate-ping' : ''} aria-hidden>
+                    <DownloadSimpleIcon size={16} />
+                  </span>
+                </Button>
+              )}
+
+              {/* Desktop actions: share, convert (ts/fmp4/flv) & delete on sm+ */}
               <div className="hidden sm:flex items-center gap-2">
-                {canPlayback && (
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className={cn("p-2 rounded-md h-8 w-8 flex items-center justify-center shrink-0")}
-                    disabled={isRecording || isDeleting || isDownloading}
-                    onClick={handlePlayback}
-                    aria-label={t('fileCard.playbackAria', { name })}
-                    title={isRecording ? t('fileCard.inRecordingPlaybackBlocked') : t('fileCard.playback')}
-                  >
-                    <EyeIcon size={16} />
-                  </Button>
-                )}
                 {canConvert && !isReadOnly && (
                   <Button
                     size="icon"
@@ -421,11 +442,6 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {canPlayback && (
-                      <DropdownMenuItem onSelect={() => { handlePlayback(); }} disabled={isDeleting || isDownloading || isRecording}>
-                        {t('fileCard.playback')}
-                      </DropdownMenuItem>
-                    )}
                     {/* Show share item only when not recording or downloading */}
                     {!isRecording && !isDownloading && (
                       <DropdownMenuItem onSelect={() => { openShareDialog(); }} disabled={isSharing || isDeleting}>
