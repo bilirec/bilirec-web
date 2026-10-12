@@ -40,8 +40,10 @@ export function buildDanmakuHeatmapPath(
     if (item.kind !== "danmaku") continue
     const ts = item.ts
     if (!Number.isFinite(ts) || ts < 0) continue
-    const ratio = Math.min(1, ts / durationSec)
-    const idx = Math.min(bucketCount - 1, Math.floor(ratio * bucketCount))
+    // Drop rows past the video end instead of clamping them into the last
+    // bucket, which would pile them up into a single spike at the right edge.
+    if (ts > durationSec) continue
+    const idx = Math.min(bucketCount - 1, Math.floor((ts / durationSec) * bucketCount))
     buckets[idx] += 1
     danmakuCount += 1
   }
@@ -49,10 +51,9 @@ export function buildDanmakuHeatmapPath(
   if (danmakuCount === 0) return null
 
   const smoothed = smoothBuckets(buckets)
-  let max = 0
-  for (const v of smoothed) {
-    if (v > max) max = v
-  }
+  // Normalize by the 95th percentile so one burst cannot flatten everything else.
+  const sorted = [...smoothed].sort((a, b) => a - b)
+  const max = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]
   if (max <= 0) return null
 
   const n = bucketCount
@@ -60,7 +61,7 @@ export function buildDanmakuHeatmapPath(
 
   for (let i = 0; i < n; i++) {
     const x = ((i + 0.5) / n) * 100
-    const norm = smoothed[i] / max
+    const norm = Math.min(1, smoothed[i] / max)
     const y = VIEW_HEIGHT - norm * PEAK_HEIGHT
     parts.push(`L ${x.toFixed(3)} ${y.toFixed(3)}`)
   }
