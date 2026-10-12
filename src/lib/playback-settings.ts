@@ -37,10 +37,10 @@ export const DANMAKU_AREAS: readonly DanmakuArea[] = [
   "full",
 ]
 export const DEFAULT_DANMAKU_AREA: DanmakuArea = "full"
-/** Drop new scroll/top/bottom danmaku when no lane is free instead of stacking. */
+/** When no lane fits after empty-first allocation, drop or queue instead of stacking. */
 export const DEFAULT_DANMAKU_PREVENT_OVERLAP = true
 
-/** What happens when prevent-overlap is on and no lane is free. */
+/** Overflow when prevent-overlap is on and no lane fits. */
 export type DanmakuOverlapMode = "drop" | "queue"
 export const DANMAKU_OVERLAP_MODES: readonly DanmakuOverlapMode[] = ["drop", "queue"]
 export const DEFAULT_DANMAKU_OVERLAP_MODE: DanmakuOverlapMode = "queue"

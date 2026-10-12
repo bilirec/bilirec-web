@@ -336,6 +336,11 @@ function applyScrollMotionVars(element: HTMLElement, attrs: DanmakuAttrs, layerW
   element.style.right = "auto"
 }
 
+/**
+ * Pick a vertical lane for scroll/top/bottom danmaku when prevent-overlap is on.
+ * Pass 1 (retry=false): use only already-available slots; never release occupied lanes.
+ * Pass 2 (retry=true): release occupied lanes (scroll chase / hang expiry) then place.
+ */
 function bilirecDanmakuAnchor(
   hitBox: HitBoxWithLanes,
   element: HTMLElement,
@@ -370,7 +375,7 @@ function bilirecDanmakuAnchor(
         tailLane.from = splitAt
         lanes.splice(n + 1, 0, tailLane)
       }
-    } else if (lane.dm) {
+    } else if (retry && lane.dm) {
       const dmEl = lane.dm.element
       let released = false
       switch (attrs.type) {
@@ -462,8 +467,9 @@ function resolveLayerWidth(dm: NDanmaku, hitBox: HitBoxWithLanes): number {
 }
 
 /**
- * When lanes are full, n-danmaku resets hitSets and places the new item at 0.
- * Replace that with a discard: skip refreshHitSets and remove the element.
+ * Lane picking (empty slot first, same-lane chase only when nothing fits) always
+ * runs. Prevent-overlap only decides the overflow: discard or queue instead of
+ * letting n-danmaku reset hitSets and stack the new item at 0.
  *
  * ranges() often runs while the layer is display:none, so lanes are built at
  * height 0. Rebuild once the layer has a real size; otherwise every item is discarded.
@@ -569,10 +575,10 @@ export function attachDanmakuOverlapControl(
   hitBox.danmakuAnchor = (element, attrs, retry = false) => {
     applyBigEmoteBeforeAnchor(element, attrs)
 
-    if (!isPreventOverlapEnabled()) {
-      return originalAnchor(element, attrs, retry)
+    // n-danmaku calls back with retry after -1 to reset lanes and stack.
+    if (retry) {
+      return isPreventOverlapEnabled() ? -1 : originalAnchor(element, attrs, retry)
     }
-    if (retry) return -1
 
     const originalRefresh = hitBox.refreshHitSets.bind(hitBox)
     const height = hitBox.target?.offsetHeight ?? 0
@@ -581,12 +587,15 @@ export function attachDanmakuOverlapControl(
     if (height > 0 && laneTo === 0) originalRefresh(attrs.type)
 
     hitBox.refreshHitSets = () => undefined
+    let placed = -1
     try {
       const layerWidth = tickLayerWidth || resolveLayerWidth(dm, hitBox)
-      return bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, false)
+      placed = bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, false)
     } finally {
       hitBox.refreshHitSets = originalRefresh
     }
+    if (placed !== -1 || isPreventOverlapEnabled()) return placed
+    return originalAnchor(element, attrs, false)
   }
 
   const originalSetPos = hitBox.setDanmakuPos.bind(hitBox)
