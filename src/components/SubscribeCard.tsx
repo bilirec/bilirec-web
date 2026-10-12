@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RoomCover } from '@/components/RoomCover'
-import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, CopySimpleIcon, GearSixIcon, EyeIcon, EyeClosedIcon, type IconWeight } from '@phosphor-icons/react'
+import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, ClockCounterClockwiseIcon, CopySimpleIcon, GearSixIcon, EyeIcon, EyeClosedIcon, type IconWeight } from '@phosphor-icons/react'
 import { useTheme } from 'next-themes'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { RoomInfo } from '@/lib/types'
 import { useRole } from '@/lib/role-context'
+import { getLastLiveStart } from '@/lib/last-live-start'
 import { getLiveTimeMeta, normalizeText } from '@/lib/utils'
 import { RoomConfigDialog } from '@/components/RoomConfigDialog'
 import { toast } from 'sonner'
@@ -34,7 +35,14 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
 
   const cleanTitle = normalizeText(roomInfo.title) || t('subscribeCard.loadingTitle')
   const cleanDescription = normalizeText(roomInfo.description)
-  const liveTimeMeta = getLiveTimeMeta(roomInfo.live_time)
+  const isLive = roomInfo.live_status === 1
+  const TimeIcon = isLive ? ClockIcon : ClockCounterClockwiseIcon
+  const liveTimeMeta = getLiveTimeMeta(isLive ? roomInfo.live_time : getLastLiveStart(roomInfo.room_id))
+  const liveTimeTitle = liveTimeMeta
+    ? isLive
+      ? t('subscribeCard.liveStartedAt', { time: liveTimeMeta.title })
+      : t('subscribeCard.lastLiveStartedAt', { time: liveTimeMeta.title })
+    : undefined
 
   const handleCopyRoomId = async () => {
     try {
@@ -68,8 +76,6 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
   const handleStartRecord = () => {
     setIsStartRecordDialogOpen(true)
   }
-
-  const isLive = roomInfo.live_status === 1
 
   const isAutoRecordSkipped = isLive && !isRecording
   const AutoRecordIcon = isAutoRecordSkipped ? EyeClosedIcon : EyeIcon
@@ -202,14 +208,20 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
                   <p className="text-sm text-muted-foreground line-clamp-2 leading-5 wrap-break-word">
                     {cleanTitle}
                   </p>
-                  {liveTimeMeta && roomInfo.live_status === 1 && (
+                  {liveTimeMeta && (
                     <div className="mt-1">
                       <Badge
                         variant="outline"
-                        className="border-accent/40 bg-accent/10 text-accent"
-                        title={t('subscribeCard.liveStartedAt', { time: liveTimeMeta.title })}
+                        className={
+                          `[&>svg]:size-3.5 ${
+                            isLive
+                              ? 'border-accent/40 bg-accent/10 text-accent'
+                              : 'border-border bg-foreground/5 text-muted-foreground'
+                          }`
+                        }
+                        title={liveTimeTitle}
                       >
-                        <ClockIcon size={14} weight="bold" />
+                        <TimeIcon size={14} weight={isLive ? 'bold' : 'regular'} />
                         {liveTimeMeta.relativeLabel}
                       </Badge>
                     </div>

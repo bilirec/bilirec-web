@@ -16,6 +16,7 @@ import { LoadingScreen } from './LoadingScreen'
 import { usePageVisibility } from '@/hooks/use-visibility'
 import { useScoredSearch } from '@/hooks/use-scored-search'
 import { useRole } from '@/lib/role-context'
+import { rememberLiveStarts } from '@/lib/last-live-start'
 import { normalizeText } from '@/lib/utils'
 import {
   getNotificationPermission,
@@ -107,6 +108,8 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
         apiClient.getRoomInfos(roomIds),
         apiClient.getRecordStatuses(roomIds).catch((): Record<string, RecordStatus> => ({}))
       ])
+
+      rememberLiveStarts(Object.values(roomInfos))
 
       const recordStatuses = roomIds.map((id) => ({
         room_id: id,
