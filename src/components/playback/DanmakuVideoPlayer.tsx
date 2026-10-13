@@ -136,6 +136,10 @@ export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
   playbackUrl: string
+  /** Mints a fresh presigned playback URL. Absent in cookie mode (no renewal). */
+  renewPlaybackUrl?: () => Promise<{ url: string; expiresAtMs: number } | null>
+  /** Epoch ms when the initial playbackUrl expires; 0 disables scheduled renewal. */
+  playbackExpiresAtMs?: number
   videoPath: string
   /** Display filename shown in the player chrome */
   fileName: string
@@ -182,6 +186,8 @@ const ADV_LABEL = "text-xs font-medium text-white/55 shrink-0"
 const PROGRESS_THROTTLE_MS = 100
 /** Matches the aside width transition used for the extended chat column. */
 const ASIDE_TRANSITION_MS = 220
+/** Renew presigned playback URLs this long before they expire. */
+const PLAYBACK_RENEW_MARGIN_MS = 5 * 60 * 1000
 
 function buildInjectStyleKey(
   opts: DanmakuInjectStyleOptions,
@@ -199,6 +205,8 @@ function buildInjectStyleKey(
 
 export function DanmakuVideoPlayer({
   playbackUrl,
+  renewPlaybackUrl,
+  playbackExpiresAtMs,
   videoPath,
   fileName,
   onChatPanelExtendedChange,
@@ -252,6 +260,13 @@ export function DanmakuVideoPlayer({
   const [videoDurationSec, setVideoDurationSec] = useState(0)
   const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
+  // Presigned URLs expire; activeSrc is the URL currently on the <video> and
+  // may be replaced mid-playback by renewal (presigned mode only).
+  const [activeSrc, setActiveSrc] = useState(playbackUrl)
+  const [renewAtMs, setRenewAtMs] = useState(playbackExpiresAtMs ?? 0)
+  const renewInFlightRef = useRef(false)
+  const mediaErrorRetriedRef = useRef(false)
+  const restoreAfterSrcChangeRef = useRef<{ time: number; playing: boolean } | null>(null)
   const [loadIndicatorDocked, setLoadIndicatorDocked] = useState(false)
   const [seekEpoch, setSeekEpoch] = useState(0)
   const [stageFullscreen, setStageFullscreen] = useState(false)
@@ -855,7 +870,7 @@ export function DanmakuVideoPlayer({
     mediaLang,
     objectFit,
     orientationLocked,
-    playbackUrl,
+    activeSrc,
     showAudioOnlyPlayback,
     stageFullscreen,
     viewportLandscape,
@@ -1169,10 +1184,83 @@ export function DanmakuVideoPlayer({
     danmakuLoadTimedOut,
     danmakuStatus,
     effectsReady,
-    playbackUrl,
+    activeSrc,
     screenDanmakuActive,
     videoMetadataReady,
   ])
+
+  useEffect(() => {
+    setActiveSrc(playbackUrl)
+  }, [playbackUrl])
+
+  // Swap the presigned URL while keeping position and play state. <video>
+  // cannot change the query on an in-flight connection, so renewal reassigns
+  // src; the loadeddata handler below seeks back after the new URL loads.
+  const renewPlayback = useCallback(async () => {
+    if (!renewPlaybackUrl || renewInFlightRef.current) return
+    renewInFlightRef.current = true
+    try {
+      const minted = await renewPlaybackUrl()
+      if (!minted?.url) return
+      const video = videoRef.current
+      if (video) {
+        restoreAfterSrcChangeRef.current = {
+          time: video.currentTime,
+          playing: !video.paused && !video.ended,
+        }
+      }
+      mediaErrorRetriedRef.current = false
+      setRenewAtMs(minted.expiresAtMs)
+      setActiveSrc(minted.url)
+    } catch {
+      // Keep the current URL; a hard failure surfaces via the error handler.
+    } finally {
+      renewInFlightRef.current = false
+    }
+  }, [renewPlaybackUrl])
+
+  useEffect(() => {
+    if (!renewPlaybackUrl || renewAtMs <= 0) return
+    const delay = renewAtMs - Date.now() - PLAYBACK_RENEW_MARGIN_MS
+    if (delay <= 0) return // expired or already inside the margin; the error handler covers this
+    const timer = window.setTimeout(() => {
+      void renewPlayback()
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [renewPlaybackUrl, renewAtMs, renewPlayback])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const onLoadedData = () => {
+      mediaErrorRetriedRef.current = false
+      const restore = restoreAfterSrcChangeRef.current
+      if (!restore) return
+      restoreAfterSrcChangeRef.current = null
+      if (Number.isFinite(restore.time) && restore.time > 0) {
+        video.currentTime = restore.time
+      }
+      if (restore.playing) {
+        video.play().catch(() => {})
+      }
+    }
+    video.addEventListener("loadeddata", onLoadedData)
+    return () => video.removeEventListener("loadeddata", onLoadedData)
+  }, [mediaLang])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const onError = () => {
+      // The presigned URL may have expired while the machine slept past the
+      // renewal timer. Retry once so broken files stop after a single attempt.
+      if (!renewPlaybackUrl || mediaErrorRetriedRef.current) return
+      mediaErrorRetriedRef.current = true
+      void renewPlayback()
+    }
+    video.addEventListener("error", onError)
+    return () => video.removeEventListener("error", onError)
+  }, [mediaLang, renewPlaybackUrl, renewPlayback])
 
   useEffect(() => {
     const video = videoRef.current
@@ -1317,7 +1405,7 @@ export function DanmakuVideoPlayer({
   }
 
   const openNative = () => {
-    window.open(playbackUrl, "_blank", "noopener,noreferrer")
+    window.open(activeSrc, "_blank", "noopener,noreferrer")
   }
 
   const toggleStageFullscreen = async () => {
@@ -1547,7 +1635,7 @@ export function DanmakuVideoPlayer({
     advancedOpen,
     mobileLandscapeLayout,
     objectFit,
-    playbackUrl,
+    activeSrc,
     showAudioOnlyPlayback,
     stageFullscreen,
     touchDevice,
@@ -1601,7 +1689,7 @@ export function DanmakuVideoPlayer({
           <video
             ref={videoRef}
             slot="media"
-            src={playbackUrl}
+            src={activeSrc}
             playsInline
             preload="metadata"
             className="h-full w-full bg-black"

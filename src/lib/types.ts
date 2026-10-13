@@ -120,6 +120,14 @@ export interface ShareFileInfo {
   expires_in: number
 }
 
+/** Presigned media URL minted by POST /files/presigned. */
+export interface PresignedMediaUrl {
+  /** Fully-resolvable URL (relative paths are prefixed with the API origin). */
+  url: string
+  /** Epoch ms when the token expires (best effort; 0 when unknown). */
+  expiresAtMs: number
+}
+
 export interface StartRecordRequest {
   roomId: number
   durationMinutes?: number

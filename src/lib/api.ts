@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, isAxiosError } from "axios";
 import type {
   LoginRequest,
+  PresignedMediaUrl,
   RecordTask,
   StartRecordRequest,
   RecordInfo,
@@ -333,7 +334,16 @@ class ApiClient {
       .filter(Boolean)
       .map(encodeURIComponent)
       .join("/");
-    const url = (this.baseURL ? this.baseURL.replace(/\/$/, "") : "") + `/files/download/${encodedPath}`;
+    // Prefer a presigned download URL so retries and external download
+    // managers can replay the link without cookies. Older backends reply
+    // with a tempdownload link (or 404) and we fall back to the cookie URL.
+    let url: string;
+    try {
+      const minted = await this.mintPresignedMediaUrl(path, "download");
+      url = minted?.url ?? `${this.originBase()}/files/download/${encodedPath}`;
+    } catch {
+      url = `${this.originBase()}/files/download/${encodedPath}`;
+    }
 
     // Use an in-page anchor click so the download is handled in the same tab.
     try {
@@ -366,9 +376,61 @@ class ApiClient {
       .join("/");
     const url = `/files/presigned/${encodedPath}`;
     const response = await this.client.post<ShareFileInfo>(url, undefined, {
-      params: { ttl }
+      params: { ttl, purpose: "share" }
     });
     return response.data;
+  }
+
+  /** Prefix relative API URLs with the configured API origin. */
+  resolveMediaUrl(url: string): string {
+    if (/^https?:\/\//i.test(url)) return url;
+    return this.originBase() + url;
+  }
+
+  /**
+   * Mint a presigned media URL via POST /files/presigned.
+   * Returns null when the backend predates the `purpose` parameter (it
+   * replies with a /files/tempdownload link) or lacks the endpoint entirely;
+   * callers then fall back to cookie-authenticated media URLs. Path errors
+   * (400) and expired sessions (401) are rethrown.
+   */
+  async mintPresignedMediaUrl(
+    path: string,
+    purpose: "playback" | "download",
+    ttl: number = 86400
+  ): Promise<PresignedMediaUrl | null> {
+    let info: ShareFileInfo;
+    try {
+      const encodedPath = encodeFilePath(path);
+      const response = await this.client.post<ShareFileInfo>(`/files/presigned/${encodedPath}`, undefined, {
+        params: { ttl, purpose }
+      });
+      info = response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return null; // mint endpoint missing on old backends
+      }
+      throw error;
+    }
+    const rawUrl = info?.url;
+    if (typeof rawUrl !== "string" || rawUrl === "") return null;
+    // Old backends ignore `purpose` and answer with a tempdownload link.
+    const parsed = new URL(rawUrl, window.location.href);
+    const expectedPrefix = purpose === "playback" ? "/files/playback/" : "/files/download/";
+    if (!parsed.pathname.startsWith(expectedPrefix)) return null;
+    const expiresIn = Number(info.expires_in);
+    return {
+      url: this.resolveMediaUrl(rawUrl),
+      expiresAtMs: Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn * 1000 : 0)
+    };
+  }
+
+  /**
+   * Mint a presigned playback URL for <video src>; null means the backend
+   * does not support presigned playback and getPlaybackUrl should be used.
+   */
+  async mintPlaybackUrl(path: string, ttl: number = 86400): Promise<PresignedMediaUrl | null> {
+    return this.mintPresignedMediaUrl(path, "playback", ttl);
   }
 
   async deleteDir(path: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { DanmakuVideoPlayer } from "@/components/playback/DanmakuVideoPlayer"
 import { apiClient } from "@/lib/api"
@@ -13,8 +13,15 @@ interface PlaybackPlayerDialogProps {
   name: string
 }
 
+interface PlaybackMedia {
+  url: string
+  /** Presigned URLs expire and need renewal; cookie URLs do not. */
+  presigned: boolean
+  /** Epoch ms when the presigned token expires (0 when unknown). */
+  expiresAtMs: number
+}
+
 export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: PlaybackPlayerDialogProps) {
-  const playbackUrl = apiClient.getPlaybackUrl(path)
   // The chat panel reports whether it took the extended side-column form so the
   // dialog can widen instead of shrinking the video area. Width classes must
   // stay literal for Tailwind extraction (1664px = 1280px video + 320px panel).
@@ -22,6 +29,38 @@ export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: Playbac
   const handleChatPanelExtended = useCallback((extended: boolean) => {
     setChatPanelExtended(extended)
   }, [])
+
+  // Prefer a presigned playback URL (works through CDN pulls and external
+  // players that replay the URL without cookies). Fall back to the
+  // cookie-authenticated URL on backends without presigned playback.
+  const [media, setMedia] = useState<PlaybackMedia | null>(null)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setMedia(null)
+    apiClient
+      .mintPlaybackUrl(path)
+      .then((minted) => {
+        if (cancelled) return
+        if (minted) {
+          setMedia({ url: minted.url, presigned: true, expiresAtMs: minted.expiresAtMs })
+        } else {
+          setMedia({ url: apiClient.getPlaybackUrl(path), presigned: false, expiresAtMs: 0 })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMedia({ url: apiClient.getPlaybackUrl(path), presigned: false, expiresAtMs: 0 })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, path])
+
+  const renewPlaybackUrl = useCallback(async (): Promise<{ url: string; expiresAtMs: number } | null> => {
+    const minted = await apiClient.mintPlaybackUrl(path)
+    if (!minted) return null
+    return { url: minted.url, expiresAtMs: minted.expiresAtMs }
+  }, [path])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,10 +75,12 @@ export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: Playbac
         aria-describedby={undefined}
       >
         <DialogTitle className="sr-only">{name}</DialogTitle>
-        {open ? (
+        {open && media ? (
           <DanmakuVideoPlayer
             key={path}
-            playbackUrl={playbackUrl}
+            playbackUrl={media.url}
+            renewPlaybackUrl={media.presigned ? renewPlaybackUrl : undefined}
+            playbackExpiresAtMs={media.presigned ? media.expiresAtMs : 0}
             videoPath={path}
             fileName={name}
             onChatPanelExtendedChange={handleChatPanelExtended}
