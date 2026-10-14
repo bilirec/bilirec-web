@@ -10,7 +10,7 @@ Bilibili 直播录制管理 Web 界面（PWA），连接 [bilirec](https://githu
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bilirec/bilirec-web)
 
-完整部署步骤、注意事项（`FRONTEND_URL`、HTTPS、与官方前端的取舍等）见官方文档：
+完整部署步骤、注意事项（`FRONTEND_URLS`、HTTPS、与官方前端的取舍等）见官方文档：
 
 - [开发与自架（Cloudflare）](https://www.bilirec.org/zh-cn/development/web/#自行部署cloudflare)
 - [Web 界面使用说明](https://www.bilirec.org/zh-cn/guides/web-ui/)
