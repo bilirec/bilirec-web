@@ -52,7 +52,9 @@ function App() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState<AppTab>("records");
+  const [activeTab, setActiveTab] = useState<AppTab>(
+    VIEWER_MODE_ENABLED ? "files" : "records"
+  );
   const [pinnedRoomId, setPinnedRoomId] = useState<number | null>(null);
   const [serverVersion, setServerVersion] = useState<ServerVersionResult | null>(null);
   const [diskUsage, setDiskUsage] = useState<DiskUsage | null>(null);
