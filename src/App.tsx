@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { LoginView } from "@/components/LoginView";
+import { AppHeader } from "@/components/AppHeader";
+import { ViewerConnectScreen } from "@/components/ViewerConnectScreen";
 import { RecordsView } from "@/components/RecordsView";
 import { FilesView } from "@/components/FilesView";
 import { ConvertsView } from "@/components/ConvertsView";
@@ -12,62 +13,21 @@ import { AnalyticsConsentNotice } from "@/components/AnalyticsConsentNotice";
 import { NetworkStatusToaster } from "@/components/NetworkStatusToaster";
 import { BottomNav } from "@/components/BottomNav";
 import { LeftSidebar } from "@/components/LeftSidebar";
-import { DiskUsageDisplay } from "@/components/DiskUsageDisplay";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
 import { useLanguage } from "@/hooks/use-language";
 import { getStoredLanguage, type AppLanguage } from "@/lib/language";
-import {
-  SignOutIcon,
-  SunIcon,
-  MoonIcon,
-  MonitorIcon,
-  TranslateIcon,
-  GearIcon,
-  CheckIcon,
-  UserIcon,
-  InfoIcon
-} from "@phosphor-icons/react";
-import { apiClient } from "@/lib/api";
-import {
-  startLiveNotifications,
-  stopLiveNotifications,
-  watchNotificationPermission
-} from "@/lib/notifications";
-import { registerServiceWorker } from "@/lib/service-worker";
-import { storage } from "@/lib/storage";
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import type { DiskUsage, LoginResponse, ServerVersionResult } from "@/lib/types";
-import type { BilibiliAuthStatus } from "@/lib/types";
-import {
-  maybeAutoCheckVersion
-} from "@/lib/server-version";
+import type { DiskUsage, ServerVersionResult } from "@/lib/types";
+import { maybeAutoCheckVersion } from "@/lib/server-version";
 import { RoleContext } from "@/lib/role-context";
-import {
-  ANALYTICS_ENABLED,
-  disableAnalytics,
-  getAnalyticsConsent,
-  isReportableAnalyticsVersion,
-  setAnalyticsConsent as persistAnalyticsConsent,
-  setAnalyticsServerVersion,
-  type AnalyticsConsent
-} from "@/lib/analytics";
-import {
-  VIEWER_CREDENTIALS_PROVIDED,
-  VIEWER_MODE_ENABLED,
-  VIEWER_PASSWORD,
-  VIEWER_SERVER_URL,
-  VIEWER_USERNAME
-} from "@/lib/viewer-mode";
+import { ANALYTICS_ENABLED, isReportableAnalyticsVersion } from "@/lib/analytics";
+import { VIEWER_MODE_ENABLED } from "@/lib/viewer-mode";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { useServiceWorkerUpdates } from "@/hooks/use-service-worker-updates";
+import { useBilibiliAuth } from "@/hooks/use-bilibili-auth";
+import { useLiveNotifications } from "@/hooks/use-live-notifications";
+import { useDiskUsage } from "@/hooks/use-disk-usage";
+import { useAnalyticsSession } from "@/hooks/use-analytics-session";
 
 type AppTab = "records" | "files" | "converts" | "subscribe";
 
@@ -90,38 +50,32 @@ function getPinnedRoomFromSearch(search: string): number | null {
 
 function App() {
   const { t } = useTranslation();
-  const { theme, setTheme, resolvedTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
 
-  const ThemeTriggerIcon =
-    theme === "dark"
-      ? MoonIcon
-      : theme === "light"
-      ? SunIcon
-      : resolvedTheme === "dark"
-      ? MoonIcon
-      : SunIcon;
-
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState<AppTab>("records");
   const [pinnedRoomId, setPinnedRoomId] = useState<number | null>(null);
-  const [diskUsage, setDiskUsage] = useState<DiskUsage | null>(null);
-  const [userRole, setUserRole] = useState<string>(
-    () => localStorage.getItem("user-role") ?? "admin"
-  );
-  const [userName, setUserName] = useState<string>(
-    () => localStorage.getItem("user-name") ?? ""
-  );
-  const [bilibiliButtonVisible, setBilibiliButtonVisible] = useState(false);
-  const [bilibiliAuthStatus, setBilibiliAuthStatus] = useState<BilibiliAuthStatus | null>(null);
-  const [isBilibiliDialogOpen, setIsBilibiliDialogOpen] = useState(false);
   const [serverVersion, setServerVersion] = useState<ServerVersionResult | null>(null);
+  const [diskUsage, setDiskUsage] = useState<DiskUsage | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [analyticsConsent, setAnalyticsConsentState] =
-    useState<AnalyticsConsent | null>(() => getAnalyticsConsent());
+  const [isBilibiliDialogOpen, setIsBilibiliDialogOpen] = useState(false);
   const [isDocumentFullscreen, setIsDocumentFullscreen] = useState(false);
-  const isReadOnly = userRole === "viewer";
+
+  const auth = useAuthSession({
+    onVersion: setServerVersion,
+    onDiskUsage: setDiskUsage
+  });
+  const { isAuthenticated, isCheckingAuth, userRole, userName, isReadOnly } = auth;
+
+  const bilibili = useBilibiliAuth(isAuthenticated, userRole);
+  useDiskUsage(isAuthenticated, setDiskUsage);
+  useServiceWorkerUpdates();
+  useLiveNotifications(isAuthenticated, userRole);
+  const { analyticsConsent, handleAnalyticsConsentChange } = useAnalyticsSession({
+    isAuthenticated,
+    serverVersion,
+    onVersion: setServerVersion
+  });
+
   const showServerOutdatedBadge =
     Boolean(serverVersion?.outdated && serverVersion?.checked);
 
@@ -129,150 +83,10 @@ function App() {
     setServerVersion(result);
   };
 
-  const handleAnalyticsConsentChange = (consent: AnalyticsConsent) => {
-    if (!ANALYTICS_ENABLED) {
-      return;
-    }
-
-    persistAnalyticsConsent(consent);
-    setAnalyticsConsentState(consent);
-
-    if (consent !== "granted") {
-      disableAnalytics();
-    }
-  };
-
-  const isUnsupportedStatus = (statusCode: number | undefined) => statusCode === 400 || statusCode === 404 || statusCode === 403
-
-  const handleThemeChange = (newTheme: "light" | "dark" | "system") => {
-    setTheme(newTheme);
-  };
-
-  const handleLanguageChange = async (nextLanguage: AppLanguage) => {
-    await setLanguage(nextLanguage);
-  };
-
   const handleTabChange = (tab: AppTab) => {
     if (tab !== "subscribe") setPinnedRoomId(null);
     setActiveTab(tab);
   };
-
-  const connectViewerMode = useCallback(
-    async (options?: { showChecking?: boolean }) => {
-      const showChecking = options?.showChecking ?? true;
-      if (showChecking) {
-        setIsCheckingAuth(true);
-      }
-      try {
-        await apiClient.runWithoutUnauthorizedEvent(async () => {
-          apiClient.setBaseURL(VIEWER_SERVER_URL);
-          await storage.set("server-url", VIEWER_SERVER_URL);
-
-          let loginResponse: LoginResponse | null = null;
-          if (VIEWER_CREDENTIALS_PROVIDED) {
-            loginResponse = await apiClient.login({
-              user: VIEWER_USERNAME,
-              pass: VIEWER_PASSWORD
-            });
-            if (!loginResponse) {
-              throw new Error("viewer login failed");
-            }
-          }
-
-          const version = await apiClient.probeBackend();
-          const role = loginResponse?.role || "viewer";
-          const user = loginResponse?.user || "";
-          localStorage.setItem("user-role", role);
-          if (user) {
-            localStorage.setItem("user-name", user);
-          } else {
-            localStorage.removeItem("user-name");
-          }
-          setUserRole(role);
-          setUserName(user);
-          if (version) {
-            setServerVersion(version);
-          }
-          setIsAuthenticated(true);
-
-          try {
-            const usage = await apiClient.getDiskUsage();
-            setDiskUsage(usage);
-          } catch (error) {
-            console.error("Failed to fetch disk usage:", error);
-          }
-        });
-      } catch (error) {
-        console.error("Viewer mode connect failed:", error);
-        setIsAuthenticated(false);
-      } finally {
-        if (showChecking) {
-          setIsCheckingAuth(false);
-        }
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (VIEWER_MODE_ENABLED) {
-        await connectViewerMode();
-        return;
-      }
-
-      try {
-        const serverUrl = await storage.get<string>("server-url");
-        if (serverUrl) {
-          apiClient.setBaseURL(serverUrl);
-          const version = await apiClient.probeBackend();
-          if (version) {
-            setServerVersion(version);
-          }
-          setIsAuthenticated(true);
-          // Restore role from localStorage (already initialised in useState)
-          // Fetch initial disk usage
-          try {
-            const usage = await apiClient.getDiskUsage();
-            setDiskUsage(usage);
-          } catch (error) {
-            console.error("Failed to fetch disk usage:", error);
-          }
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-
-    checkAuth();
-
-    const onUnauthorized = () => {
-      if (VIEWER_MODE_ENABLED) {
-        toast.error(t("toast.viewerReconnecting"));
-        void connectViewerMode({ showChecking: false });
-        return;
-      }
-
-      setIsAuthenticated(false);
-      setIsCheckingAuth(false);
-      localStorage.removeItem("user-role");
-      localStorage.removeItem("user-name");
-      setUserRole("admin");
-      setUserName("");
-      stopLiveNotifications().catch((error) => {
-        console.error(
-          "Failed to stop live notifications after unauthorized:",
-          error
-        );
-      });
-      toast.error(t("toast.sessionExpired"));
-    };
-
-    window.addEventListener("api:unauthorized", onUnauthorized);
-    return () => window.removeEventListener("api:unauthorized", onUnauthorized);
-  }, [t, connectViewerMode]);
 
   useEffect(() => {
     if (isCheckingAuth || !isAuthenticated) {
@@ -344,326 +158,6 @@ function App() {
       navigator.serviceWorker.removeEventListener("message", handleMessage);
   }, []);
 
-  // ── Service Worker update lifecycle ──────────────────────
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) {
-      return;
-    }
-
-    let cancelled = false;
-    let waitingWorker: ServiceWorker | null = null;
-
-    const promptReload = () => {
-      toast(t("toast.updateAvailable"), {
-        id: "sw-update",
-        description: t("toast.updateDownloaded"),
-        duration: Infinity,
-        action: {
-          label: t("toast.updateNow"),
-          onClick: () => {
-            if (waitingWorker) {
-              waitingWorker.postMessage({ type: "SKIP_WAITING" });
-            }
-          }
-        }
-      });
-    };
-
-    const handleControllerChange = () => {
-      // New SW took control — reload to get fresh assets
-      window.location.reload();
-    };
-
-    const setupUpdateListener = (reg: ServiceWorkerRegistration) => {
-      // If there's already a waiting worker, prompt immediately
-      if (reg.waiting) {
-        waitingWorker = reg.waiting;
-        promptReload();
-      }
-
-      // Listen for new SW being installed
-      reg.addEventListener("updatefound", () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-
-        newWorker.addEventListener("statechange", () => {
-          if (
-            newWorker.state === "installed" &&
-            navigator.serviceWorker.controller
-          ) {
-            // New SW installed but waiting — prompt user
-            waitingWorker = newWorker;
-            if (!cancelled) {
-              promptReload();
-            }
-          }
-        });
-      });
-    };
-
-    navigator.serviceWorker.addEventListener(
-      "controllerchange",
-      handleControllerChange
-    );
-
-    // Register SW and set up update detection
-    const regPromise = registerServiceWorker();
-    if (regPromise) {
-      regPromise.then((reg) => {
-        if (cancelled) return;
-        setupUpdateListener(reg);
-      });
-    }
-
-    return () => {
-      cancelled = true;
-      navigator.serviceWorker.removeEventListener(
-        "controllerchange",
-        handleControllerChange
-      );
-    };
-  }, [t]);
-
-  // Refresh disk usage every 30 seconds when authenticated
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const fetchDiskUsage = async () => {
-      try {
-        const usage = await apiClient.getDiskUsage();
-        setDiskUsage(usage);
-      } catch (error) {
-        console.error("Failed to fetch disk usage:", error);
-      }
-    };
-
-    fetchDiskUsage();
-    const interval = setInterval(fetchDiskUsage, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setBilibiliAuthStatus(null);
-      return;
-    }
-
-    if (userRole !== "admin") {
-      setBilibiliButtonVisible(false);
-      setBilibiliAuthStatus(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadBilibiliStatus = async () => {
-      try {
-        const status = await apiClient.getBilibiliAuthStatus();
-        if (cancelled) {
-          return;
-        }
-        setBilibiliButtonVisible(true);
-        setBilibiliAuthStatus(status);
-      } catch (error: any) {
-        if (cancelled) {
-          return;
-        }
-        if (isUnsupportedStatus(error?.response?.status)) {
-          console.debug("Bilibili auth endpoint is unsupported, hiding related UI");
-          setBilibiliButtonVisible(false);
-          setBilibiliAuthStatus(null);
-          return;
-        }
-        console.debug("Bilibili auth endpoint is supported, showing related UI");
-        setBilibiliButtonVisible(true);
-      }
-    };
-
-    void loadBilibiliStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, userRole]);
-
-  const refreshBilibiliStatus = async () => {
-    if (userRole !== "admin") {
-      return null;
-    }
-    try {
-      const status = await apiClient.getBilibiliAuthStatus();
-      setBilibiliButtonVisible(true);
-      setBilibiliAuthStatus(status);
-      return status;
-    } catch (error: any) {
-      if (isUnsupportedStatus(error?.response?.status)) {
-        setBilibiliButtonVisible(false);
-        setBilibiliAuthStatus(null);
-        return null;
-      }
-      return bilibiliAuthStatus;
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    if (userRole === "viewer") {
-      // Viewer role should not receive web push notifications; clean up any existing subscription
-      stopLiveNotifications().catch((error) => {
-        console.error("Failed to remove viewer push subscription:", error);
-      });
-      return;
-    }
-
-    let cancelled = false;
-
-    const bootstrapNotifications = async () => {
-      try {
-        const result = await startLiveNotifications();
-        if (cancelled) {
-          return;
-        }
-
-        if (result === "permission-denied-fresh") {
-          toast.error(t("toast.notificationBlocked"));
-        } else if (result === "push-unavailable") {
-          console.error(
-            "Web Push bootstrap failed: push-unavailable (check console above for details)"
-          );
-        } else if (result === "worker-unavailable") {
-          console.error("Web Push bootstrap failed: worker-unavailable");
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Failed to start live notifications:", error);
-        }
-      }
-    };
-
-    bootstrapNotifications().catch((error) => {
-      console.error("Unexpected bootstrapNotifications rejection:", error);
-    });
-
-    const unwatchPermission = watchNotificationPermission((status) => {
-      if (cancelled || status === "unsupported") {
-        return;
-      }
-
-      if (status === "granted" || status === "default") {
-        bootstrapNotifications().catch((error) => {
-          console.error(
-            "Failed to restart live notifications after permission change:",
-            error
-          );
-        });
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      unwatchPermission();
-    };
-  }, [isAuthenticated, userRole]);
-
-  useEffect(() => {
-    if (
-      !ANALYTICS_ENABLED ||
-      !isAuthenticated ||
-      analyticsConsent !== "granted"
-    ) {
-      if (ANALYTICS_ENABLED) {
-        disableAnalytics();
-      }
-    }
-  }, [analyticsConsent, isAuthenticated]);
-
-  useEffect(() => {
-    if (!ANALYTICS_ENABLED || !isAuthenticated) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadAnalyticsVersion = async () => {
-      try {
-        const result = await apiClient.getVersion();
-        if (cancelled) {
-          return;
-        }
-        setServerVersion(result);
-      } catch (error) {
-        if (!cancelled) {
-          console.debug("Failed to load server version for analytics:", error);
-        }
-      }
-    };
-
-    void loadAnalyticsVersion();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (
-      !ANALYTICS_ENABLED ||
-      !isAuthenticated ||
-      analyticsConsent !== "granted"
-    ) {
-      return;
-    }
-
-    const current = serverVersion?.current?.trim();
-    if (!current || current.toLowerCase() === "unknown") {
-      return;
-    }
-
-    setAnalyticsServerVersion(current);
-  }, [analyticsConsent, isAuthenticated, serverVersion?.current]);
-
-  const handleLoginSuccess = (
-    response: LoginResponse,
-    version: ServerVersionResult | null
-  ) => {
-    const role = response.role || "admin";
-    const user = response.user || "";
-    localStorage.setItem("user-role", role);
-    if (user) localStorage.setItem("user-name", user);
-    setUserRole(role);
-    setUserName(user);
-    if (version) {
-      setServerVersion(version);
-    }
-    setIsAuthenticated(true);
-    if (user) {
-      toast.success(t("toast.welcomeBack", { user }));
-    } else {
-      toast.success(t("toast.loginSuccess"));
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      // Notify server to clear HttpOnly cookie
-      await apiClient.logout();
-      await stopLiveNotifications();
-      setIsAuthenticated(false);
-      setServerVersion(null);
-      localStorage.removeItem("user-role");
-      localStorage.removeItem("user-name");
-      setUserRole("admin");
-      setUserName("");
-      toast.success(t("toast.logoutSuccess"));
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
-
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -688,21 +182,10 @@ function App() {
     if (VIEWER_MODE_ENABLED) {
       return (
         <>
-          <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-            <Card className="w-full max-w-md p-6 bg-card text-card-foreground text-center space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {t("viewerMode.connectFailed")}
-              </p>
-              <Button
-                type="button"
-                className="w-full"
-                disabled={isCheckingAuth}
-                onClick={() => void connectViewerMode()}
-              >
-                {isCheckingAuth ? t("login.loading") : t("viewerMode.retry")}
-              </Button>
-            </Card>
-          </div>
+          <ViewerConnectScreen
+            onRetry={() => void auth.retryConnect()}
+            isRetrying={isCheckingAuth}
+          />
           <Toaster richColors position="top-center" />
         </>
       );
@@ -710,7 +193,7 @@ function App() {
 
     return (
       <>
-        <LoginView onLoginSuccess={handleLoginSuccess} />
+        <LoginView onLoginSuccess={auth.handleLoginSuccess} />
         <Toaster richColors position="top-center" />
       </>
     );
@@ -719,285 +202,28 @@ function App() {
   return (
     <RoleContext.Provider value={{ role: userRole, userName, isReadOnly }}>
       <div className="min-h-screen bg-background overflow-x-hidden">
-        <div className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <circle cx="12" cy="12" r="10" strokeWidth="2" />
-                  <circle cx="12" cy="12" r="3" fill="currentColor" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="font-bold text-lg leading-none mb-1 text-card-foreground">
-                  Bilirec
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {t("app.subtitle")}
-                </p>
-              </div>
-            </div>
+        <AppHeader
+          diskUsage={diskUsage}
+          serverVersion={serverVersion}
+          bilibiliButtonVisible={bilibili.bilibiliButtonVisible}
+          bilibiliAuthStatus={bilibili.bilibiliAuthStatus}
+          onRefreshBilibiliStatus={bilibili.refreshBilibiliStatus}
+          onOpenBilibiliDialog={() => setIsBilibiliDialogOpen(true)}
+          onOpenAbout={() => setIsAboutOpen(true)}
+          onLogout={auth.handleLogout}
+          showLogout={!VIEWER_MODE_ENABLED}
+          showServerOutdatedBadge={showServerOutdatedBadge}
+        />
 
-            <div className="flex items-center gap-2">
-              <DiskUsageDisplay diskUsage={diskUsage} compact={true} />
-
-              <div className="hidden sm:flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                      aria-label={t("actions.language")}
-                    >
-                      <TranslateIcon size={18} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuLabel>{t("actions.language")}</DropdownMenuLabel>
-                    {(["zh-TW", "zh-CN"] as AppLanguage[]).map((lang) => (
-                      <DropdownMenuItem
-                        key={lang}
-                        onSelect={() => void handleLanguageChange(lang)}
-                        className={`gap-2 cursor-pointer ${
-                          language === lang
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        <span className="w-4 shrink-0">
-                          {language === lang && <CheckIcon size={14} weight="bold" />}
-                        </span>
-                        {lang === "zh-TW" ? t("language.traditionalChinese") : t("language.simplifiedChinese")}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {bilibiliButtonVisible && (
-                  <DropdownMenu onOpenChange={(open) => {
-                    if (open) {
-                      void refreshBilibiliStatus();
-                    }
-                  }}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                        aria-label={t("bilibiliAuth.title")}
-                      >
-                        <UserIcon size={18} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
-                      <div className="px-3 py-3 flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                            bilibiliAuthStatus?.authenticated ? 'bg-green-500' : 'bg-muted-foreground/40'
-                          }`}>
-                            {bilibiliAuthStatus?.authenticated
-                              ? (bilibiliAuthStatus.account?.uname?.[0]?.toUpperCase() ?? 'B')
-                              : 'B'}
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs text-muted-foreground">
-                              {bilibiliAuthStatus?.authenticated ? t("bilibiliAuth.loggedIn") : t("bilibiliAuth.notLoggedIn")}
-                            </span>
-                            <span className="text-sm font-medium text-foreground break-all">
-                              {bilibiliAuthStatus?.authenticated
-                                ? (bilibiliAuthStatus.account?.uname || '-')
-                                : '-'}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => setIsBilibiliDialogOpen(true)}
-                          size="sm"
-                          variant={bilibiliAuthStatus?.authenticated ? 'outline' : 'default'}
-                          className="cursor-pointer w-full"
-                        >
-                          {bilibiliAuthStatus?.authenticated ? t("bilibiliAuth.switchAccount") : t("bilibiliAuth.login")}
-                        </Button>
-                      </div>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="relative shrink-0 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                  aria-label={t("about.title")}
-                  onClick={() => setIsAboutOpen(true)}
-                >
-                  <InfoIcon size={18} />
-                  {showServerOutdatedBadge ? (
-                    <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-destructive" />
-                  ) : null}
-                </Button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 mr-2 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                      aria-label={t("actions.switchTheme")}
-                    >
-                      <ThemeTriggerIcon size={18} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuLabel>{t("actions.theme")}</DropdownMenuLabel>
-                    {(["light", "dark", "system"] as const).map((t_val) => (
-                      <DropdownMenuItem
-                        key={t_val}
-                        onSelect={() => handleThemeChange(t_val)}
-                        className={`gap-2 cursor-pointer ${
-                          theme === t_val
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        <span className="w-4 shrink-0">
-                          {theme === t_val && <CheckIcon size={14} weight="bold" />}
-                        </span>
-                        {t_val === "light" ? <SunIcon size={14} /> : t_val === "dark" ? <MoonIcon size={14} /> : <MonitorIcon size={14} />}
-                        {t_val === "light" ? t("actions.themeLight") : t_val === "dark" ? t("actions.themeDark") : t("actions.themeSystem")}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              <div className="flex sm:hidden items-center gap-2">
-                <DropdownMenu onOpenChange={(open) => {
-                  if (open && bilibiliButtonVisible) {
-                    void refreshBilibiliStatus();
-                  }
-                }}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-card-foreground hover:text-primary rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                      aria-label={t("actions.settings")}
-                    >
-                      <GearIcon size={18} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    {bilibiliButtonVisible && (
-                      <>
-                        <div className="px-3 py-3 flex flex-col gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                              bilibiliAuthStatus?.authenticated ? 'bg-green-500' : 'bg-muted-foreground/40'
-                            }`}>
-                              {bilibiliAuthStatus?.authenticated
-                                ? (bilibiliAuthStatus.account?.uname?.[0]?.toUpperCase() ?? 'B')
-                                : 'B'}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-xs text-muted-foreground">
-                                {bilibiliAuthStatus?.authenticated ? t("bilibiliAuth.loggedIn") : t("bilibiliAuth.notLoggedIn")}
-                              </span>
-                              <span className="text-sm font-medium text-foreground break-all">
-                                {bilibiliAuthStatus?.authenticated
-                                  ? (bilibiliAuthStatus.account?.uname || '-')
-                                  : '-'}
-                              </span>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => setIsBilibiliDialogOpen(true)}
-                            size="sm"
-                            variant={bilibiliAuthStatus?.authenticated ? 'outline' : 'default'}
-                            className="cursor-pointer w-full"
-                          >
-                            {bilibiliAuthStatus?.authenticated ? t("bilibiliAuth.switchAccount") : t("bilibiliAuth.login")}
-                          </Button>
-                        </div>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuLabel>{t("actions.theme")}</DropdownMenuLabel>
-                    {(["light", "dark", "system"] as const).map((t_val) => (
-                      <DropdownMenuItem
-                        key={t_val}
-                        onSelect={() => handleThemeChange(t_val)}
-                        className={`gap-2 cursor-pointer ${
-                          theme === t_val
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        <span className="w-4 shrink-0">
-                          {theme === t_val && <CheckIcon size={14} weight="bold" />}
-                        </span>
-                        {t_val === "light" ? <SunIcon size={14} /> : t_val === "dark" ? <MoonIcon size={14} /> : <MonitorIcon size={14} />}
-                        {t_val === "light" ? t("actions.themeLight") : t_val === "dark" ? t("actions.themeDark") : t("actions.themeSystem")}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>{t("actions.language")}</DropdownMenuLabel>
-                    {(["zh-TW", "zh-CN"] as AppLanguage[]).map((lang) => (
-                      <DropdownMenuItem
-                        key={lang}
-                        onSelect={() => void handleLanguageChange(lang)}
-                        className={`gap-2 cursor-pointer ${
-                          language === lang
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        <span className="w-4 shrink-0">
-                          {language === lang && <CheckIcon size={14} weight="bold" />}
-                        </span>
-                        {lang === "zh-TW" ? t("language.traditionalChinese") : t("language.simplifiedChinese")}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>{t("about.section")}</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onSelect={() => setIsAboutOpen(true)}
-                      className="gap-2 cursor-pointer text-muted-foreground"
-                    >
-                      <InfoIcon size={14} className="shrink-0" />
-                      {t("about.menuItem")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {!VIEWER_MODE_ENABLED ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="shrink-0 text-card-foreground hover:text-destructive rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                  aria-label={t("actions.logout")}
-                >
-                  <SignOutIcon size={20} />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {bilibiliButtonVisible && (
+        {bilibili.bilibiliButtonVisible && (
           <BilibiliAuthDialog
             open={isBilibiliDialogOpen}
             onOpenChange={setIsBilibiliDialogOpen}
-            initialStatus={bilibiliAuthStatus}
-            onStatusChange={setBilibiliAuthStatus}
-            onControllerUnsupported={() => setBilibiliButtonVisible(false)}
+            initialStatus={bilibili.bilibiliAuthStatus}
+            onStatusChange={bilibili.setBilibiliAuthStatus}
+            onControllerUnsupported={() =>
+              bilibili.setBilibiliButtonVisible(false)
+            }
           />
         )}
 
