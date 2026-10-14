@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { LoginView } from "@/components/LoginView";
@@ -14,6 +14,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { DiskUsageDisplay } from "@/components/DiskUsageDisplay";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,13 @@ import {
   setAnalyticsServerVersion,
   type AnalyticsConsent
 } from "@/lib/analytics";
+import {
+  VIEWER_CREDENTIALS_PROVIDED,
+  VIEWER_MODE_ENABLED,
+  VIEWER_PASSWORD,
+  VIEWER_SERVER_URL,
+  VIEWER_USERNAME
+} from "@/lib/viewer-mode";
 
 type AppTab = "records" | "files" | "converts" | "subscribe";
 
@@ -113,7 +121,6 @@ function App() {
   const [analyticsConsent, setAnalyticsConsentState] =
     useState<AnalyticsConsent | null>(() => getAnalyticsConsent());
   const [isDocumentFullscreen, setIsDocumentFullscreen] = useState(false);
-
   const isReadOnly = userRole === "viewer";
   const showServerOutdatedBadge =
     Boolean(serverVersion?.outdated && serverVersion?.checked);
@@ -150,8 +157,70 @@ function App() {
     setActiveTab(tab);
   };
 
+  const connectViewerMode = useCallback(
+    async (options?: { showChecking?: boolean }) => {
+      const showChecking = options?.showChecking ?? true;
+      if (showChecking) {
+        setIsCheckingAuth(true);
+      }
+      try {
+        await apiClient.runWithoutUnauthorizedEvent(async () => {
+          apiClient.setBaseURL(VIEWER_SERVER_URL);
+          await storage.set("server-url", VIEWER_SERVER_URL);
+
+          let loginResponse: LoginResponse | null = null;
+          if (VIEWER_CREDENTIALS_PROVIDED) {
+            loginResponse = await apiClient.login({
+              user: VIEWER_USERNAME,
+              pass: VIEWER_PASSWORD
+            });
+            if (!loginResponse) {
+              throw new Error("viewer login failed");
+            }
+          }
+
+          const version = await apiClient.probeBackend();
+          const role = loginResponse?.role || "viewer";
+          const user = loginResponse?.user || "";
+          localStorage.setItem("user-role", role);
+          if (user) {
+            localStorage.setItem("user-name", user);
+          } else {
+            localStorage.removeItem("user-name");
+          }
+          setUserRole(role);
+          setUserName(user);
+          if (version) {
+            setServerVersion(version);
+          }
+          setIsAuthenticated(true);
+
+          try {
+            const usage = await apiClient.getDiskUsage();
+            setDiskUsage(usage);
+          } catch (error) {
+            console.error("Failed to fetch disk usage:", error);
+          }
+        });
+      } catch (error) {
+        console.error("Viewer mode connect failed:", error);
+        setIsAuthenticated(false);
+      } finally {
+        if (showChecking) {
+          setIsCheckingAuth(false);
+        }
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     const checkAuth = async () => {
+      if (VIEWER_MODE_ENABLED) {
+        await connectViewerMode();
+        return;
+      }
+
       try {
         const serverUrl = await storage.get<string>("server-url");
         if (serverUrl) {
@@ -180,6 +249,12 @@ function App() {
     checkAuth();
 
     const onUnauthorized = () => {
+      if (VIEWER_MODE_ENABLED) {
+        toast.error(t("toast.viewerReconnecting"));
+        void connectViewerMode({ showChecking: false });
+        return;
+      }
+
       setIsAuthenticated(false);
       setIsCheckingAuth(false);
       localStorage.removeItem("user-role");
@@ -197,7 +272,7 @@ function App() {
 
     window.addEventListener("api:unauthorized", onUnauthorized);
     return () => window.removeEventListener("api:unauthorized", onUnauthorized);
-  }, [t]);
+  }, [t, connectViewerMode]);
 
   useEffect(() => {
     if (isCheckingAuth || !isAuthenticated) {
@@ -610,6 +685,29 @@ function App() {
   }
 
   if (!isAuthenticated) {
+    if (VIEWER_MODE_ENABLED) {
+      return (
+        <>
+          <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+            <Card className="w-full max-w-md p-6 bg-card text-card-foreground text-center space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {t("viewerMode.connectFailed")}
+              </p>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={isCheckingAuth}
+                onClick={() => void connectViewerMode()}
+              >
+                {isCheckingAuth ? t("login.loading") : t("viewerMode.retry")}
+              </Button>
+            </Card>
+          </div>
+          <Toaster richColors position="top-center" />
+        </>
+      );
+    }
+
     return (
       <>
         <LoginView onLoginSuccess={handleLoginSuccess} />
@@ -878,15 +976,17 @@ function App() {
                 </DropdownMenu>
               </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="shrink-0 text-card-foreground hover:text-destructive rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
-                aria-label={t("actions.logout")}
-              >
-                <SignOutIcon size={20} />
-              </Button>
+              {!VIEWER_MODE_ENABLED ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="shrink-0 text-card-foreground hover:text-destructive rounded-md p-1 hover:bg-secondary/10 dark:hover:bg-secondary/10 hover:scale-[1.02]"
+                  aria-label={t("actions.logout")}
+                >
+                  <SignOutIcon size={20} />
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

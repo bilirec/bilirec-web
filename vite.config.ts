@@ -6,12 +6,18 @@ import { resolve } from 'path'
 
 const umamiUrl = process.env.UMAMI_URL?.trim() ?? "";
 const umamiWebsiteId = process.env.UMAMI_WEBSITE_ID?.trim() ?? "";
+const viewerServerUrl = process.env.SERVER_URL?.trim() ?? "";
+const viewerUsername = process.env.VIEWER_USERNAME?.trim() ?? "";
+const viewerPassword = process.env.VIEWER_PASSWORD ?? "";
 
 export default defineConfig({
   envPrefix: ["VITE_", "UMAMI_"],
   define: {
     "import.meta.env.UMAMI_URL": JSON.stringify(umamiUrl),
     "import.meta.env.UMAMI_WEBSITE_ID": JSON.stringify(umamiWebsiteId),
+    "import.meta.env.SERVER_URL": JSON.stringify(viewerServerUrl),
+    "import.meta.env.VIEWER_USERNAME": JSON.stringify(viewerUsername),
+    "import.meta.env.VIEWER_PASSWORD": JSON.stringify(viewerPassword),
   },
   plugins: [
     react(),

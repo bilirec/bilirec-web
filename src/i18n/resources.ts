@@ -37,7 +37,12 @@ export const resources = {
         copyRoomIdSuccess: "已複製 直播間 ID: {{roomId}}",
         copyRoomIdFailed: "複製 直播間 ID 失敗",
         networkReconnecting: "網絡異常，正在嘗試重新連接...",
-        networkRestored: "網絡已恢復"
+        networkRestored: "網絡已恢復",
+        viewerReconnecting: "連線已過期，正在自動重新連線…"
+      },
+      viewerMode: {
+        connectFailed: "無法連線到錄播伺服器",
+        retry: "重試"
       },
       login: {
         title: "Bilibili 錄製管理",
@@ -565,7 +570,12 @@ export const resources = {
         copyRoomIdSuccess: "已复制 直播间 ID: {{roomId}}",
         copyRoomIdFailed: "复制 直播间 ID 失败",
         networkReconnecting: "网络异常，正在尝试重新连接...",
-        networkRestored: "网络已恢复"
+        networkRestored: "网络已恢复",
+        viewerReconnecting: "连接已过期，正在自动重新连接…"
+      },
+      viewerMode: {
+        connectFailed: "无法连接到录播服务器",
+        retry: "重试"
       },
       login: {
         title: "Bilibili 录制管理",
