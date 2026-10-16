@@ -16,16 +16,16 @@ export const DEFAULT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 export const DEFAULT_FRAME_STEP_MS = Math.round(1000 / 30)
 export const DEFAULT_SEEK_OFFSET_SEC = 5
 /** n-danmaku opacity 0–100 */
-export const DEFAULT_DANMAKU_OPACITY = 80
+export const DEFAULT_DANMAKU_OPACITY = 100
 /** Relative danmaku size 50–150 (% of the fixed desktop base). Used only when follow-screen is off. */
-export const DEFAULT_DANMAKU_SIZE = 100
+export const DEFAULT_DANMAKU_SIZE = 85
 export const DANMAKU_SIZE_MIN = 50
 export const DANMAKU_SIZE_MAX = 150
-export const DEFAULT_DANMAKU_FOLLOW_SCREEN = true
+export const DEFAULT_DANMAKU_FOLLOW_SCREEN = false
 export const DEFAULT_SCREEN_DANMAKU_VISIBLE = true
 
 /** Danmaku scrolling speed percent (50–200%, 100% is 1x normal speed). */
-export const DEFAULT_DANMAKU_SPEED = 100
+export const DEFAULT_DANMAKU_SPEED = 85
 export const DANMAKU_SPEED_MIN = 50
 export const DANMAKU_SPEED_MAX = 200
 
@@ -43,7 +43,7 @@ export const DEFAULT_DANMAKU_PREVENT_OVERLAP = true
 /** Overflow when prevent-overlap is on and no lane fits. */
 export type DanmakuOverlapMode = "drop" | "queue"
 export const DANMAKU_OVERLAP_MODES: readonly DanmakuOverlapMode[] = ["drop", "queue"]
-export const DEFAULT_DANMAKU_OVERLAP_MODE: DanmakuOverlapMode = "queue"
+export const DEFAULT_DANMAKU_OVERLAP_MODE: DanmakuOverlapMode = "drop"
 
 export type OverlayCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "hidden"
 export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
