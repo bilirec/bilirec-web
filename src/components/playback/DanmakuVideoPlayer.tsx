@@ -102,7 +102,7 @@ import {
 } from "@/lib/playback-fullscreen"
 import {
   buildAudioMediaSessionArtwork,
-  buildCoverMediaSessionArtwork,
+  loadCoverMediaSessionArtwork,
 } from "@/lib/media-session-artwork"
 import { apiClient } from "@/lib/api"
 import {
@@ -1334,6 +1334,8 @@ export function DanmakuVideoPlayer({
       (Number.isFinite(pathRoomId) && pathRoomId > 0 ? pathRoomId : undefined)
 
     let cancelled = false
+    let revokeCoverArtwork = () => {}
+    const coverAbort = new AbortController()
     const setSessionMetadata = (artwork: ReturnType<typeof buildAudioMediaSessionArtwork>) => {
       if (cancelled) return
       mediaSession.metadata = new MediaMetadata({ ...metadataBase, artwork })
@@ -1346,9 +1348,17 @@ export function DanmakuVideoPlayer({
       setSessionMetadata([])
     }
     if (roomId) {
-      void apiClient.getRoomInfo(roomId).then((info) => {
+      void apiClient.getRoomInfo(roomId).then(async (info) => {
         if (cancelled || !info.cover) return
-        setSessionMetadata(buildCoverMediaSessionArtwork(info.cover))
+        const loaded = await loadCoverMediaSessionArtwork(info.cover, coverAbort.signal)
+        if (cancelled) {
+          loaded.revoke()
+          return
+        }
+        revokeCoverArtwork = loaded.revoke
+        if (loaded.artwork.length > 0) {
+          setSessionMetadata(loaded.artwork)
+        }
       })
     }
     let lastPositionAt = 0
@@ -1370,6 +1380,8 @@ export function DanmakuVideoPlayer({
 
     return () => {
       cancelled = true
+      coverAbort.abort()
+      revokeCoverArtwork()
       video.removeEventListener("play", syncPlaybackState)
       video.removeEventListener("pause", syncPlaybackState)
       video.removeEventListener("ended", syncPlaybackState)

@@ -6,10 +6,71 @@ export type MediaSessionArtwork = {
   type: string
 }
 
-export function buildCoverMediaSessionArtwork(coverUrl: string): MediaSessionArtwork[] {
+export type LoadedMediaSessionArtwork = {
+  artwork: MediaSessionArtwork[]
+  revoke: () => void
+}
+
+const EMPTY_COVER_ARTWORK: LoadedMediaSessionArtwork = {
+  artwork: [],
+  revoke: () => {},
+}
+
+/**
+ * Media Session fetches artwork in the browser chrome, which does not honor
+ * `<img referrerpolicy>` and often skips the page service worker. hdslb 403s
+ * those requests because of the app Referer. Fetch here with no-referrer
+ * (CORS is allowed: ACAO *) and hand Media Session a blob: URL instead.
+ */
+export async function loadCoverMediaSessionArtwork(
+  coverUrl: string,
+  signal?: AbortSignal
+): Promise<LoadedMediaSessionArtwork> {
+  const src = coverUrl.trim()
+  if (!src || signal?.aborted) {
+    return EMPTY_COVER_ARTWORK
+  }
+  if (src.startsWith("data:") || src.startsWith("blob:")) {
+    return {
+      artwork: coverArtwork(src, "image/jpeg"),
+      revoke: () => {},
+    }
+  }
+
+  try {
+    const response = await fetch(src, {
+      mode: "cors",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      signal,
+    })
+    if (!response.ok) {
+      return EMPTY_COVER_ARTWORK
+    }
+    const blob = await response.blob()
+    if (signal?.aborted || blob.size === 0) {
+      return EMPTY_COVER_ARTWORK
+    }
+    const objectUrl = URL.createObjectURL(blob)
+    const type = blob.type.startsWith("image/") ? blob.type : "image/jpeg"
+    let revoked = false
+    return {
+      artwork: coverArtwork(objectUrl, type),
+      revoke: () => {
+        if (revoked) return
+        revoked = true
+        URL.revokeObjectURL(objectUrl)
+      },
+    }
+  } catch {
+    return EMPTY_COVER_ARTWORK
+  }
+}
+
+function coverArtwork(src: string, type: string): MediaSessionArtwork[] {
   return [
-    { src: coverUrl, sizes: "512x512", type: "image/jpeg" },
-    { src: coverUrl, sizes: "256x256", type: "image/jpeg" },
+    { src, sizes: "512x512", type },
+    { src, sizes: "256x256", type },
   ]
 }
 
