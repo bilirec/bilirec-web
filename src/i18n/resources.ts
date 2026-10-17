@@ -27,9 +27,9 @@ export const resources = {
       },
       toast: {
         sessionExpired: "會話逾期，請重新登入",
-        updateAvailable: "有新版本可用",
+        updateAvailable: "網頁有可用更新",
         updateDownloaded: "已下載更新，重新載入即可套用。",
-        updateNow: "立即更新",
+        updateNow: "點擊刷新",
         notificationBlocked: "瀏覽器通知已被封鎖，無法接收直播提醒",
         welcomeBack: "歡迎回來，{{user}}！",
         loginSuccess: "登入成功",
@@ -560,9 +560,9 @@ export const resources = {
       },
       toast: {
         sessionExpired: "会话已过期，请重新登录",
-        updateAvailable: "有新版本可用",
+        updateAvailable: "网页有可用更新",
         updateDownloaded: "已下载更新，重新加载即可应用。",
-        updateNow: "立即更新",
+        updateNow: "点击刷新",
         notificationBlocked: "浏览器通知已被屏蔽，无法接收直播提醒",
         welcomeBack: "欢迎回来，{{user}}！",
         loginSuccess: "登录成功",
