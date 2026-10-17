@@ -9,7 +9,41 @@ export function cn(...inputs: ClassValue[]) {
 /** Video container extensions that bilirec can convert to MP4 (excludes mp4 itself). */
 const CONVERTIBLE_VIDEO_EXTENSIONS = new Set(['ts', 'fmp4', 'flv'])
 
+/** Recording segment media extensions (matches bilirec utils/file.go). */
+const RECORDING_MEDIA_EXTENSIONS = new Set(['mp4', 'm4a', 'ts', 'fmp4', 'flv'])
+
 const DANMAKU_SIDECAR_EXTENSIONS = new Set(['jsonl', 'xml'])
+
+const DANMAKU_SIDECAR_PATH_EXTENSIONS = ['.jsonl', '.xml'] as const
+
+export function isRecordingMediaFilename(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return ext ? RECORDING_MEDIA_EXTENSIONS.has(ext) : false
+}
+
+/** Paired danmaku sidecar relative paths for a video path (.jsonl preferred). */
+export function danmakuSidecarCandidatesForVideo(videoPath: string): string[] {
+  const slash = videoPath.lastIndexOf('/')
+  const dir = slash >= 0 ? videoPath.slice(0, slash + 1) : ''
+  const base = slash >= 0 ? videoPath.slice(slash + 1) : videoPath
+  const dot = base.lastIndexOf('.')
+  const stem = dot > 0 ? base.slice(0, dot) : base
+  return DANMAKU_SIDECAR_PATH_EXTENSIONS.map((ext) => `${dir}${stem}${ext}`)
+}
+
+/** Resolve sidecar from same-directory listing (no network). */
+export function findDanmakuSidecarAmongPeerNames(
+  videoPath: string,
+  peerNames: ReadonlySet<string>
+): string | null {
+  for (const cand of danmakuSidecarCandidatesForVideo(videoPath)) {
+    const base = cand.slice(cand.lastIndexOf('/') + 1)
+    if (peerNames.has(base)) {
+      return cand
+    }
+  }
+  return null
+}
 
 export function isDanmakuSidecarFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase()

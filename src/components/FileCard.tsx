@@ -8,7 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox'
 import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpleIcon, ShareNetworkIcon, SwapIcon, PlayIcon, FileAudioIcon } from '@phosphor-icons/react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
-import { formatFileSize, isConvertibleVideoFile, isDanmakuSidecarFile } from '@/lib/utils'
+import {
+  formatFileSize,
+  findDanmakuSidecarAmongPeerNames,
+  isConvertibleVideoFile,
+  isDanmakuSidecarFile,
+  isRecordingMediaFilename,
+} from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
 import { apiClient } from '@/lib/api'
 import { toast } from 'sonner'
@@ -22,9 +28,18 @@ interface FileCardProps {
   onDelete?: () => void
   onPlayback: (path: string, name: string) => void
   currentPath?: string
+  /** Basenames in the current browse directory (from listing). */
+  siblingFileNames?: ReadonlySet<string>
 }
 
-export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath = '' }: FileCardProps) {
+export function FileCard({
+  file,
+  onNavigate,
+  onDelete,
+  onPlayback,
+  currentPath = '',
+  siblingFileNames,
+}: FileCardProps) {
   const { t } = useTranslation()
   const { isReadOnly } = useRole()
   const [isDownloading, setIsDownloading] = useState(false)
@@ -41,6 +56,7 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
   const isM4a = extension?.toLowerCase() === 'm4a'
   const canPlayback = isMp4 || isM4a
   const isDanmakuSidecar = isDanmakuSidecarFile(name)
+  const isRecordingMedia = isRecordingMediaFilename(name)
   const canConvert = isConvertibleVideoFile(name)
 
   const isRecording = 'is_recording' in file ? !!(file as any).is_recording : false
@@ -49,10 +65,19 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deleteTargetIsDir, setDeleteTargetIsDir] = useState(false)
+  const [deleteDanmakuSidecar, setDeleteDanmakuSidecar] = useState(true)
 
   const openDeleteDialog = (directory = false) => {
     setDeleteTargetIsDir(directory)
+    setDeleteDanmakuSidecar(true)
     setIsDeleteDialogOpen(true)
+  }
+
+  const resolveDanmakuSidecarPath = async (): Promise<string | null> => {
+    const fromListing =
+      siblingFileNames && findDanmakuSidecarAmongPeerNames(fullPath, siblingFileNames)
+    if (fromListing) return fromListing
+    return apiClient.findDanmakuSidecarPath(fullPath)
   }
 
   const performDelete = async (directory = false) => {
@@ -69,7 +94,14 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
       if (directory) {
         await apiClient.deleteDir(fullPath)
       } else {
-        await apiClient.deleteFiles([fullPath])
+        const paths = [fullPath]
+        if (deleteDanmakuSidecar && isRecordingMedia) {
+          const sidecar = await resolveDanmakuSidecarPath()
+          if (sidecar) {
+            paths.push(sidecar)
+          }
+        }
+        await apiClient.deleteFiles(paths)
       }
       toast.success(t('fileCard.deleteSuccess'))
       onDelete?.()
@@ -551,12 +583,25 @@ export function FileCard({ file, onNavigate, onDelete, onPlayback, currentPath =
             </Dialog>
 
             {/* Delete confirmation dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <Dialog
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}
+            >
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{t('fileCard.confirmDeleteTitle')}</DialogTitle>
                   <DialogDescription>{deleteTargetIsDir ? t('fileCard.confirmDeleteFolder', { name }) : t('fileCard.confirmDeleteFile', { name })}</DialogDescription>
                 </DialogHeader>
+
+                {!deleteTargetIsDir && isRecordingMedia && (
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={deleteDanmakuSidecar}
+                      onCheckedChange={(v) => setDeleteDanmakuSidecar(!!v)}
+                    />
+                    <span className="text-sm">{t('fileCard.deleteDanmakuSidecar')}</span>
+                  </div>
+                )}
 
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>{t('fileCard.cancel')}</Button>

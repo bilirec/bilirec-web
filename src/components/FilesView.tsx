@@ -193,6 +193,11 @@ export function FilesView() {
     return data.pages[0]?.total ?? 0
   }, [data])
 
+  const siblingFileNames = useMemo(
+    () => new Set(queryFiles.map((file) => file.name)),
+    [queryFiles]
+  )
+
   const isInitialLoading = (isPending || isFetching) && displayFiles.length === 0
   const isLoadingMore = isFetchingNextPage
   const isDebouncingSearch = searchInput.trim() !== search
@@ -424,6 +429,7 @@ export function FilesView() {
                             onDelete={() => void queryClient.invalidateQueries({ queryKey })}
                             onPlayback={handlePlayback}
                             currentPath={currentPath}
+                            siblingFileNames={siblingFileNames}
                           />
                         )
                       })}

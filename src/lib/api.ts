@@ -32,6 +32,7 @@ import {
   isRoomIdList,
   isServerVersionResult
 } from "./backend";
+import { danmakuSidecarCandidatesForVideo } from "./utils";
 
 /** Encode each path segment for /files/* routes. */
 export function encodeFilePath(path: string): string {
@@ -366,6 +367,32 @@ class ApiClient {
     // Swagger: DELETE /files/batch with body = array of paths
     await this.client.delete("/files/batch", { data: paths });
     return;
+  }
+
+  /**
+   * Resolve paired danmaku sidecar path via HEAD /files/danmaku (session cookie).
+   * Do not use /files/download — that route requires a presigned token only.
+   */
+  async findDanmakuSidecarPath(videoPath: string): Promise<string | null> {
+    const encodedVideo = encodeFilePath(videoPath);
+    try {
+      const response = await this.client.head(`/files/danmaku/${encodedVideo}`);
+      const cd = response.headers["content-disposition"];
+      const disposition = typeof cd === "string" ? cd : undefined;
+      const match = disposition?.match(/filename="([^"]+)"/i);
+      const basename = match?.[1];
+      if (basename) {
+        const slash = videoPath.lastIndexOf("/");
+        const dir = slash >= 0 ? videoPath.slice(0, slash + 1) : "";
+        return `${dir}${basename}`;
+      }
+      return danmakuSidecarCandidatesForVideo(videoPath)[0] ?? null;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      return null;
+    }
   }
 
   async shareFile(path: string, ttl: number = 3600): Promise<ShareFileInfo> {
