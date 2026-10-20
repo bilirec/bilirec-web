@@ -142,7 +142,7 @@ export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
   playbackUrl?: string
-  preview?: { roomId: number; format: PreviewFormat }
+  preview?: { roomId: number; format: PreviewFormat; recordDanmaku?: boolean }
   /** Mints a fresh presigned playback URL. Absent in cookie mode (no renewal). */
   renewPlaybackUrl?: () => Promise<{ url: string; expiresAtMs: number } | null>
   /** Epoch ms when the initial playbackUrl expires; 0 disables scheduled renewal. */
@@ -548,15 +548,25 @@ export function DanmakuVideoPlayer({
     setDanmakuStatus("ready")
   })
 
+  const previewRoomId = preview?.roomId
+  const previewRecordDanmaku = !!preview?.recordDanmaku
+
   useEffect(() => {
     if (preview) {
+      const withDanmaku = previewRecordDanmaku
       setDanmakuStatus("ready")
-      setDanmakuSidecarPresent(true)
-      setDanmakuHidden(false)
+      setDanmakuSidecarPresent(withDanmaku)
+      setDanmakuHidden(!withDanmaku)
       setDanmakuLoadTimedOut(false)
       setLoadIndicatorDocked(false)
       setLoadProgressPercent(null)
       listReadyRef.current = true
+      if (withDanmaku) {
+        void loadEmoteMap().then((map) => {
+          emoteMapRef.current = map
+          setEmoteMap(map)
+        })
+      }
       return
     }
     const ac = new AbortController()
@@ -761,7 +771,7 @@ export function DanmakuVideoPlayer({
       stopInjectPump()
       chunkQueue.length = 0
     }
-  }, [preview, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
+  }, [preview, previewRoomId, previewRecordDanmaku, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
 
   useEffect(() => {
     if (!isDanmakuPipelineBusy(danmakuStatus)) {

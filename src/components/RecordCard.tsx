@@ -380,7 +380,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
             open={previewOpen}
             onOpenChange={setPreviewOpen}
             name={task.roomInfo?.title || t('recordCard.roomFallback', { roomId })}
-            preview={{ roomId, format: previewFormat }}
+            preview={{ roomId, format: previewFormat, recordDanmaku: !!task.recordDanmaku }}
           />
         ) : null}
 

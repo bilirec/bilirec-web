@@ -12,7 +12,7 @@ interface PlaybackPlayerDialogProps {
   path?: string
   /** Display name for a11y */
   name: string
-  preview?: { roomId: number; format: PreviewFormat }
+  preview?: { roomId: number; format: PreviewFormat; recordDanmaku?: boolean }
 }
 
 interface PlaybackMedia {

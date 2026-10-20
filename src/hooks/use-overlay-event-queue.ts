@@ -340,7 +340,13 @@ export function useOverlayEventQueue({
         MAX_TOAST - guards.active.length * GUARD_SLOT_UNITS
       )
       let gifts = prunedGifts
-      if (incomingGift.length) gifts = [...gifts, ...incomingGift]
+      if (incomingGift.length) {
+        const incoming =
+          incomingGift.length > giftUnits
+            ? incomingGift.slice(-giftUnits)
+            : incomingGift
+        gifts = [...gifts, ...incoming]
+      }
       if (gifts.length > giftUnits) gifts = gifts.slice(-giftUnits)
       const unchanged =
         prunedGuardsActive === prev.guards.active &&
@@ -373,6 +379,6 @@ export function useOverlayEventQueue({
     currentTime,
     hangActive: hidden ? [] : hangLane.active,
     guardActive: hidden ? [] : lowerLane.guards.active,
-    gifts: hidden ? [] : lowerLane.gifts,
+    gifts: hidden ? [] : lowerLane.gifts.slice(-MAX_TOAST),
   }
 }

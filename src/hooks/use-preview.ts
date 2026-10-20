@@ -1,11 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
-import {
-  isAtLiveEdge,
-  isSegmentEventType,
-  pinnedPlayheadAfterBuffer,
-  previewEventTypeOf,
-} from "@/lib/preview-sync"
+import { isSegmentEventType, previewEventTypeOf } from "@/lib/preview-sync"
 
 export type PreviewFormat = "flv" | "ts" | "fmp4"
 
@@ -113,7 +108,6 @@ export function usePreview(
     let retryTimer = 0
     let disposed = false
     let attachSeq = 0
-    let pinnedTime: number | null = null
 
     const attach = async () => {
       if (disposed) return
@@ -154,32 +148,10 @@ export function usePreview(
       onEventRef.current(raw)
     }
 
-    const onSeeking = () => {
-      const el = videoRef.current
-      if (!el || el.seekable.length === 0) return
-      const end = el.seekable.end(el.seekable.length - 1)
-      pinnedTime = isAtLiveEdge(el.currentTime, end) ? null : el.currentTime
-    }
-    const followBuffer = () => {
-      const el = videoRef.current
-      if (!el || el.seekable.length === 0) return
-      const end = el.seekable.end(el.seekable.length - 1)
-      const next = pinnedPlayheadAfterBuffer(el.currentTime, pinnedTime, end)
-      if (next !== el.currentTime) {
-        el.currentTime = next
-      }
-    }
-    video.addEventListener("seeking", onSeeking)
-    video.addEventListener("progress", followBuffer)
-    video.addEventListener("durationchange", followBuffer)
-
     return () => {
       disposed = true
       window.clearTimeout(attachTimer)
       window.clearTimeout(retryTimer)
-      video.removeEventListener("seeking", onSeeking)
-      video.removeEventListener("progress", followBuffer)
-      video.removeEventListener("durationchange", followBuffer)
       es.close()
       engineCleanup?.()
     }

@@ -378,7 +378,7 @@ export function EventOverlayLayer({
               className={mobileEffectWidthClass}
             />
           ))}
-          {visibleGifts.map(({ event, exiting }) => (
+          {visibleGifts.slice(-5).map(({ event, exiting }) => (
             <div
               key={event.id}
               className={cn(
