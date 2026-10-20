@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { useGridVirtualizer } from '@/hooks/use-grid-virtualizer'
 import { FileCard } from './FileCard'
 import { EmptyState } from './EmptyState'
@@ -76,6 +76,52 @@ const normalizeList = (items?: RecordFile[]) => {
   return Array.isArray(items)
     ? items.filter((file) => !file.is_dir || file.name !== '..')
     : []
+}
+
+function basenamesFromPaths(paths: readonly string[]): Set<string> {
+  return new Set(
+    paths.map((p) => {
+      const normalized = p.replace(/\\/g, '/')
+      const slash = normalized.lastIndexOf('/')
+      return slash >= 0 ? normalized.slice(slash + 1) : normalized
+    }),
+  )
+}
+
+function removeDeletedFromFilesQueries(
+  queryClient: QueryClient,
+  browsePath: string,
+  deletedBasenames: Set<string>,
+) {
+  if (deletedBasenames.size === 0) return
+
+  queryClient.setQueriesData<InfiniteData<RecordFileListResponse>>(
+    { queryKey: ['files', browsePath], exact: false },
+    (old) => {
+      if (!old?.pages?.length) return old
+
+      let removed = 0
+      const pages = old.pages.map((page) => {
+        const items = page.items.filter((item) => {
+          if (deletedBasenames.has(item.name)) {
+            removed += 1
+            return false
+          }
+          return true
+        })
+        return { ...page, items }
+      })
+
+      if (removed === 0) return old
+
+      const first = pages[0]
+      if (first) {
+        pages[0] = { ...first, total: Math.max(0, first.total - removed) }
+      }
+
+      return { ...old, pages }
+    },
+  )
 }
 
 const CARD_MIN_WIDTH = 300
@@ -299,6 +345,29 @@ export function FilesView() {
     setPlaybackFile({ path, name })
   }, [])
 
+  const handleFileDeleted = useCallback(
+    ({ paths }: { paths: string[] }) => {
+      const deletedNames = basenamesFromPaths(paths)
+      setPlaybackFile((open) => {
+        if (!open) return open
+        const openBase = open.path.replace(/\\/g, '/').split('/').pop()
+        if (openBase && deletedNames.has(openBase)) return null
+        return open
+      })
+      removeDeletedFromFilesQueries(queryClient, currentPath, deletedNames)
+      setDisplayFiles((prev) => {
+        const next = prev.filter((file) => !deletedNames.has(file.name))
+        const removedCount = prev.length - next.length
+        if (removedCount > 0) {
+          setDisplayTotal((total) => Math.max(0, total - removedCount))
+        }
+        return next
+      })
+      void queryClient.invalidateQueries({ queryKey: ['files', currentPath], exact: false })
+    },
+    [currentPath, queryClient],
+  )
+
   const handleBack = () => {
     const parts = currentPath.split('/').filter(Boolean)
     parts.pop()
@@ -426,7 +495,7 @@ export function FilesView() {
                             key={file.path}
                             file={file}
                             onNavigate={handleNavigate}
-                            onDelete={() => void queryClient.invalidateQueries({ queryKey })}
+                            onDelete={handleFileDeleted}
                             onPlayback={handlePlayback}
                             currentPath={currentPath}
                             siblingFileNames={siblingFileNames}

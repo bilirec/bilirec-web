@@ -10,6 +10,7 @@ import { DownloadSimpleIcon, FileTextIcon, FileVideoIcon, FolderIcon, TrashSimpl
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select' 
 import {
   formatFileSize,
+  danmakuSidecarCandidatesForVideo,
   findDanmakuSidecarAmongPeerNames,
   isConvertibleVideoFile,
   isDanmakuSidecarFile,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/utils'
 import type { RecordFile } from '@/lib/types'
 import { apiClient } from '@/lib/api'
+import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
 import { cn } from '../lib/utils';
 import { useRole } from '@/lib/role-context'
@@ -25,7 +27,7 @@ import { useTranslation } from 'react-i18next'
 interface FileCardProps {
   file: RecordFile
   onNavigate?: (fileName: string) => void
-  onDelete?: () => void
+  onDelete?: (info: { paths: string[] }) => void
   onPlayback: (path: string, name: string) => void
   currentPath?: string
   /** Basenames in the current browse directory (from listing). */
@@ -61,7 +63,12 @@ export function FileCard({
 
   const isRecording = 'is_recording' in file ? !!(file as any).is_recording : false
 
-  const fullPath = currentPath ? `${currentPath}/${name}` : name
+  const fileApiPath =
+    typeof file.path === 'string' && file.path.trim()
+      ? file.path.replace(/\\/g, '/')
+      : currentPath
+        ? `${currentPath}/${name}`
+        : name
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deleteTargetIsDir, setDeleteTargetIsDir] = useState(false)
@@ -73,12 +80,16 @@ export function FileCard({
     setIsDeleteDialogOpen(true)
   }
 
-  const resolveDanmakuSidecarPath = async (): Promise<string | null> => {
+  const sidecarPathsForDelete = (): string[] => {
+    const paths = new Set(danmakuSidecarCandidatesForVideo(fileApiPath))
     const fromListing =
-      siblingFileNames && findDanmakuSidecarAmongPeerNames(fullPath, siblingFileNames)
-    if (fromListing) return fromListing
-    return apiClient.findDanmakuSidecarPath(fullPath)
+      siblingFileNames && findDanmakuSidecarAmongPeerNames(fileApiPath, siblingFileNames)
+    if (fromListing) paths.add(fromListing)
+    return [...paths].filter((p) => p !== fileApiPath)
   }
+
+  const isOptionalSidecarMissing = (error: unknown) =>
+    isAxiosError(error) && error.response?.status === 404
 
   const performDelete = async (directory = false) => {
     // Guard: prevent deleting while file is currently recording
@@ -91,20 +102,34 @@ export function FileCard({
     setIsDeleteDialogOpen(false)
     setIsDeleting(true)
     try {
+      const removedPaths: string[] = []
+      let sidecarDeleteFailed = false
       if (directory) {
-        await apiClient.deleteDir(fullPath)
+        await apiClient.deleteDir(fileApiPath)
+        removedPaths.push(fileApiPath)
       } else {
-        const paths = [fullPath]
+        await apiClient.deleteFiles([fileApiPath])
+        removedPaths.push(fileApiPath)
         if (deleteDanmakuSidecar && isRecordingMedia) {
-          const sidecar = await resolveDanmakuSidecarPath()
-          if (sidecar) {
-            paths.push(sidecar)
+          for (const sidecar of sidecarPathsForDelete()) {
+            try {
+              await apiClient.deleteFiles([sidecar])
+              removedPaths.push(sidecar)
+            } catch (sidecarError) {
+              if (isOptionalSidecarMissing(sidecarError)) continue
+              sidecarDeleteFailed = true
+              console.warn('Optional danmaku sidecar delete failed:', sidecarError)
+            }
           }
         }
-        await apiClient.deleteFiles(paths)
       }
-      toast.success(t('fileCard.deleteSuccess'))
-      onDelete?.()
+      if (sidecarDeleteFailed) {
+        toast.success(t('fileCard.deleteVideoSuccess'))
+        toast.warning(t('fileCard.deleteDanmakuFailed'))
+      } else {
+        toast.success(t('fileCard.deleteSuccess'))
+      }
+      onDelete?.({ paths: removedPaths })
     } catch (error: any) {
       console.error('Delete failed:', error)
       toast.error(t('fileCard.deleteFailed') + (error.response?.data ? `: ${error.response.data}` : ''))
@@ -128,8 +153,7 @@ export function FileCard({
     setIsDownloading(true)
 
     try {
-      const fullPath = currentPath ? `${currentPath}/${name}` : name
-      await apiClient.downloadFile(fullPath, { suggestedName: name })
+      await apiClient.downloadFile(fileApiPath, { suggestedName: name })
       // Let the browser handle the download/navigation
       toast.info(t('fileCard.downloading'))
     } catch (error: any) {
@@ -152,7 +176,7 @@ export function FileCard({
       return
     }
 
-    onPlayback(fullPath, name)
+    onPlayback(fileApiPath, name)
   }
 
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false)
@@ -182,8 +206,7 @@ export function FileCard({
     setIsConvertDialogOpen(false)
     setIsConverting(true)
     try {
-      const fullPath = currentPath ? `${currentPath}/${name}` : name
-      await apiClient.enqueueConvertTask(fullPath, deleteSourceAfterConvert, convertFormat)
+      await apiClient.enqueueConvertTask(fileApiPath, deleteSourceAfterConvert, convertFormat)
       toast.success(t('fileCard.enqueueConvertSuccess'))
     } catch (error: any) {
       console.error('Enqueue convert failed:', error)
@@ -208,8 +231,7 @@ export function FileCard({
 
     setIsSharing(true)
     try {
-      const fullPath = currentPath ? `${currentPath}/${name}` : name
-      const shareInfo = await apiClient.shareFile(fullPath, selectedTtl)
+      const shareInfo = await apiClient.shareFile(fileApiPath, selectedTtl)
       const expiresIn = Number(shareInfo.expires_in)
       const durationLabel = expiresIn === 3600
         ? t('fileCard.shareExpire1h')
