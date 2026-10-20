@@ -1,0 +1,15 @@
+---
+description: bilirec-web has no tests — never add test files, runners, or test-only tooling
+alwaysApply: true
+---
+
+# No Tests in bilirec-web
+
+This repo is verified by running the app, not by unit tests. Do not write tests.
+
+- Do not create `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `__tests__/`, or similar test files.
+- Do not add test runners or testing devDependencies (vitest, jest, @testing-library, playwright, …) to `package.json`.
+- Do not add `test` / `vitest` scripts.
+- Do not restructure production code to be "testable" or add exports only for tests.
+
+If a change feels unsafe without tests, say so and ask the user first instead of writing them.

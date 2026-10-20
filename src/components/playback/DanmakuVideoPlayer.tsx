@@ -45,6 +45,9 @@ import {
   type OverlayEvent,
   type PlaybackChatItem,
 } from "@/lib/danmaku"
+import { parseJsonlDanmaku } from "@/lib/danmaku-parse"
+import { usePreview, type PreviewFormat } from "@/hooks/use-preview"
+import { isSegmentEventType, previewEventTypeOf } from "@/lib/preview-sync"
 import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
@@ -138,7 +141,8 @@ import "media-chrome/dist/lang/zh-TW.js"
 export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
-  playbackUrl: string
+  playbackUrl?: string
+  preview?: { roomId: number; format: PreviewFormat }
   /** Mints a fresh presigned playback URL. Absent in cookie mode (no renewal). */
   renewPlaybackUrl?: () => Promise<{ url: string; expiresAtMs: number } | null>
   /** Epoch ms when the initial playbackUrl expires; 0 disables scheduled renewal. */
@@ -208,6 +212,7 @@ function buildInjectStyleKey(
 
 export function DanmakuVideoPlayer({
   playbackUrl,
+  preview,
   renewPlaybackUrl,
   playbackExpiresAtMs,
   videoPath,
@@ -266,7 +271,7 @@ export function DanmakuVideoPlayer({
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
   // Presigned URLs expire; activeSrc is the URL currently on the <video> and
   // may be replaced mid-playback by renewal (presigned mode only).
-  const [activeSrc, setActiveSrc] = useState(playbackUrl)
+  const [activeSrc, setActiveSrc] = useState(playbackUrl ?? "")
   const [renewAtMs, setRenewAtMs] = useState(playbackExpiresAtMs ?? 0)
   const renewInFlightRef = useRef(false)
   const mediaErrorRetriedRef = useRef(false)
@@ -493,7 +498,67 @@ export function DanmakuVideoPlayer({
     }
   }, [])
 
+  // Live-preview wiring: SSE events from usePreview drive the danmaku pipeline
+  // (segment rotation resets it; danmaku lines stream in live).
+  usePreview(videoRef, preview ?? null, (raw: string) => {
+    const type = previewEventTypeOf(raw)
+    if (type === undefined) return
+    if (isSegmentEventType(type)) {
+      bulletsRef.current = []
+      vodListPreparedRef.current = false
+      listReadyRef.current = false
+      setOverlays([])
+      setChatItems([])
+      setSeekEpoch((n) => n + 1)
+      const dm = danmakuRef.current
+      if (dm) {
+        dm.clear()
+        if (danmakuAreaRef.current) {
+          prepareDanmakuVodList(dm, danmakuAreaRef.current)
+          vodListPreparedRef.current = true
+        }
+      }
+      return
+    }
+    const parsed = parseJsonlDanmaku(raw.endsWith("\n") ? raw : `${raw}\n`)
+    if (parsed.bullets && parsed.bullets.length > 0) {
+      const chunk = parsed.bullets
+      bulletsRef.current.push(...chunk)
+      const dm = danmakuRef.current
+      if (dm) {
+        if (!vodListPreparedRef.current) {
+          prepareDanmakuVodList(dm, danmakuAreaRef.current)
+          vodListPreparedRef.current = true
+        }
+        dm.list.load(
+          styleDanmakuItemsForEngine(chunk, injectStyleRef.current, getEmoteRenderContext())
+        )
+      }
+    }
+    if (parsed.overlays.length > 0) {
+      setOverlays((prev) => [...prev, ...parsed.overlays])
+    }
+    if (parsed.chatItems.length > 0) {
+      setChatItems((prev) => [...prev, ...parsed.chatItems])
+    }
+    if (parsed.meta) {
+      setMeta(parsed.meta)
+    }
+    listReadyRef.current = true
+    setDanmakuStatus("ready")
+  })
+
   useEffect(() => {
+    if (preview) {
+      setDanmakuStatus("ready")
+      setDanmakuSidecarPresent(true)
+      setDanmakuHidden(false)
+      setDanmakuLoadTimedOut(false)
+      setLoadIndicatorDocked(false)
+      setLoadProgressPercent(null)
+      listReadyRef.current = true
+      return
+    }
     const ac = new AbortController()
     const generation = ++danmakuLoadGenerationRef.current
 
@@ -696,7 +761,7 @@ export function DanmakuVideoPlayer({
       stopInjectPump()
       chunkQueue.length = 0
     }
-  }, [videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
+  }, [preview, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
 
   useEffect(() => {
     if (!isDanmakuPipelineBusy(danmakuStatus)) {
@@ -1109,11 +1174,13 @@ export function DanmakuVideoPlayer({
       }
     }
     const onPlay = () => {
-      const playbackBlocked = shouldBlockPlayback({
-        videoMetadataReady,
-        danmakuStatus,
-        danmakuLoadTimedOut,
-      })
+      const playbackBlocked =
+        !preview &&
+        shouldBlockPlayback({
+          videoMetadataReady,
+          danmakuStatus,
+          danmakuLoadTimedOut,
+        })
       if (playbackBlocked) {
         video.pause()
         return
@@ -1211,11 +1278,13 @@ export function DanmakuVideoPlayer({
     activeSrc,
     screenDanmakuActive,
     videoMetadataReady,
+    preview,
   ])
 
   useEffect(() => {
-    setActiveSrc(playbackUrl)
-  }, [playbackUrl])
+    if (preview) return
+    setActiveSrc(playbackUrl ?? "")
+  }, [playbackUrl, preview])
 
   // Swap the presigned URL while keeping position and play state. <video>
   // cannot change the query on an in-flight connection, so renewal reassigns
@@ -1541,13 +1610,17 @@ export function DanmakuVideoPlayer({
   const fitLabel = t(`playbackPlayer.fit.${objectFit}`)
 
   const danmakuPipelineBusy = isDanmakuPipelineBusy(danmakuStatus)
-  const playbackBlocked = shouldBlockPlayback({
-    videoMetadataReady,
-    danmakuStatus,
-    danmakuLoadTimedOut,
-  })
+  const playbackBlocked =
+    !preview &&
+    shouldBlockPlayback({
+      videoMetadataReady,
+      danmakuStatus,
+      danmakuLoadTimedOut,
+    })
   const showCentralLoadOverlay =
-    !loadIndicatorDocked && (!videoMetadataReady || danmakuPipelineBusy)
+    !preview &&
+    !loadIndicatorDocked &&
+    (!videoMetadataReady || danmakuPipelineBusy)
   const showDockedLoadIndicator =
     loadIndicatorDocked &&
     videoMetadataReady &&
@@ -1725,14 +1798,16 @@ export function DanmakuVideoPlayer({
           <video
             ref={videoRef}
             slot="media"
-            src={activeSrc}
+            {...(preview ? {} : { src: activeSrc })}
             playsInline
             preload="metadata"
             crossOrigin={renewPlaybackUrl ? "anonymous" : undefined}
             className="h-full w-full bg-black"
             style={{ objectFit, objectPosition: videoObjectPosition }}
           />
-          <MediaLoadingIndicator slot="centered-chrome" />
+          {showCentralLoadOverlay ? null : (
+            <MediaLoadingIndicator slot="centered-chrome" />
+          )}
           <MediaPlaybackRateMenu
             className="bilirec-playback-rate-menu"
             hidden

@@ -3,14 +3,16 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { DanmakuVideoPlayer } from "@/components/playback/DanmakuVideoPlayer"
 import { apiClient } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import type { PreviewFormat } from "@/hooks/use-preview"
 
 interface PlaybackPlayerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Relative path under recordings root, e.g. room/file.mp4 */
-  path: string
+  path?: string
   /** Display name for a11y */
   name: string
+  preview?: { roomId: number; format: PreviewFormat }
 }
 
 interface PlaybackMedia {
@@ -21,7 +23,13 @@ interface PlaybackMedia {
   expiresAtMs: number
 }
 
-export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: PlaybackPlayerDialogProps) {
+export function PlaybackPlayerDialog({
+  open,
+  onOpenChange,
+  path,
+  name,
+  preview,
+}: PlaybackPlayerDialogProps) {
   // The chat panel reports whether it took the extended side-column form so the
   // dialog can widen instead of shrinking the video area. Width classes must
   // stay literal for Tailwind extraction (1664px = 1280px video + 320px panel).
@@ -35,7 +43,7 @@ export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: Playbac
   // cookie-authenticated URL on backends without presigned playback.
   const [media, setMedia] = useState<PlaybackMedia | null>(null)
   useEffect(() => {
-    if (!open) return
+    if (!open || preview || !path) return
     let cancelled = false
     setMedia(null)
     apiClient
@@ -54,13 +62,16 @@ export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: Playbac
     return () => {
       cancelled = true
     }
-  }, [open, path])
+  }, [open, path, preview])
 
   const renewPlaybackUrl = useCallback(async (): Promise<{ url: string; expiresAtMs: number } | null> => {
+    if (!path) return null
     const minted = await apiClient.mintPlaybackUrl(path)
     if (!minted) return null
     return { url: minted.url, expiresAtMs: minted.expiresAtMs }
   }, [path])
+
+  const playerReady = open && (preview || media)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,7 +86,16 @@ export function PlaybackPlayerDialog({ open, onOpenChange, path, name }: Playbac
         aria-describedby={undefined}
       >
         <DialogTitle className="sr-only">{name}</DialogTitle>
-        {open && media ? (
+        {playerReady && preview ? (
+          <DanmakuVideoPlayer
+            key={`preview-${preview.roomId}-${preview.format}`}
+            preview={preview}
+            videoPath={String(preview.roomId)}
+            fileName={name}
+            onChatPanelExtendedChange={handleChatPanelExtended}
+            className="min-h-0 flex-1 pt-8 sm:pt-0"
+          />
+        ) : playerReady && media && path ? (
           <DanmakuVideoPlayer
             key={path}
             playbackUrl={media.url}

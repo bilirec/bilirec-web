@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoomCover } from '@/components/RoomCover'
-import { StopIcon, UserIcon, ClockIcon, VideoCameraIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon } from '@phosphor-icons/react'
+import { StopIcon, UserIcon, ClockIcon, VideoCameraIcon, ChatCircleDotsIcon, ArrowSquareOutIcon, CopySimpleIcon, WarningCircleIcon, LineVerticalIcon, PlayCircleIcon } from '@phosphor-icons/react'
+import { PlaybackPlayerDialog } from '@/components/playback/PlaybackPlayerDialog'
+import { previewFormatOf } from '@/hooks/use-preview'
 import { cn, formatFileSize, formatDuration } from '@/lib/utils'
 import { getRecordQualityLabelKey, getRecordStreamFormatLabel } from '@/lib/record-labels'
 import type { RecordTask } from '@/lib/types'
@@ -29,7 +31,11 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const [isStopDialogOpen, setIsStopDialogOpen] = useState(false)
   const isMobile = useIsMobile()
   const [isTitleInfoOpen, setIsTitleInfoOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const roomId = task.roomInfo?.room_id ?? task.roomId
+  const previewFormat = previewFormatOf(task.actualStreamFormat)
+  const canPreview =
+    task.status === 'recording' && previewFormat != null && !task.isAudioOnly
 
   const handleCopyRoomId = async () => {
     try {
@@ -331,7 +337,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
             <Button
               asChild
               variant="default"
-              className="w-full sm:flex-1 transition-all hover:shadow-lg"
+              className="w-full min-w-0 sm:flex-1 transition-all hover:shadow-lg"
             >
               <a
                 href={`https://live.bilibili.com/${task.roomInfo?.room_id ?? task.roomId}`}
@@ -343,18 +349,39 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
               </a>
             </Button>
 
+            {canPreview && previewFormat ? (
+            <Button
+              type="button"
+              variant="default"
+              className="w-full min-w-0 sm:flex-1 bg-emerald-600 text-white shadow-xs hover:bg-emerald-600/90 focus-visible:ring-emerald-600/20 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
+              onClick={() => setPreviewOpen(true)}
+            >
+              <PlayCircleIcon size={18} />
+              {t('recordCard.previewRecording')}
+            </Button>
+            ) : null}
+
             {!isReadOnly && (
             <Button
               onClick={handleStop}
               disabled={isLoading}
               variant="destructive"
-              className="w-full sm:w-1/2 transition-all hover:bg-destructive/90 hover:shadow-md hover:ring-1 hover:ring-destructive/30"
+              className="w-full min-w-0 sm:flex-1 transition-all hover:bg-destructive/90 hover:shadow-md hover:ring-1 hover:ring-destructive/30"
             >
               <StopIcon size={20} />
               {t('recordCard.stopRecording')}
             </Button>
             )}
           </div>
+        ) : null}
+
+        {canPreview && previewFormat ? (
+          <PlaybackPlayerDialog
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            name={task.roomInfo?.title || t('recordCard.roomFallback', { roomId })}
+            preview={{ roomId, format: previewFormat }}
+          />
         ) : null}
 
         <Dialog open={isStopDialogOpen} onOpenChange={setIsStopDialogOpen}>
