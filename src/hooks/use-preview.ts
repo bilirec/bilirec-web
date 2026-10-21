@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
+import { attachFmp4Live } from "@/lib/fmp4-live"
 import { isSegmentEventType, previewEventTypeOf } from "@/lib/preview-sync"
 
 export type PreviewFormat = "flv" | "ts" | "fmp4"
@@ -27,12 +28,17 @@ async function attachEngine(
   source: PreviewSource,
   onEngineGone: () => void
 ): Promise<() => void> {
+  const url = apiClient.previewMediaUrl(source.roomId)
+  if (source.format === "fmp4") {
+    return attachFmp4Live(video, url, onEngineGone)
+  }
+
   if (source.format === "flv") {
     const { default: flvjs } = await import("flv.js")
     const player = flvjs.createPlayer(
       {
         type: "flv",
-        url: apiClient.previewMediaUrl(source.roomId),
+        url,
         isLive: true,
         hasAudio: true,
         hasVideo: true,
@@ -42,7 +48,6 @@ async function attachEngine(
       {
         enableStashBuffer: false,
         lazyLoad: false,
-        seekType: "range",
       }
     )
     player.on(flvjs.Events.ERROR, () => {
@@ -59,28 +64,33 @@ async function attachEngine(
     }
   }
 
-  const { default: Hls } = await import("hls.js")
-  const hls = new Hls({
-    liveDurationInfinity: true,
-    startPosition: -1,
-    backBufferLength: 180,
-    maxLiveSyncPlaybackRate: 1,
-    xhrSetup(xhr) {
-      xhr.withCredentials = true
+  const mpegts = (await import("mpegts.js")).default
+  const player = mpegts.createPlayer(
+    {
+      type: "mpegts",
+      url,
+      isLive: true,
+      hasAudio: true,
+      hasVideo: true,
+      cors: true,
+      withCredentials: true,
     },
-  })
-  hls.loadSource(apiClient.previewPlaylistUrl(source.roomId))
-  hls.attachMedia(video)
-  hls.on(Hls.Events.MANIFEST_PARSED, () => {
-    void video.play()
-  })
-  hls.on(Hls.Events.ERROR, (_event, data) => {
-    if (data.fatal) {
-      onEngineGone()
+    {
+      enableStashBuffer: false,
+      lazyLoad: false,
     }
+  )
+  player.on(mpegts.Events.ERROR, () => {
+    onEngineGone()
   })
+  player.attachMediaElement(video)
+  player.load()
+  void player.play()
   return () => {
-    hls.destroy()
+    player.pause()
+    player.unload()
+    player.detachMediaElement()
+    player.destroy()
   }
 }
 

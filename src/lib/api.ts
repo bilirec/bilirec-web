@@ -104,10 +104,6 @@ class ApiClient {
     return `${this.originBase()}/files/danmaku/${encodeFilePath(path)}`;
   }
 
-  previewPlaylistUrl(roomId: number): string {
-    return `${this.originBase()}/preview/rooms/${roomId}/index.m3u8`;
-  }
-
   previewMediaUrl(roomId: number): string {
     return `${this.originBase()}/preview/rooms/${roomId}/media`;
   }
