@@ -505,17 +505,6 @@ export function DanmakuVideoPlayer({
       { kind: "jsonl" }
     > | null = null
 
-    void loadEmoteMap()
-      .then((map) => {
-        emoteMapRef.current = map
-        setEmoteMap(map)
-      })
-      .finally(() => {
-        if (generation !== danmakuLoadGenerationRef.current) return
-        emoteMapSettled = true
-        scheduleInjectPump()
-      })
-
     const stopInjectPump = () => {
       if (injectPumpRafRef.current !== 0) {
         cancelAnimationFrame(injectPumpRafRef.current)
@@ -629,11 +618,28 @@ export function DanmakuVideoPlayer({
       injectPumpRafRef.current = requestAnimationFrame(runInjectPump)
     }
 
+    let emoteLoadStarted = false
+    const beginEmoteMapLoad = () => {
+      if (emoteLoadStarted) return
+      emoteLoadStarted = true
+      void loadEmoteMap()
+        .then((map) => {
+          emoteMapRef.current = map
+          setEmoteMap(map)
+        })
+        .finally(() => {
+          if (generation !== danmakuLoadGenerationRef.current) return
+          emoteMapSettled = true
+          scheduleInjectPump()
+        })
+    }
+
     void fetchDanmakuForVideo(videoPath, {
       signal: ac.signal,
       onJsonlSidecarFound: () => {
         if (generation !== danmakuLoadGenerationRef.current) return
         setDanmakuSidecarPresent(true)
+        beginEmoteMapLoad()
       },
       onProgress: (ratio) => {
         if (generation !== danmakuLoadGenerationRef.current) return
