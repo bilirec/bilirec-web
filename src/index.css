@@ -294,6 +294,17 @@ body {
   color: var(--card-foreground);
 }
 
+[data-appearance="dark"] .record-card .record-card-enter-live {
+  background-color: color-mix(in srgb, var(--card) 62%, #000);
+  border-color: rgba(255, 255, 255, 0.07);
+  color: color-mix(in srgb, var(--card-foreground) 90%, transparent);
+}
+
+[data-appearance="dark"] .record-card .record-card-enter-live:hover {
+  background-color: color-mix(in srgb, var(--card) 52%, #000);
+  color: var(--card-foreground);
+}
+
 .cards-grid {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
