@@ -364,10 +364,21 @@ body {
   position: relative;
   z-index: 0;
   isolation: isolate;
+  overflow: visible;
 }
 
 .bilirec-playback-player .bilirec-playback-progress-timeline {
   overflow: visible;
+}
+
+.bilirec-playback-player .bilirec-hover-preview {
+  position: relative;
+  width: 160px;
+  height: 90px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 4px rgb(0 0 0 / 0.2);
+  border-radius: var(--media-preview-border-radius, 4px) var(--media-preview-border-radius, 4px) 0 0;
 }
 
 /* Progress track: slim padding (with or without heatmap SVG). Heatmap sits bottom-full of range. */

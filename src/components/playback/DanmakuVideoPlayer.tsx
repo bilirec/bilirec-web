@@ -8,6 +8,7 @@ import {
   MediaLoadingIndicator,
   MediaMuteButton,
   MediaPlayButton,
+  MediaPreviewTimeDisplay,
   MediaSeekBackwardButton,
   MediaSeekForwardButton,
   MediaTimeDisplay,
@@ -125,6 +126,7 @@ import {
   shouldBlockPlayback,
   type DanmakuPipelineStatus,
 } from "@/lib/playback-loading"
+import { usePlaybackHoverPreview } from "@/hooks/use-playback-hover-preview"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { DanmakuListItem } from "n-danmaku"
@@ -224,6 +226,7 @@ export function DanmakuVideoPlayer({
   const overlayHostRef = useRef<HTMLDivElement>(null)
   const controlsHostRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const hoverCanvasRef = useRef<HTMLCanvasElement>(null)
   const danmakuRef = useRef<NDanmaku | null>(null)
   const bulletsRef = useRef<DanmakuListItem[]>([])
   const appliedInjectKeyRef = useRef<string | null>(null)
@@ -328,6 +331,14 @@ export function DanmakuVideoPlayer({
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
+  const hoverPreviewEnabled = !showAudioOnlyPlayback && videoMetadataReady
+  const { loading: hoverPreviewLoading, hasFrame: hoverPreviewHasFrame } = usePlaybackHoverPreview({
+    hostRef: controlsHostRef,
+    canvasRef: hoverCanvasRef,
+    src: activeSrc,
+    enabled: hoverPreviewEnabled,
+    crossOrigin: renewPlaybackUrl ? "anonymous" : "use-credentials",
+  })
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
   danmakuOverlapModeRef.current = danmakuOverlapMode
@@ -1749,7 +1760,45 @@ export function DanmakuVideoPlayer({
                       <path d={danmakuHeatmapPath} fill="white" />
                     </svg>
                   ) : null}
-                  <MediaTimeRange className="bilirec-playback-time-range w-full min-w-0" />
+                  <MediaTimeRange className="bilirec-playback-time-range w-full min-w-0">
+                    {hoverPreviewEnabled ? (
+                      <>
+                        <div
+                          slot="preview"
+                          className="bilirec-hover-preview"
+                          aria-label={t("playbackPlayer.hoverPreviewLoading")}
+                        >
+                          <canvas
+                            ref={hoverCanvasRef}
+                            width={160}
+                            height={90}
+                            className="block h-full w-full"
+                          />
+                          {hoverPreviewLoading ? (
+                            hoverPreviewHasFrame ? (
+                              <div className="absolute top-1 right-1 rounded-full bg-black/55 p-0.5">
+                                <CircleNotchIcon
+                                  className="size-3.5 animate-spin text-white"
+                                  weight="bold"
+                                  aria-hidden
+                                />
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+                                <CircleNotchIcon
+                                  className="size-6 animate-spin text-white/90"
+                                  weight="bold"
+                                  aria-hidden
+                                />
+                              </div>
+                            )
+                          ) : null}
+                        </div>
+                        <MediaPreviewTimeDisplay slot="preview" />
+                        <div slot="preview" part="arrow" />
+                      </>
+                    ) : null}
+                  </MediaTimeRange>
                 </div>
               </MediaControlBar>
 
