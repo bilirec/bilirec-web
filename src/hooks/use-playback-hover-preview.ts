@@ -3,6 +3,8 @@ import { useEffect, useState, type RefObject } from "react"
 const PREVIEW_W = 160
 const PREVIEW_H = 90
 const SEEK_CATCHUP_SEC = 0.5
+const TIME_EPS = 0.04
+const SEEK_STALL_MS = 12_000
 const PREVIEW_REQUEST = "mediapreviewrequest"
 
 type PreviewRequestDetail = number | null
@@ -35,10 +37,36 @@ function drawFrame(canvas: HTMLCanvasElement | null, video: HTMLVideoElement): b
   }
 }
 
-function releaseVideo(video: HTMLVideoElement | null) {
+function createHiddenVideo(crossOrigin: "anonymous" | "use-credentials"): HTMLVideoElement {
+  const el = document.createElement("video")
+  el.muted = true
+  el.defaultMuted = true
+  el.playsInline = true
+  el.preload = "auto"
+  el.crossOrigin = crossOrigin
+  el.disablePictureInPicture = true
+  el.setAttribute("aria-hidden", "true")
+  el.tabIndex = -1
+  Object.assign(el.style, {
+    position: "fixed",
+    width: "1px",
+    height: "1px",
+    opacity: "0",
+    pointerEvents: "none",
+    left: "0",
+    top: "0",
+    zIndex: "-1",
+  })
+  document.body.appendChild(el)
+  return el
+}
+
+function destroyVideo(video: HTMLVideoElement | null) {
   if (!video) return
+  video.pause()
   video.removeAttribute("src")
   video.load()
+  video.remove()
 }
 
 /**
@@ -67,24 +95,46 @@ export function usePlaybackHoverPreview({
       return
     }
 
-    const host = hostRef.current
-    if (!host) return
-
+    let disposed = false
+    let host: HTMLElement | null = null
     let video: HTMLVideoElement | null = null
     let hovering = false
     let seeking = false
     let targetTime = 0
-    let disposed = false
+    let stallTimer: ReturnType<typeof setTimeout> | null = null
+    let hostRetryRaf = 0
+
+    const clearStallTimer = () => {
+      if (stallTimer != null) {
+        clearTimeout(stallTimer)
+        stallTimer = null
+      }
+    }
+
+    const armStallTimer = () => {
+      clearStallTimer()
+      stallTimer = setTimeout(() => {
+        if (disposed || !seeking) return
+        resetVideo()
+        if (hovering) seekToTarget()
+      }, SEEK_STALL_MS)
+    }
+
+    const resetVideo = () => {
+      clearStallTimer()
+      seeking = false
+      if (video) {
+        video.removeEventListener("seeked", onSeeked)
+        video.removeEventListener("loadeddata", onLoadedData)
+        video.removeEventListener("error", onError)
+        destroyVideo(video)
+        video = null
+      }
+    }
 
     const ensureVideo = () => {
       if (video) return video
-      const el = document.createElement("video")
-      el.muted = true
-      el.defaultMuted = true
-      el.playsInline = true
-      el.preload = "auto"
-      el.crossOrigin = crossOrigin
-      el.disablePictureInPicture = true
+      const el = createHiddenVideo(crossOrigin)
       el.addEventListener("seeked", onSeeked)
       el.addEventListener("loadeddata", onLoadedData)
       el.addEventListener("error", onError)
@@ -93,40 +143,46 @@ export function usePlaybackHoverPreview({
       return el
     }
 
+    const finishSeekCycle = () => {
+      clearStallTimer()
+      seeking = false
+      setLoading(false)
+    }
+
     const seekToTarget = () => {
       if (disposed || !hovering) {
-        seeking = false
-        setLoading(false)
+        finishSeekCycle()
         return
       }
       const el = ensureVideo()
       if (el.readyState < HTMLMediaElement.HAVE_METADATA) {
         seeking = true
         setLoading(true)
+        armStallTimer()
         return
       }
       seeking = true
       setLoading(true)
       if (
-        Math.abs(el.currentTime - targetTime) < 0.04 &&
+        Math.abs(el.currentTime - targetTime) < TIME_EPS &&
         el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
         onSeeked()
         return
       }
+      armStallTimer()
       el.currentTime = targetTime
     }
 
     const onSeeked = () => {
       if (disposed) return
-      seeking = false
       if (!hovering) {
-        setLoading(false)
+        finishSeekCycle()
         return
       }
       const el = video
       if (!el) {
-        setLoading(false)
+        finishSeekCycle()
         return
       }
       if (drawFrame(canvasRef.current, el)) {
@@ -136,7 +192,7 @@ export function usePlaybackHoverPreview({
         seekToTarget()
         return
       }
-      setLoading(false)
+      finishSeekCycle()
     }
 
     const onLoadedData = () => {
@@ -145,37 +201,57 @@ export function usePlaybackHoverPreview({
     }
 
     const onError = () => {
-      seeking = false
+      resetVideo()
       setLoading(false)
+      if (hovering) seekToTarget()
     }
 
     const onPreviewRequest = (evt: Event) => {
       const detail = (evt as CustomEvent<PreviewRequestDetail>).detail
       if (detail == null) {
         hovering = false
-        setLoading(false)
+        finishSeekCycle()
         return
       }
       if (!isPreviewTime(detail)) return
       hovering = true
       targetTime = Math.max(0, detail)
-      setLoading(true)
+      if (!seeking) setLoading(true)
       if (seeking) return
       seekToTarget()
     }
 
-    host.addEventListener(PREVIEW_REQUEST, onPreviewRequest)
+    const bindHost = (node: HTMLElement) => {
+      host = node
+      node.addEventListener(PREVIEW_REQUEST, onPreviewRequest)
+    }
+
+    const unbindHost = () => {
+      if (!host) return
+      host.removeEventListener(PREVIEW_REQUEST, onPreviewRequest)
+      host = null
+    }
+
+    const tryBindHost = () => {
+      const node = hostRef.current
+      if (!node) return false
+      if (host === node) return true
+      unbindHost()
+      bindHost(node)
+      return true
+    }
+
+    if (!tryBindHost()) {
+      hostRetryRaf = requestAnimationFrame(() => {
+        if (!disposed) tryBindHost()
+      })
+    }
 
     return () => {
       disposed = true
-      host.removeEventListener(PREVIEW_REQUEST, onPreviewRequest)
-      if (video) {
-        video.removeEventListener("seeked", onSeeked)
-        video.removeEventListener("loadeddata", onLoadedData)
-        video.removeEventListener("error", onError)
-      }
-      releaseVideo(video)
-      video = null
+      if (hostRetryRaf) cancelAnimationFrame(hostRetryRaf)
+      unbindHost()
+      resetVideo()
       setLoading(false)
     }
   }, [canvasRef, crossOrigin, enabled, hostRef, src])

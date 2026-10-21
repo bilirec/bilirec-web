@@ -126,6 +126,7 @@ import {
   shouldBlockPlayback,
   type DanmakuPipelineStatus,
 } from "@/lib/playback-loading"
+import { useDeferredTimeRangeSeek } from "@/hooks/use-deferred-time-range-seek"
 import { usePlaybackHoverPreview } from "@/hooks/use-playback-hover-preview"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -338,6 +339,12 @@ export function DanmakuVideoPlayer({
     src: activeSrc,
     enabled: hoverPreviewEnabled,
     crossOrigin: renewPlaybackUrl ? "anonymous" : "use-credentials",
+  })
+
+  useDeferredTimeRangeSeek({
+    hostRef: controlsHostRef,
+    videoRef,
+    enabled: videoMetadataReady,
   })
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
@@ -1721,6 +1728,7 @@ export function DanmakuVideoPlayer({
             src={activeSrc}
             playsInline
             preload="metadata"
+            crossOrigin={renewPlaybackUrl ? "anonymous" : undefined}
             className="h-full w-full bg-black"
             style={{ objectFit, objectPosition: videoObjectPosition }}
           />
@@ -1772,26 +1780,22 @@ export function DanmakuVideoPlayer({
                             ref={hoverCanvasRef}
                             width={160}
                             height={90}
-                            className="block h-full w-full"
+                            className={cn(
+                              "block h-full w-full transition-[filter] duration-150",
+                              hoverPreviewLoading && hoverPreviewHasFrame && "blur-[2px]"
+                            )}
                           />
-                          {hoverPreviewLoading ? (
-                            hoverPreviewHasFrame ? (
-                              <div className="absolute top-1 right-1 rounded-full bg-black/55 p-0.5">
-                                <CircleNotchIcon
-                                  className="size-3.5 animate-spin text-white"
-                                  weight="bold"
-                                  aria-hidden
-                                />
-                              </div>
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-                                <CircleNotchIcon
-                                  className="size-6 animate-spin text-white/90"
-                                  weight="bold"
-                                  aria-hidden
-                                />
-                              </div>
-                            )
+                          {hoverPreviewLoading && !hoverPreviewHasFrame ? (
+                            <div
+                              className="absolute inset-0 flex items-center justify-center bg-black/45"
+                              aria-hidden
+                            >
+                              <CircleNotchIcon
+                                className="size-6 animate-spin text-white/90"
+                                weight="bold"
+                                aria-hidden
+                              />
+                            </div>
                           ) : null}
                         </div>
                         <MediaPreviewTimeDisplay slot="preview" />
