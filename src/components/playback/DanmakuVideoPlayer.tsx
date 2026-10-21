@@ -35,7 +35,9 @@ import {
   SubtitlesIcon,
   SubtitlesSlashIcon,
 } from "@phosphor-icons/react"
+import { PreviewDvrRange, PreviewLiveStatus } from "@/components/playback/PreviewDvrRange"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
+import { clampPreviewTime, seekPreview } from "@/lib/preview-dvr"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
 import { PlaybackSettingsDialog } from "@/components/playback/PlaybackSettingsDialog"
 import { Progress } from "@/components/ui/progress"
@@ -336,7 +338,7 @@ export function DanmakuVideoPlayer({
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
-  const hoverPreviewEnabled = !showAudioOnlyPlayback && videoMetadataReady
+  const hoverPreviewEnabled = !preview && !showAudioOnlyPlayback && videoMetadataReady
   const { loading: hoverPreviewLoading, hasFrame: hoverPreviewHasFrame } = usePlaybackHoverPreview({
     hostRef: controlsHostRef,
     canvasRef: hoverCanvasRef,
@@ -348,8 +350,24 @@ export function DanmakuVideoPlayer({
   useDeferredTimeRangeSeek({
     hostRef: controlsHostRef,
     videoRef,
-    enabled: videoMetadataReady,
+    enabled: !preview && videoMetadataReady,
   })
+
+  useEffect(() => {
+    if (!preview) return
+    const video = videoRef.current
+    const host = video?.closest("media-controller") ?? controlsHostRef.current
+    if (!host) return
+    const onSeek = (event: Event) => {
+      const t = (event as CustomEvent<unknown>).detail
+      if (typeof t !== "number" || !Number.isFinite(t)) return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      if (video) seekPreview(video, t)
+    }
+    host.addEventListener("mediaseekrequest", onSeek, true)
+    return () => host.removeEventListener("mediaseekrequest", onSeek, true)
+  }, [preview, videoRef])
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
   danmakuOverlapModeRef.current = danmakuOverlapMode
@@ -1098,13 +1116,14 @@ export function DanmakuVideoPlayer({
 
   const stepFrame = useCallback(
     (dir: -1 | 1) => {
+      if (preview) return
       const video = videoRef.current
       if (!video) return
       video.pause()
       const next = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + dir * frameStepSec))
       video.currentTime = next
     },
-    [frameStepSec]
+    [frameStepSec, preview]
   )
 
   useEffect(() => {
@@ -1400,6 +1419,10 @@ export function DanmakuVideoPlayer({
       }
     }
     const seekBy = (offset: number) => {
+      if (preview) {
+        video.currentTime = clampPreviewTime(video, video.currentTime + offset)
+        return
+      }
       const duration = video.duration
       const max = Number.isFinite(duration) && duration > 0 ? duration : video.currentTime
       video.currentTime = Math.max(0, Math.min(max, video.currentTime + offset))
@@ -1419,6 +1442,10 @@ export function DanmakuVideoPlayer({
     })
     setActionHandler("seekto", (details) => {
       if (details.seekTime == null) return
+      if (preview) {
+        video.currentTime = clampPreviewTime(video, details.seekTime)
+        return
+      }
       const duration = video.duration
       const max = Number.isFinite(duration) && duration > 0 ? duration : details.seekTime
       video.currentTime = Math.max(0, Math.min(max, details.seekTime))
@@ -1509,6 +1536,7 @@ export function DanmakuVideoPlayer({
     meta?.name,
     meta?.roomId,
     meta?.title,
+    preview,
     showAudioOnlyPlayback,
     t,
     videoPath,
@@ -1674,7 +1702,7 @@ export function DanmakuVideoPlayer({
   )
   const portraitTouchProgress = touchDevice && !viewportLandscape
   const showDanmakuHeatmap =
-    danmakuHeatmapPath != null && !portraitTouchProgress
+    !preview && danmakuHeatmapPath != null && !portraitTouchProgress
   const portraitChatChrome = Boolean(
     touchDevice && !viewportLandscape && chatLayout
   )
@@ -1852,6 +1880,12 @@ export function DanmakuVideoPlayer({
                       <path d={danmakuHeatmapPath} fill="white" />
                     </svg>
                   ) : null}
+                  {preview ? (
+                    <PreviewDvrRange
+                      videoRef={videoRef}
+                      className="bilirec-playback-time-range"
+                    />
+                  ) : (
                   <MediaTimeRange className="bilirec-playback-time-range w-full min-w-0">
                     {hoverPreviewEnabled ? (
                       <>
@@ -1887,6 +1921,7 @@ export function DanmakuVideoPlayer({
                       </>
                     ) : null}
                   </MediaTimeRange>
+                  )}
                 </div>
               </MediaControlBar>
 
@@ -1914,13 +1949,17 @@ export function DanmakuVideoPlayer({
                     <MediaSeekForwardButton seekOffset={seekOffsetSec} />
                   </div>
 
-                  <MediaTimeDisplay
-                    showDuration
-                    className={cn(
-                      "shrink-0 tabular-nums text-[11px]",
-                      mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
-                    )}
-                  />
+                  {preview ? (
+                    <PreviewLiveStatus videoRef={videoRef} />
+                  ) : (
+                    <MediaTimeDisplay
+                      showDuration
+                      className={cn(
+                        "shrink-0 tabular-nums text-[11px]",
+                        mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
+                      )}
+                    />
+                  )}
                 </div>
 
                 {/* Secondary controls */}

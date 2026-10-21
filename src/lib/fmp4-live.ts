@@ -1,4 +1,4 @@
-const KEEP_SECONDS = 30
+import { PREVIEW_KEEP_SECONDS } from "@/lib/preview-dvr"
 
 export function attachFmp4Live(
   video: HTMLVideoElement,
@@ -92,6 +92,9 @@ async function play(
       sb = mediaSource.addSourceBuffer(mime)
       pending.push(init.slice())
       await flush()
+      if (video.paused) {
+        void video.play().catch(() => {})
+      }
     }
 
     while (sb) {
@@ -107,6 +110,9 @@ async function play(
       pending.push(frag.slice())
       buf = buf.subarray(frag.byteLength)
       await flush()
+      if (video.paused) {
+        void video.play().catch(() => {})
+      }
     }
   }
 }
@@ -131,10 +137,10 @@ function append(sb: SourceBuffer, data: Uint8Array): Promise<void> {
 
 function trim(video: HTMLVideoElement, sb: SourceBuffer) {
   if (sb.updating) return
-  const t = video.currentTime
-  if (t <= KEEP_SECONDS) return
-  const start = sb.buffered.length > 0 ? sb.buffered.start(0) : 0
-  const cut = t - KEEP_SECONDS
+  if (sb.buffered.length === 0) return
+  const start = sb.buffered.start(0)
+  const end = sb.buffered.end(sb.buffered.length - 1)
+  const cut = Math.min(video.currentTime - 1, end - PREVIEW_KEEP_SECONDS)
   if (cut - start < 2) return
   try {
     sb.remove(start, cut)

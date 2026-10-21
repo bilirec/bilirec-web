@@ -1,6 +1,17 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
 import { attachFmp4Live } from "@/lib/fmp4-live"
+import { PREVIEW_KEEP_SECONDS } from "@/lib/preview-dvr"
+
+const liveEngineConfig = {
+  enableStashBuffer: false,
+  lazyLoad: false,
+  liveBufferLatencyChasing: false,
+  liveSync: false,
+  autoCleanupSourceBuffer: true,
+  autoCleanupMaxBackwardDuration: PREVIEW_KEEP_SECONDS + 15,
+  autoCleanupMinBackwardDuration: PREVIEW_KEEP_SECONDS,
+}
 
 export type PreviewFormat = "flv" | "ts" | "fmp4"
 
@@ -35,7 +46,7 @@ async function attachEngine(
   source: PreviewSource,
   onEngineGone: () => void
 ): Promise<() => void> {
-  const url = apiClient.previewMediaUrl(source.roomId)
+  const url = `${apiClient.previewMediaUrl(source.roomId)}?t=${Date.now()}`
   if (source.format === "fmp4") {
     return attachFmp4Live(video, url, onEngineGone)
   }
@@ -52,18 +63,21 @@ async function attachEngine(
         cors: true,
         withCredentials: true,
       },
-      {
-        enableStashBuffer: false,
-        lazyLoad: false,
-      }
+      liveEngineConfig
     )
-    player.on(flvjs.Events.ERROR, () => {
-      onEngineGone()
-    })
+    let stopped = false
+    const gone = () => {
+      if (!stopped) onEngineGone()
+    }
+    player.on(flvjs.Events.ERROR, gone)
+    player.on(flvjs.Events.LOADING_COMPLETE, gone)
+    video.addEventListener("ended", gone)
     player.attachMediaElement(video)
     player.load()
     void player.play()
     return () => {
+      stopped = true
+      video.removeEventListener("ended", gone)
       player.pause()
       player.unload()
       player.detachMediaElement()
@@ -82,18 +96,21 @@ async function attachEngine(
       cors: true,
       withCredentials: true,
     },
-    {
-      enableStashBuffer: false,
-      lazyLoad: false,
-    }
+    liveEngineConfig
   )
-  player.on(mpegts.Events.ERROR, () => {
-    onEngineGone()
-  })
+  let stopped = false
+  const gone = () => {
+    if (!stopped) onEngineGone()
+  }
+  player.on(mpegts.Events.ERROR, gone)
+  player.on(mpegts.Events.LOADING_COMPLETE, gone)
+  video.addEventListener("ended", gone)
   player.attachMediaElement(video)
   player.load()
   void player.play()
   return () => {
+    stopped = true
+    video.removeEventListener("ended", gone)
     player.pause()
     player.unload()
     player.detachMediaElement()
@@ -151,7 +168,12 @@ export function usePreview(
 
     const eventsUrl = apiClient.previewEventsUrl(roomId)
     const es = new EventSource(eventsUrl, { withCredentials: true })
-    es.onopen = () => scheduleAttach()
+    let opened = false
+    es.onopen = () => {
+      if (opened) return
+      opened = true
+      scheduleAttach()
+    }
     es.onmessage = (msg) => {
       const raw = msg.data as string
       const type = previewSseType(raw)
