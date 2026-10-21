@@ -308,16 +308,19 @@ function readStoredScrollWidth(element: HTMLElement): number | null {
   return null
 }
 
-function scrollOccupancyReleased(
+/** Match n-danmaku hitBox: lane frees once the scroll head has cleared for the next item. */
+function scrollLaneReleased(
   element: HTMLElement,
-  lifeMs: number,
-  layerWidth: number,
-  startMs?: number
+  reversed: boolean,
+  container: HTMLElement | undefined
 ): boolean {
-  const w = readStoredScrollWidth(element)
-  if (w == null || layerWidth <= 0) return true
-  const progress = readScrollAnimationProgress(element, lifeMs, startMs)
-  return progress >= w / (layerWidth + w)
+  if (!container) return true
+  const i = container.getBoundingClientRect()
+  const h = element.getBoundingClientRect()
+  if (reversed) {
+    return h.left - i.left > 0
+  }
+  return h.left + h.width < i.width + i.left
 }
 
 function applyScrollMotionVars(element: HTMLElement, attrs: DanmakuAttrs, layerWidth: number): void {
@@ -336,16 +339,11 @@ function applyScrollMotionVars(element: HTMLElement, attrs: DanmakuAttrs, layerW
   element.style.right = "auto"
 }
 
-/**
- * Pick a vertical lane for scroll/top/bottom danmaku when prevent-overlap is on.
- * Pass 1 (retry=false): use only already-available slots; never release occupied lanes.
- * Pass 2 (retry=true): release occupied lanes (scroll chase / hang expiry) then place.
- */
+/** Lane picking for prevent-overlap; same single-pass model as n-danmaku hitBox. */
 function bilirecDanmakuAnchor(
   hitBox: HitBoxWithLanes,
   element: HTMLElement,
   attrs: DanmakuAttrs,
-  layerWidth: number,
   retry: boolean
 ): number {
   const laneHeight = element.offsetHeight
@@ -375,12 +373,12 @@ function bilirecDanmakuAnchor(
         tailLane.from = splitAt
         lanes.splice(n + 1, 0, tailLane)
       }
-    } else if (retry && lane.dm) {
+    } else if (lane.dm) {
       const dmEl = lane.dm.element
       let released = false
       switch (attrs.type) {
         case "scroll":
-          released = scrollOccupancyReleased(dmEl, lane.dm.life, layerWidth, lane.dm.start)
+          released = scrollLaneReleased(dmEl, lane.dm.reversed, hitBox.target)
           break
         case "top":
         case "bottom":
@@ -423,7 +421,7 @@ function bilirecDanmakuAnchor(
 
   if (anchorTopPx === -1) {
     if (!retry) {
-      return bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, true)
+      return bilirecDanmakuAnchor(hitBox, element, attrs, true)
     }
     return -1
   }
@@ -467,9 +465,9 @@ function resolveLayerWidth(dm: NDanmaku, hitBox: HitBoxWithLanes): number {
 }
 
 /**
- * Lane picking (empty slot first, same-lane chase only when nothing fits) always
- * runs. Prevent-overlap only decides the overflow: discard or queue instead of
- * letting n-danmaku reset hitSets and stack the new item at 0.
+ * Custom lane picking always runs (n-danmaku hitBox + bilirec scroll motion).
+ * Prevent-overlap only decides overflow: discard or queue instead of falling
+ * back to n-danmaku reset/stack at 0.
  *
  * ranges() often runs while the layer is display:none, so lanes are built at
  * height 0. Rebuild once the layer has a real size; otherwise every item is discarded.
@@ -589,8 +587,7 @@ export function attachDanmakuOverlapControl(
     hitBox.refreshHitSets = () => undefined
     let placed = -1
     try {
-      const layerWidth = tickLayerWidth || resolveLayerWidth(dm, hitBox)
-      placed = bilirecDanmakuAnchor(hitBox, element, attrs, layerWidth, false)
+      placed = bilirecDanmakuAnchor(hitBox, element, attrs, false)
     } finally {
       hitBox.refreshHitSets = originalRefresh
     }
