@@ -46,8 +46,7 @@ import {
   type PlaybackChatItem,
 } from "@/lib/danmaku"
 import { parseJsonlDanmaku } from "@/lib/danmaku-parse"
-import { usePreview, type PreviewFormat } from "@/hooks/use-preview"
-import { isSegmentEventType, previewEventTypeOf } from "@/lib/preview-sync"
+import { previewSseType, usePreview, type PreviewFormat } from "@/hooks/use-preview"
 import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
@@ -501,9 +500,9 @@ export function DanmakuVideoPlayer({
   // Live-preview wiring: SSE events from usePreview drive the danmaku pipeline
   // (segment rotation resets it; danmaku lines stream in live).
   usePreview(videoRef, preview ?? null, (raw: string) => {
-    const type = previewEventTypeOf(raw)
+    const type = previewSseType(raw)
     if (type === undefined) return
-    if (isSegmentEventType(type)) {
+    if (type === "segment") {
       bulletsRef.current = []
       vodListPreparedRef.current = false
       listReadyRef.current = false

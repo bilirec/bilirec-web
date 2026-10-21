@@ -1,7 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
 import { attachFmp4Live } from "@/lib/fmp4-live"
-import { isSegmentEventType, previewEventTypeOf } from "@/lib/preview-sync"
 
 export type PreviewFormat = "flv" | "ts" | "fmp4"
 
@@ -19,6 +18,14 @@ export function previewFormatOf(format: string | null | undefined): PreviewForma
       return format
     default:
       return null
+  }
+}
+
+export function previewSseType(raw: string): string | undefined {
+  try {
+    return (JSON.parse(raw) as { type?: string }).type ?? ""
+  } catch {
+    return undefined
   }
 }
 
@@ -147,8 +154,8 @@ export function usePreview(
     es.onopen = () => scheduleAttach()
     es.onmessage = (msg) => {
       const raw = msg.data as string
-      const type = previewEventTypeOf(raw)
-      if (type !== undefined && isSegmentEventType(type)) {
+      const type = previewSseType(raw)
+      if (type === "segment") {
         engineCleanup?.()
         engineCleanup = undefined
         onEventRef.current(raw)
