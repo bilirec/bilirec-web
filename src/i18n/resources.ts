@@ -246,6 +246,13 @@ export const resources = {
         settingsStatusInvalid: "有無效輸入，尚未套用",
         frameStepLabel: "跳幀間隔（毫秒）",
         seekOffsetLabel: "快進／快退秒數",
+        previewBufferLabel: "錄製預覽回看緩衝（秒）",
+        previewBufferHint:
+          "僅用於直播錄製預覽。數值越大可拖回越久，但會占用更多瀏覽器記憶體；變更後會重新連線預覽流。",
+        previewBufferInvalid: "回看緩衝須為 {{min}}–{{max}} 的整數（秒）",
+        previewBufferWarnTitle: "高記憶體占用",
+        previewBufferWarn:
+          "超過 {{seconds}} 秒時，1080p 直播在瀏覽器內可能占用近百 MB 或更多緩衝，舊設備或多個預覽標籤頁可能卡頓。",
         danmakuOpacityLabel: "彈幕透明度",
         danmakuOpacityHint: "0 為完全透明，100 為不透明",
         danmakuSpeedLabel: "彈幕滾動速度",
@@ -269,6 +276,7 @@ export const resources = {
         applySettings: "套用",
         resetSettings: "重設預設",
         liveNow: "LIVE",
+        previewRewindBuffer: "（可回溯時段: {{time}}）",
         goLive: "回到直播",
         nativePlayer: "用原生瀏覽器播放",
         nativePlayerShort: "原生播放",
@@ -786,6 +794,13 @@ export const resources = {
         settingsStatusInvalid: "有无效输入，尚未应用",
         frameStepLabel: "跳帧间隔（毫秒）",
         seekOffsetLabel: "快进／快退秒数",
+        previewBufferLabel: "录制预览回看缓冲（秒）",
+        previewBufferHint:
+          "仅用于直播录制预览。数值越大可拖回越久，但会占用更多浏览器内存；变更后会重新连接预览流。",
+        previewBufferInvalid: "回看缓冲须为 {{min}}–{{max}} 的整数（秒）",
+        previewBufferWarnTitle: "高内存占用",
+        previewBufferWarn:
+          "超过 {{seconds}} 秒时，1080p 直播在浏览器内可能占用近百 MB 或更多缓冲，旧设备或多个预览标签页可能卡顿。",
         danmakuOpacityLabel: "弹幕透明度",
         danmakuOpacityHint: "0 为完全透明，100 为不透明",
         danmakuSpeedLabel: "弹幕滚动速度",
@@ -809,6 +824,7 @@ export const resources = {
         applySettings: "应用",
         resetSettings: "重置默认",
         liveNow: "LIVE",
+        previewRewindBuffer: "（可回溯时段: {{time}}）",
         goLive: "回到直播",
         nativePlayer: "用原生浏览器播放",
         nativePlayerShort: "原生播放",

@@ -14,6 +14,16 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { WarningIcon } from "@phosphor-icons/react"
+import {
+  PREVIEW_KEEP_SECONDS_DEFAULT,
+  PREVIEW_KEEP_SECONDS_MAX,
+  PREVIEW_KEEP_SECONDS_MIN,
+  PREVIEW_KEEP_SECONDS_WARN_FROM,
+  clampPreviewKeepSeconds,
+  shouldWarnPreviewKeepSeconds,
+} from "@/lib/preview-settings"
 import {
   type PlaybackSettingsValue,
   type OverlayCorner,
@@ -39,11 +49,18 @@ import {
 } from "@/lib/playback-settings"
 import { sameNumberList, cornerLabelKey, areaLabelKey } from "@/lib/playback-danmaku"
 
+export type PreviewBufferSettings = {
+  keepSeconds: number
+  onApplyKeepSeconds: (seconds: number) => void
+}
+
 export interface PlaybackSettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   value: PlaybackSettingsValue
   onApply: (next: PlaybackSettingsValue) => void
+  /** Live recording preview only — rewind buffer length. */
+  previewBuffer?: PreviewBufferSettings
 }
 
 export function PlaybackSettingsDialog({
@@ -51,6 +68,7 @@ export function PlaybackSettingsDialog({
   onOpenChange,
   value,
   onApply,
+  previewBuffer,
 }: PlaybackSettingsDialogProps) {
   const { t } = useTranslation()
 
@@ -70,6 +88,9 @@ export function PlaybackSettingsDialog({
   const [desktopChatLayoutDraft, setDesktopChatLayoutDraft] = useState<DesktopChatLayout>(
     () => value.desktopChatLayout
   )
+  const [previewKeepDraft, setPreviewKeepDraft] = useState(() =>
+    String(previewBuffer?.keepSeconds ?? PREVIEW_KEEP_SECONDS_DEFAULT)
+  )
 
   const prevOpenRef = useRef(open)
 
@@ -88,9 +109,12 @@ export function PlaybackSettingsDialog({
       setOverlapModeDraft(value.danmakuOverlapMode)
       setOverlayCornerDraft(value.overlayCorner)
       setDesktopChatLayoutDraft(value.desktopChatLayout)
+      if (previewBuffer) {
+        setPreviewKeepDraft(String(previewBuffer.keepSeconds))
+      }
     }
     prevOpenRef.current = open
-  }, [open, value])
+  }, [open, value, previewBuffer])
 
   const parsedRatesDraft = parseRatesInput(ratesDraft)
   const parsedFrameDraft = parsePositiveNumber(frameDraft, { min: 1, max: 5000 })
@@ -99,8 +123,20 @@ export function PlaybackSettingsDialog({
   const normalizedSizeDraft = clampDanmakuSize(sizeDraft)
   const normalizedSpeedDraft = clampDanmakuSpeed(speedDraft)
 
+  const parsedPreviewKeepDraft = previewBuffer
+    ? parsePositiveNumber(previewKeepDraft, {
+        min: PREVIEW_KEEP_SECONDS_MIN,
+        max: PREVIEW_KEEP_SECONDS_MAX,
+      })
+    : null
+  const normalizedPreviewKeepDraft =
+    parsedPreviewKeepDraft != null ? clampPreviewKeepSeconds(parsedPreviewKeepDraft) : null
+
   const settingsDraftInvalid =
-    parsedRatesDraft == null || parsedFrameDraft == null || parsedSeekDraft == null
+    parsedRatesDraft == null ||
+    parsedFrameDraft == null ||
+    parsedSeekDraft == null ||
+    (previewBuffer != null && normalizedPreviewKeepDraft == null)
 
   const hasPendingSettings =
     settingsDraftInvalid ||
@@ -115,7 +151,10 @@ export function PlaybackSettingsDialog({
     preventOverlapDraft !== value.danmakuPreventOverlap ||
     overlapModeDraft !== value.danmakuOverlapMode ||
     overlayCornerDraft !== value.overlayCorner ||
-    desktopChatLayoutDraft !== value.desktopChatLayout
+    desktopChatLayoutDraft !== value.desktopChatLayout ||
+    (previewBuffer != null &&
+      normalizedPreviewKeepDraft != null &&
+      normalizedPreviewKeepDraft !== previewBuffer.keepSeconds)
 
   const handleApply = () => {
     if (parsedRatesDraft == null) {
@@ -128,6 +167,15 @@ export function PlaybackSettingsDialog({
     }
     if (parsedSeekDraft == null) {
       toast.error(t("playbackPlayer.seekOffsetInvalid"))
+      return
+    }
+    if (previewBuffer && normalizedPreviewKeepDraft == null) {
+      toast.error(
+        t("playbackPlayer.previewBufferInvalid", {
+          min: PREVIEW_KEEP_SECONDS_MIN,
+          max: PREVIEW_KEEP_SECONDS_MAX,
+        })
+      )
       return
     }
 
@@ -147,6 +195,14 @@ export function PlaybackSettingsDialog({
     }
 
     onApply(next)
+    if (previewBuffer && normalizedPreviewKeepDraft != null) {
+      previewBuffer.onApplyKeepSeconds(normalizedPreviewKeepDraft)
+      if (shouldWarnPreviewKeepSeconds(normalizedPreviewKeepDraft)) {
+        toast.warning(
+          t("playbackPlayer.previewBufferWarn", { seconds: PREVIEW_KEEP_SECONDS_WARN_FROM })
+        )
+      }
+    }
     onOpenChange(false)
     toast.success(t("playbackPlayer.settingsApplied"))
   }
@@ -164,6 +220,10 @@ export function PlaybackSettingsDialog({
     setOverlapModeDraft(DEFAULT_PLAYBACK_SETTINGS.danmakuOverlapMode)
     setOverlayCornerDraft(DEFAULT_PLAYBACK_SETTINGS.overlayCorner)
     setDesktopChatLayoutDraft(DEFAULT_PLAYBACK_SETTINGS.desktopChatLayout)
+    if (previewBuffer) {
+      setPreviewKeepDraft(String(PREVIEW_KEEP_SECONDS_DEFAULT))
+      previewBuffer.onApplyKeepSeconds(PREVIEW_KEEP_SECONDS_DEFAULT)
+    }
 
     onApply(DEFAULT_PLAYBACK_SETTINGS)
   }
@@ -250,6 +310,42 @@ export function PlaybackSettingsDialog({
                   ))}
                 </div>
               </div>
+
+              {previewBuffer ? (
+                <div className="space-y-1.5 border-t border-white/10 pt-3">
+                  <Label htmlFor="preview-keep-seconds" className="text-zinc-200">
+                    {t("playbackPlayer.previewBufferLabel")}
+                  </Label>
+                  <Input
+                    id="preview-keep-seconds"
+                    type="number"
+                    min={PREVIEW_KEEP_SECONDS_MIN}
+                    max={PREVIEW_KEEP_SECONDS_MAX}
+                    step={1}
+                    value={previewKeepDraft}
+                    onChange={(e) => setPreviewKeepDraft(e.target.value)}
+                    className="border-white/15 bg-zinc-950 text-zinc-50"
+                  />
+                  <p className="text-xs text-zinc-400">{t("playbackPlayer.previewBufferHint")}</p>
+                  {normalizedPreviewKeepDraft != null &&
+                  shouldWarnPreviewKeepSeconds(normalizedPreviewKeepDraft) ? (
+                    <Alert
+                      variant="destructive"
+                      className="border-amber-500/40 bg-amber-950/40 text-amber-50 [&>svg]:text-amber-300"
+                    >
+                      <WarningIcon weight="fill" />
+                      <AlertTitle className="text-xs font-medium text-amber-100">
+                        {t("playbackPlayer.previewBufferWarnTitle")}
+                      </AlertTitle>
+                      <AlertDescription className="text-xs text-amber-100/90">
+                        {t("playbackPlayer.previewBufferWarn", {
+                          seconds: PREVIEW_KEEP_SECONDS_WARN_FROM,
+                        })}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-1.5">
                 <Label htmlFor="playback-seek" className="text-zinc-200">

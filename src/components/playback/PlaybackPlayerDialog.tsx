@@ -13,6 +13,8 @@ interface PlaybackPlayerDialogProps {
   /** Display name for a11y */
   name: string
   preview?: { roomId: number; format: PreviewFormat; recordDanmaku?: boolean }
+  /** Live recording preview ended (stream/recording no longer previewable). */
+  onPreviewEnded?: () => void
 }
 
 interface PlaybackMedia {
@@ -29,6 +31,7 @@ export function PlaybackPlayerDialog({
   path,
   name,
   preview,
+  onPreviewEnded,
 }: PlaybackPlayerDialogProps) {
   // The chat panel reports whether it took the extended side-column form so the
   // dialog can widen instead of shrinking the video area. Width classes must
@@ -92,6 +95,7 @@ export function PlaybackPlayerDialog({
             preview={preview}
             videoPath={String(preview.roomId)}
             fileName={name}
+            onPreviewEnded={onPreviewEnded}
             onChatPanelExtendedChange={handleChatPanelExtended}
             className="min-h-0 flex-1 pt-8 sm:pt-0"
           />

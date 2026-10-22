@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -95,6 +95,14 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const previewFormat = previewFormatOf(task.actualStreamFormat)
   const canPreview =
     task.status === 'recording' && previewFormat != null && !task.isAudioOnly
+
+  const closePreview = useCallback(() => setPreviewOpen(false), [])
+
+  useEffect(() => {
+    if (task.status !== 'recording') {
+      setPreviewOpen(false)
+    }
+  }, [task.status])
 
   const handleCopyRoomId = async () => {
     try {
@@ -470,6 +478,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
           <PlaybackPlayerDialog
             open={previewOpen}
             onOpenChange={setPreviewOpen}
+            onPreviewEnded={closePreview}
             name={task.roomInfo?.title || t('recordCard.roomFallback', { roomId })}
             preview={{ roomId, format: previewFormat, recordDanmaku: !!task.recordDanmaku }}
           />

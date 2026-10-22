@@ -1,16 +1,16 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
 import { attachFmp4Live } from "@/lib/fmp4-live"
-import { PREVIEW_KEEP_SECONDS } from "@/lib/preview-dvr"
-
-const liveEngineConfig = {
-  enableStashBuffer: false,
-  lazyLoad: false,
-  liveBufferLatencyChasing: false,
-  liveSync: false,
-  autoCleanupSourceBuffer: true,
-  autoCleanupMaxBackwardDuration: PREVIEW_KEEP_SECONDS + 15,
-  autoCleanupMinBackwardDuration: PREVIEW_KEEP_SECONDS,
+function liveEngineConfig(keepSeconds: number) {
+  return {
+    enableStashBuffer: false,
+    lazyLoad: false,
+    liveBufferLatencyChasing: false,
+    liveSync: false,
+    autoCleanupSourceBuffer: true,
+    autoCleanupMaxBackwardDuration: keepSeconds + 15,
+    autoCleanupMinBackwardDuration: keepSeconds,
+  }
 }
 
 export type PreviewFormat = "flv" | "ts" | "fmp4"
@@ -40,16 +40,36 @@ export function previewSseType(raw: string): string | undefined {
   }
 }
 
+/** Backend returns 409 when the room has no active previewable recording segment. */
+async function isPreviewMediaUnavailable(roomId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiClient.previewMediaUrl(roomId)}?t=${Date.now()}`, {
+      credentials: "include",
+    })
+    if (res.status === 409) {
+      await res.body?.cancel()
+      return true
+    }
+    await res.body?.cancel()
+    return false
+  } catch {
+    return false
+  }
+}
+
 /** Attaches the matching playback engine (dynamically imported); returns its cleanup. */
 async function attachEngine(
   video: HTMLVideoElement,
   source: PreviewSource,
+  keepSeconds: number,
   onEngineGone: () => void
 ): Promise<() => void> {
   const url = `${apiClient.previewMediaUrl(source.roomId)}?t=${Date.now()}`
   if (source.format === "fmp4") {
-    return attachFmp4Live(video, url, onEngineGone)
+    return attachFmp4Live(video, url, onEngineGone, keepSeconds)
   }
+
+  const engineConfig = liveEngineConfig(keepSeconds)
 
   if (source.format === "flv") {
     const { default: flvjs } = await import("flv.js")
@@ -63,7 +83,7 @@ async function attachEngine(
         cors: true,
         withCredentials: true,
       },
-      liveEngineConfig
+      engineConfig
     )
     let stopped = false
     const gone = () => {
@@ -96,7 +116,7 @@ async function attachEngine(
       cors: true,
       withCredentials: true,
     },
-    liveEngineConfig
+    engineConfig
   )
   let stopped = false
   const gone = () => {
@@ -121,10 +141,14 @@ async function attachEngine(
 export function usePreview(
   videoRef: RefObject<HTMLVideoElement | null>,
   source: PreviewSource | null,
-  onEvent: (raw: string) => void
+  keepSeconds: number,
+  onEvent: (raw: string) => void,
+  onPreviewEnded?: () => void
 ): void {
   const onEventRef = useRef(onEvent)
   onEventRef.current = onEvent
+  const onPreviewEndedRef = useRef(onPreviewEnded)
+  onPreviewEndedRef.current = onPreviewEnded
   const roomId = source?.roomId
   const format = source?.format
 
@@ -141,20 +165,42 @@ export function usePreview(
     let attachTimer = 0
     let retryTimer = 0
     let disposed = false
+    let sessionEnded = false
     let attachSeq = 0
+    let eventSource: EventSource | undefined
+
+    const endPreviewSession = () => {
+      if (sessionEnded) return
+      sessionEnded = true
+      window.clearTimeout(attachTimer)
+      window.clearTimeout(retryTimer)
+      engineCleanup?.()
+      engineCleanup = undefined
+      eventSource?.close()
+      onPreviewEndedRef.current?.()
+    }
+
+    const retryAttach = async () => {
+      if (disposed || sessionEnded) return
+      if (await isPreviewMediaUnavailable(roomId)) {
+        endPreviewSession()
+        return
+      }
+      void attach()
+    }
 
     const attach = async () => {
-      if (disposed) return
+      if (disposed || sessionEnded) return
       const seq = ++attachSeq
       engineCleanup?.()
       engineCleanup = undefined
       const el = videoRef.current
       if (!el) return
-      const cleanup = await attachEngine(el, previewSource, () => {
+      const cleanup = await attachEngine(el, previewSource, keepSeconds, () => {
         window.clearTimeout(retryTimer)
-        retryTimer = window.setTimeout(() => void attach(), 400)
+        retryTimer = window.setTimeout(() => void retryAttach(), 400)
       })
-      if (disposed || seq !== attachSeq) {
+      if (disposed || sessionEnded || seq !== attachSeq) {
         cleanup()
         return
       }
@@ -168,11 +214,20 @@ export function usePreview(
 
     const eventsUrl = apiClient.previewEventsUrl(roomId)
     const es = new EventSource(eventsUrl, { withCredentials: true })
+    eventSource = es
     let opened = false
     es.onopen = () => {
       if (opened) return
       opened = true
       scheduleAttach()
+    }
+    es.onerror = () => {
+      void (async () => {
+        if (disposed || sessionEnded) return
+        if (await isPreviewMediaUnavailable(roomId)) {
+          endPreviewSession()
+        }
+      })()
     }
     es.onmessage = (msg) => {
       const raw = msg.data as string
@@ -194,5 +249,5 @@ export function usePreview(
       es.close()
       engineCleanup?.()
     }
-  }, [roomId, format, videoRef])
+  }, [roomId, format, keepSeconds, videoRef])
 }

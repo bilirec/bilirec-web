@@ -1,9 +1,10 @@
-import { PREVIEW_KEEP_SECONDS } from "@/lib/preview-dvr"
+import { PREVIEW_KEEP_SECONDS_DEFAULT } from "@/lib/preview-settings"
 
 export function attachFmp4Live(
   video: HTMLVideoElement,
   url: string,
-  onGone: () => void
+  onGone: () => void,
+  keepSeconds: number = PREVIEW_KEEP_SECONDS_DEFAULT
 ): () => void {
   const ac = new AbortController()
   let stopped = false
@@ -27,7 +28,7 @@ export function attachFmp4Live(
     }
   }
 
-  void play(video, url, mediaSource, ac.signal)
+  void play(video, url, mediaSource, ac.signal, keepSeconds)
     .then(() => {
       if (!stopped) onGone()
     })
@@ -42,7 +43,8 @@ async function play(
   video: HTMLVideoElement,
   url: string,
   mediaSource: MediaSource,
-  signal: AbortSignal
+  signal: AbortSignal,
+  keepSeconds: number
 ): Promise<void> {
   const sourceOpen = new Promise<void>((resolve, reject) => {
     const onOpen = () => {
@@ -66,13 +68,20 @@ async function play(
   let timescale = 0
   let offsetApplied = false
   let pending: Uint8Array[] = []
+  let initialPlayDone = false
+
+  const tryInitialPlay = () => {
+    if (initialPlayDone || !video.paused) return
+    initialPlayDone = true
+    void video.play().catch(() => {})
+  }
 
   const flush = async () => {
     if (!sb || pending.length === 0) return
     while (pending.length > 0) {
       const next = pending.shift()!
       await append(sb, next)
-      trim(video, sb)
+      trim(video, sb, keepSeconds)
     }
   }
 
@@ -92,9 +101,7 @@ async function play(
       sb = mediaSource.addSourceBuffer(mime)
       pending.push(init.slice())
       await flush()
-      if (video.paused) {
-        void video.play().catch(() => {})
-      }
+      tryInitialPlay()
     }
 
     while (sb) {
@@ -110,9 +117,7 @@ async function play(
       pending.push(frag.slice())
       buf = buf.subarray(frag.byteLength)
       await flush()
-      if (video.paused) {
-        void video.play().catch(() => {})
-      }
+      tryInitialPlay()
     }
   }
 }
@@ -135,12 +140,13 @@ function append(sb: SourceBuffer, data: Uint8Array): Promise<void> {
   })
 }
 
-function trim(video: HTMLVideoElement, sb: SourceBuffer) {
+function trim(video: HTMLVideoElement, sb: SourceBuffer, keepSeconds: number) {
+  if (video.paused) return
   if (sb.updating) return
   if (sb.buffered.length === 0) return
   const start = sb.buffered.start(0)
   const end = sb.buffered.end(sb.buffered.length - 1)
-  const cut = Math.min(video.currentTime - 1, end - PREVIEW_KEEP_SECONDS)
+  const cut = Math.min(video.currentTime - 1, end - keepSeconds)
   if (cut - start < 2) return
   try {
     sb.remove(start, cut)

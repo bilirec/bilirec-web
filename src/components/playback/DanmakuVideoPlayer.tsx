@@ -36,6 +36,7 @@ import {
   SubtitlesSlashIcon,
 } from "@phosphor-icons/react"
 import { PreviewDvrRange, PreviewLiveStatus } from "@/components/playback/PreviewDvrRange"
+import { usePreviewDvr } from "@/hooks/use-preview-dvr"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
 import { clampPreviewTime, seekPreview } from "@/lib/preview-dvr"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
@@ -49,6 +50,10 @@ import {
 } from "@/lib/danmaku"
 import { parseJsonlDanmaku } from "@/lib/danmaku-parse"
 import { previewSseType, usePreview, type PreviewFormat } from "@/hooks/use-preview"
+import {
+  loadPreviewKeepSeconds,
+  savePreviewKeepSeconds,
+} from "@/lib/preview-settings"
 import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
@@ -154,6 +159,8 @@ interface DanmakuVideoPlayerProps {
   /** Reports whether the chat panel currently uses the extended side column
    *  (so the host dialog can widen instead of shrinking the video). */
   onChatPanelExtendedChange?: (extended: boolean) => void
+  /** Called when live recording preview is no longer available (e.g. stream ended). */
+  onPreviewEnded?: () => void
   className?: string
 }
 
@@ -219,6 +226,7 @@ export function DanmakuVideoPlayer({
   videoPath,
   fileName,
   onChatPanelExtendedChange,
+  onPreviewEnded,
   className,
 }: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
@@ -336,6 +344,10 @@ export function DanmakuVideoPlayer({
     bottomBar: 0,
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [previewKeepSeconds, setPreviewKeepSeconds] = useState(() => loadPreviewKeepSeconds())
+  const previewDvr = usePreviewDvr(videoRef, !!preview, previewKeepSeconds)
+  const previewDvrRef = useRef(previewDvr)
+  previewDvrRef.current = previewDvr
 
   const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
   const hoverPreviewEnabled = !preview && !showAudioOnlyPlayback && videoMetadataReady
@@ -363,7 +375,9 @@ export function DanmakuVideoPlayer({
       if (typeof t !== "number" || !Number.isFinite(t)) return
       event.stopImmediatePropagation()
       event.preventDefault()
-      if (video) seekPreview(video, t)
+      if (!video) return
+      previewDvrRef.current.leaveLiveSync()
+      seekPreview(video, t)
     }
     host.addEventListener("mediaseekrequest", onSeek, true)
     return () => host.removeEventListener("mediaseekrequest", onSeek, true)
@@ -517,7 +531,7 @@ export function DanmakuVideoPlayer({
 
   // Live-preview wiring: SSE events from usePreview drive the danmaku pipeline
   // (segment rotation resets it; danmaku lines stream in live).
-  usePreview(videoRef, preview ?? null, (raw: string) => {
+  usePreview(videoRef, preview ?? null, previewKeepSeconds, (raw: string) => {
     const type = previewSseType(raw)
     if (type === undefined) return
     if (type === "segment") {
@@ -563,7 +577,7 @@ export function DanmakuVideoPlayer({
     }
     listReadyRef.current = true
     setDanmakuStatus("ready")
-  })
+  }, preview ? onPreviewEnded : undefined)
 
   const previewRoomId = preview?.roomId
   const previewRecordDanmaku = !!preview?.recordDanmaku
@@ -1420,6 +1434,7 @@ export function DanmakuVideoPlayer({
     }
     const seekBy = (offset: number) => {
       if (preview) {
+        previewDvrRef.current.leaveLiveSync()
         video.currentTime = clampPreviewTime(video, video.currentTime + offset)
         return
       }
@@ -1443,6 +1458,7 @@ export function DanmakuVideoPlayer({
     setActionHandler("seekto", (details) => {
       if (details.seekTime == null) return
       if (preview) {
+        previewDvrRef.current.leaveLiveSync()
         video.currentTime = clampPreviewTime(video, details.seekTime)
         return
       }
@@ -1614,6 +1630,11 @@ export function DanmakuVideoPlayer({
     }
     await toggleStageFullscreen()
   }
+
+  const handleApplyPreviewKeepSeconds = useCallback((seconds: number) => {
+    setPreviewKeepSeconds(seconds)
+    savePreviewKeepSeconds(seconds)
+  }, [])
 
   const handleApplySettings = useCallback((next: PlaybackSettingsValue) => {
     setRates(next.rates)
@@ -1831,6 +1852,7 @@ export function DanmakuVideoPlayer({
             className="bilirec-playback-player absolute inset-0 h-full w-full"
             style={MEDIA_CHROME_VARS}
             lang={mediaLang}
+            noAutoSeekToLive={preview ? true : undefined}
           >
           <video
             ref={videoRef}
@@ -1882,7 +1904,8 @@ export function DanmakuVideoPlayer({
                   ) : null}
                   {preview ? (
                     <PreviewDvrRange
-                      videoRef={videoRef}
+                      dvr={previewDvr}
+                      keepSeconds={previewKeepSeconds}
                       className="bilirec-playback-time-range"
                     />
                   ) : (
@@ -1950,7 +1973,7 @@ export function DanmakuVideoPlayer({
                   </div>
 
                   {preview ? (
-                    <PreviewLiveStatus videoRef={videoRef} />
+                    <PreviewLiveStatus dvr={previewDvr} />
                   ) : (
                     <MediaTimeDisplay
                       showDuration
@@ -2149,6 +2172,14 @@ export function DanmakuVideoPlayer({
                           onOpenChange={setSettingsOpen}
                           value={settingsValue}
                           onApply={handleApplySettings}
+                          previewBuffer={
+                            preview
+                              ? {
+                                  keepSeconds: previewKeepSeconds,
+                                  onApplyKeepSeconds: handleApplyPreviewKeepSeconds,
+                                }
+                              : undefined
+                          }
                         />
                       </>
                     ) : null}
