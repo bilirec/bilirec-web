@@ -357,7 +357,8 @@ export function DanmakuVideoPlayer({
   const previewDvrRef = useRef(previewDvr)
   previewDvrRef.current = previewDvr
 
-  const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
+  const showAudioOnlyPlayback =
+    audioOnlyFileByName || previewAudioOnly || audioOnlyPlayback
   const hoverPreviewEnabled = !preview && !showAudioOnlyPlayback && videoMetadataReady
   const { loading: hoverPreviewLoading, hasFrame: hoverPreviewHasFrame } = usePlaybackHoverPreview({
     hostRef: controlsHostRef,
@@ -1221,7 +1222,7 @@ export function DanmakuVideoPlayer({
     // which would wrongly latch audio-only mode for an MP4. Undo it once the real
     // picture size shows up.
     const onVideoSizeKnown = () => {
-      if (audioOnlyFileByName) return
+      if (audioOnlyFileByName || previewAudioOnly) return
       if (video.videoWidth > 0 && video.videoHeight > 0) {
         setAudioOnlyPlayback(false)
       }
