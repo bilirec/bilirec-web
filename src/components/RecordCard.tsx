@@ -93,8 +93,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const liveRoomUrl = `https://live.bilibili.com/${roomId}`
   const enterLiveRoomLabel = t('recordCard.enterLiveRoom')
   const previewFormat = previewFormatOf(task.actualStreamFormat)
-  const canPreview =
-    task.status === 'recording' && previewFormat != null && !task.isAudioOnly
+  const canPreview = task.status === 'recording' && previewFormat != null
 
   const closePreview = useCallback(() => setPreviewOpen(false), [])
 
@@ -480,7 +479,12 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
             onOpenChange={setPreviewOpen}
             onPreviewEnded={closePreview}
             name={task.roomInfo?.title || t('recordCard.roomFallback', { roomId })}
-            preview={{ roomId, format: previewFormat, recordDanmaku: !!task.recordDanmaku }}
+            preview={{
+              roomId,
+              format: previewFormat,
+              recordDanmaku: !!task.recordDanmaku,
+              audioOnly: !!task.isAudioOnly,
+            }}
           />
         ) : null}
 

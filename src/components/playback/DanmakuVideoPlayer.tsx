@@ -148,7 +148,12 @@ export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
   playbackUrl?: string
-  preview?: { roomId: number; format: PreviewFormat; recordDanmaku?: boolean }
+  preview?: {
+    roomId: number
+    format: PreviewFormat
+    recordDanmaku?: boolean
+    audioOnly?: boolean
+  }
   /** Mints a fresh presigned playback URL. Absent in cookie mode (no renewal). */
   renewPlaybackUrl?: () => Promise<{ url: string; expiresAtMs: number } | null>
   /** Epoch ms when the initial playbackUrl expires; 0 disables scheduled renewal. */
@@ -231,6 +236,7 @@ export function DanmakuVideoPlayer({
 }: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
   const audioOnlyFileByName = fileName.toLowerCase().endsWith(".m4a")
+  const previewAudioOnly = !!preview?.audioOnly
   // Keep media-chrome tooltips in sync with app i18n (zh-CN / zh-TW)
   const mediaLang = getCurrentLanguage()
   const stageRef = useRef<HTMLDivElement>(null)
@@ -276,7 +282,9 @@ export function DanmakuVideoPlayer({
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
   const [videoDurationSec, setVideoDurationSec] = useState(0)
-  const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
+  const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(
+    audioOnlyFileByName || previewAudioOnly
+  )
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
   // Presigned URLs expire; activeSrc is the URL currently on the <video> and
   // may be replaced mid-playback by renewal (presigned mode only).
@@ -1197,13 +1205,16 @@ export function DanmakuVideoPlayer({
     const onLoadStart = () => {
       setVideoMetadataReady(false)
       setVideoDurationSec(0)
-      setAudioOnlyPlayback(audioOnlyFileByName)
+      setAudioOnlyPlayback(audioOnlyFileByName || previewAudioOnly)
     }
     const onLoadedMetadata = () => {
       setVideoMetadataReady(true)
       syncVideoDuration()
       setAudioOnlyPlayback(
-        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+        audioOnlyFileByName ||
+          previewAudioOnly ||
+          video.videoWidth === 0 ||
+          video.videoHeight === 0
       )
     }
     // Some mobile browsers fire loadedmetadata while videoWidth/Height are still 0,
@@ -1291,7 +1302,10 @@ export function DanmakuVideoPlayer({
     if (metadataReady) {
       syncVideoDuration()
       setAudioOnlyPlayback(
-        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+        audioOnlyFileByName ||
+          previewAudioOnly ||
+          video.videoWidth === 0 ||
+          video.videoHeight === 0
       )
     }
     if (!video.paused) startDanmakuTicker()
@@ -1313,6 +1327,7 @@ export function DanmakuVideoPlayer({
     }
   }, [
     audioOnlyFileByName,
+    previewAudioOnly,
     danmakuHidden,
     danmakuLoadTimedOut,
     danmakuStatus,

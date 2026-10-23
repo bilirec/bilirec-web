@@ -18,6 +18,7 @@ export type PreviewFormat = "flv" | "ts" | "fmp4"
 export type PreviewSource = {
   roomId: number
   format: PreviewFormat
+  audioOnly?: boolean
 }
 
 /** Narrows a stream format string to a preview-supported format, or null. */
@@ -71,6 +72,8 @@ async function attachEngine(
 
   const engineConfig = liveEngineConfig(keepSeconds)
 
+  const hasVideo = !source.audioOnly
+
   if (source.format === "flv") {
     const { default: flvjs } = await import("flv.js")
     const player = flvjs.createPlayer(
@@ -79,7 +82,7 @@ async function attachEngine(
         url,
         isLive: true,
         hasAudio: true,
-        hasVideo: true,
+        hasVideo,
         cors: true,
         withCredentials: true,
       },
@@ -112,7 +115,7 @@ async function attachEngine(
       url,
       isLive: true,
       hasAudio: true,
-      hasVideo: true,
+      hasVideo,
       cors: true,
       withCredentials: true,
     },
@@ -157,7 +160,11 @@ export function usePreview(
     const video = videoRef.current
     if (!video) return
 
-    const previewSource: PreviewSource = { roomId, format }
+    const previewSource: PreviewSource = {
+      roomId,
+      format,
+      audioOnly: source?.audioOnly,
+    }
     video.removeAttribute("src")
     video.load()
 

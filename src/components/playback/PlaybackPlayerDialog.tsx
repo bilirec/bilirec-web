@@ -12,7 +12,12 @@ interface PlaybackPlayerDialogProps {
   path?: string
   /** Display name for a11y */
   name: string
-  preview?: { roomId: number; format: PreviewFormat; recordDanmaku?: boolean }
+  preview?: {
+    roomId: number
+    format: PreviewFormat
+    recordDanmaku?: boolean
+    audioOnly?: boolean
+  }
   /** Live recording preview ended (stream/recording no longer previewable). */
   onPreviewEnded?: () => void
 }
