@@ -255,6 +255,7 @@ export const resources = {
         frameStepLabel: "跳幀間隔（毫秒）",
         seekOffsetLabel: "快進／快退秒數",
         previewBufferLabel: "錄製預覽回看緩衝（秒）",
+        previewBufferRange: "允許 {{min}}–{{max}} 秒（整數）",
         previewBufferHint:
           "僅用於直播錄製預覽。數值越大可拖回越久，但會占用更多瀏覽器記憶體；變更後會重新連線預覽流。",
         previewBufferInvalid: "回看緩衝須為 {{min}}–{{max}} 的整數（秒）",
@@ -811,6 +812,7 @@ export const resources = {
         frameStepLabel: "跳帧间隔（毫秒）",
         seekOffsetLabel: "快进／快退秒数",
         previewBufferLabel: "录制预览回看缓冲（秒）",
+        previewBufferRange: "允许 {{min}}–{{max}} 秒（整数）",
         previewBufferHint:
           "仅用于直播录制预览。数值越大可拖回越久，但会占用更多浏览器内存；变更后会重新连接预览流。",
         previewBufferInvalid: "回看缓冲须为 {{min}}–{{max}} 的整数（秒）",

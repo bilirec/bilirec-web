@@ -131,6 +131,8 @@ export function PlaybackSettingsDialog({
     : null
   const normalizedPreviewKeepDraft =
     parsedPreviewKeepDraft != null ? clampPreviewKeepSeconds(parsedPreviewKeepDraft) : null
+  const previewKeepDraftInvalid =
+    previewBuffer != null && normalizedPreviewKeepDraft == null
 
   const settingsDraftInvalid =
     parsedRatesDraft == null ||
@@ -324,9 +326,31 @@ export function PlaybackSettingsDialog({
                     step={1}
                     value={previewKeepDraft}
                     onChange={(e) => setPreviewKeepDraft(e.target.value)}
-                    className="border-white/15 bg-zinc-950 text-zinc-50"
+                    placeholder={String(PREVIEW_KEEP_SECONDS_DEFAULT)}
+                    aria-invalid={previewKeepDraftInvalid}
+                    aria-describedby="preview-keep-seconds-range preview-keep-seconds-hint"
+                    className={cn(
+                      "border-white/15 bg-zinc-950 text-zinc-50",
+                      previewKeepDraftInvalid && "border-red-400/70 focus-visible:ring-red-400/40"
+                    )}
                   />
-                  <p className="text-xs text-zinc-400">{t("playbackPlayer.previewBufferHint")}</p>
+                  <p id="preview-keep-seconds-range" className="text-xs text-zinc-300">
+                    {t("playbackPlayer.previewBufferRange", {
+                      min: PREVIEW_KEEP_SECONDS_MIN,
+                      max: PREVIEW_KEEP_SECONDS_MAX,
+                    })}
+                  </p>
+                  {previewKeepDraftInvalid ? (
+                    <p className="text-xs text-red-400" role="alert">
+                      {t("playbackPlayer.previewBufferInvalid", {
+                        min: PREVIEW_KEEP_SECONDS_MIN,
+                        max: PREVIEW_KEEP_SECONDS_MAX,
+                      })}
+                    </p>
+                  ) : null}
+                  <p id="preview-keep-seconds-hint" className="text-xs text-zinc-400">
+                    {t("playbackPlayer.previewBufferHint")}
+                  </p>
                   {normalizedPreviewKeepDraft != null &&
                   shouldWarnPreviewKeepSeconds(normalizedPreviewKeepDraft) ? (
                     <Alert
