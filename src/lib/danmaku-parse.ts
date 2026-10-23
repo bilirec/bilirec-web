@@ -196,7 +196,7 @@ export function parseJsonlDanmaku(
         }
       } else {
         const ts = asNumber(obj.ts)
-        const timeMs = Math.max(0, Math.round(ts * 1000))
+        const timeMs = Math.round(ts * 1000)
         const userInfo =
           obj.user_info && typeof obj.user_info === "object"
             ? (obj.user_info as Record<string, unknown>)
@@ -211,7 +211,6 @@ export function parseJsonlDanmaku(
           const textBody = asString(obj.text)
           const color = colorIntToCss(asNumber(obj.color, 0xffffff))
           const { type: dmType, reverse } = modeToType(asNumber(obj.mode, 1))
-          const recordDmType = asNumber(obj.dm_type, 0)
           const emoticonUrl = asString(obj.emoticon_url)
           const styles: DanmakuAttrs = {
             color,
@@ -225,7 +224,7 @@ export function parseJsonlDanmaku(
             custom_css: { "text-shadow": "1px 0 1px #000000" },
           }
           const bullet: BilirecDanmakuListItem = {
-            time: timeMs,
+            time: Math.max(0, timeMs),
             text: textBody,
             reset_styles: true,
             styles,
@@ -237,10 +236,12 @@ export function parseJsonlDanmaku(
             // (see attachEmoteRendering).
             bullet.bigEmote = { dmType: 1, emoticonUrl }
           }
-          bullets.push(bullet)
-          bulletCount += 1
-          if (onBulletChunk && bullets.length >= chunkSize) {
-            flushBulletChunk(bullets, onBulletChunk)
+          if (ts >= 0) {
+            bullets.push(bullet)
+            bulletCount += 1
+            if (onBulletChunk && bullets.length >= chunkSize) {
+              flushBulletChunk(bullets, onBulletChunk)
+            }
           }
           chatItems.push({
             id: `dm-${lineNo}-${timeMs}`,

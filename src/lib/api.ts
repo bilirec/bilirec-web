@@ -104,6 +104,14 @@ class ApiClient {
     return `${this.originBase()}/files/danmaku/${encodeFilePath(path)}`;
   }
 
+  previewMediaUrl(roomId: number): string {
+    return `${this.originBase()}/preview/rooms/${roomId}/media`;
+  }
+
+  previewEventsUrl(roomId: number): string {
+    return `${this.originBase()}/preview/rooms/${roomId}/events`;
+  }
+
   // Token is handled by an HttpOnly cookie set by the server. We don't store it client-side.
 
   clearAuth() {

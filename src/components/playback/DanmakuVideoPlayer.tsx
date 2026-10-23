@@ -35,7 +35,10 @@ import {
   SubtitlesIcon,
   SubtitlesSlashIcon,
 } from "@phosphor-icons/react"
+import { PreviewDvrRange, PreviewLiveStatus } from "@/components/playback/PreviewDvrRange"
+import { usePreviewDvr } from "@/hooks/use-preview-dvr"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
+import { clampPreviewTime, seekPreview } from "@/lib/preview-dvr"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
 import { PlaybackSettingsDialog } from "@/components/playback/PlaybackSettingsDialog"
 import { Progress } from "@/components/ui/progress"
@@ -45,6 +48,12 @@ import {
   type OverlayEvent,
   type PlaybackChatItem,
 } from "@/lib/danmaku"
+import { parseJsonlDanmaku } from "@/lib/danmaku-parse"
+import { previewSseType, usePreview, type PreviewFormat } from "@/hooks/use-preview"
+import {
+  loadPreviewKeepSeconds,
+  savePreviewKeepSeconds,
+} from "@/lib/preview-settings"
 import { buildDanmakuHeatmapPath } from "@/lib/danmaku-heatmap"
 import {
   type OverlayCorner,
@@ -138,7 +147,13 @@ import "media-chrome/dist/lang/zh-TW.js"
 export type { ObjectFitMode }
 
 interface DanmakuVideoPlayerProps {
-  playbackUrl: string
+  playbackUrl?: string
+  preview?: {
+    roomId: number
+    format: PreviewFormat
+    recordDanmaku?: boolean
+    audioOnly?: boolean
+  }
   /** Mints a fresh presigned playback URL. Absent in cookie mode (no renewal). */
   renewPlaybackUrl?: () => Promise<{ url: string; expiresAtMs: number } | null>
   /** Epoch ms when the initial playbackUrl expires; 0 disables scheduled renewal. */
@@ -149,6 +164,8 @@ interface DanmakuVideoPlayerProps {
   /** Reports whether the chat panel currently uses the extended side column
    *  (so the host dialog can widen instead of shrinking the video). */
   onChatPanelExtendedChange?: (extended: boolean) => void
+  /** Called when live recording preview is no longer available (e.g. stream ended). */
+  onPreviewEnded?: () => void
   className?: string
 }
 
@@ -208,15 +225,18 @@ function buildInjectStyleKey(
 
 export function DanmakuVideoPlayer({
   playbackUrl,
+  preview,
   renewPlaybackUrl,
   playbackExpiresAtMs,
   videoPath,
   fileName,
   onChatPanelExtendedChange,
+  onPreviewEnded,
   className,
 }: DanmakuVideoPlayerProps) {
   const { t } = useTranslation()
   const audioOnlyFileByName = fileName.toLowerCase().endsWith(".m4a")
+  const previewAudioOnly = !!preview?.audioOnly
   // Keep media-chrome tooltips in sync with app i18n (zh-CN / zh-TW)
   const mediaLang = getCurrentLanguage()
   const stageRef = useRef<HTMLDivElement>(null)
@@ -262,11 +282,13 @@ export function DanmakuVideoPlayer({
   const [paused, setPaused] = useState(true)
   const [videoMetadataReady, setVideoMetadataReady] = useState(false)
   const [videoDurationSec, setVideoDurationSec] = useState(0)
-  const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(audioOnlyFileByName)
+  const [audioOnlyPlayback, setAudioOnlyPlayback] = useState(
+    audioOnlyFileByName || previewAudioOnly
+  )
   const [danmakuLoadTimedOut, setDanmakuLoadTimedOut] = useState(false)
   // Presigned URLs expire; activeSrc is the URL currently on the <video> and
   // may be replaced mid-playback by renewal (presigned mode only).
-  const [activeSrc, setActiveSrc] = useState(playbackUrl)
+  const [activeSrc, setActiveSrc] = useState(playbackUrl ?? "")
   const [renewAtMs, setRenewAtMs] = useState(playbackExpiresAtMs ?? 0)
   const renewInFlightRef = useRef(false)
   const mediaErrorRetriedRef = useRef(false)
@@ -330,9 +352,14 @@ export function DanmakuVideoPlayer({
     bottomBar: 0,
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [previewKeepSeconds, setPreviewKeepSeconds] = useState(() => loadPreviewKeepSeconds())
+  const previewDvr = usePreviewDvr(videoRef, !!preview, previewKeepSeconds)
+  const previewDvrRef = useRef(previewDvr)
+  previewDvrRef.current = previewDvr
 
-  const showAudioOnlyPlayback = audioOnlyFileByName || audioOnlyPlayback
-  const hoverPreviewEnabled = !showAudioOnlyPlayback && videoMetadataReady
+  const showAudioOnlyPlayback =
+    audioOnlyFileByName || previewAudioOnly || audioOnlyPlayback
+  const hoverPreviewEnabled = !preview && !showAudioOnlyPlayback && videoMetadataReady
   const { loading: hoverPreviewLoading, hasFrame: hoverPreviewHasFrame } = usePlaybackHoverPreview({
     hostRef: controlsHostRef,
     canvasRef: hoverCanvasRef,
@@ -344,8 +371,26 @@ export function DanmakuVideoPlayer({
   useDeferredTimeRangeSeek({
     hostRef: controlsHostRef,
     videoRef,
-    enabled: videoMetadataReady,
+    enabled: !preview && videoMetadataReady,
   })
+
+  useEffect(() => {
+    if (!preview) return
+    const video = videoRef.current
+    const host = video?.closest("media-controller") ?? controlsHostRef.current
+    if (!host) return
+    const onSeek = (event: Event) => {
+      const t = (event as CustomEvent<unknown>).detail
+      if (typeof t !== "number" || !Number.isFinite(t)) return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      if (!video) return
+      previewDvrRef.current.leaveLiveSync()
+      seekPreview(video, t)
+    }
+    host.addEventListener("mediaseekrequest", onSeek, true)
+    return () => host.removeEventListener("mediaseekrequest", onSeek, true)
+  }, [preview, videoRef])
 
   danmakuPreventOverlapRef.current = danmakuPreventOverlap
   danmakuOverlapModeRef.current = danmakuOverlapMode
@@ -493,7 +538,77 @@ export function DanmakuVideoPlayer({
     }
   }, [])
 
+  // Live-preview wiring: SSE events from usePreview drive the danmaku pipeline
+  // (segment rotation resets it; danmaku lines stream in live).
+  usePreview(videoRef, preview ?? null, previewKeepSeconds, (raw: string) => {
+    const type = previewSseType(raw)
+    if (type === undefined) return
+    if (type === "segment") {
+      bulletsRef.current = []
+      vodListPreparedRef.current = false
+      listReadyRef.current = false
+      setOverlays([])
+      setChatItems([])
+      setSeekEpoch((n) => n + 1)
+      const dm = danmakuRef.current
+      if (dm) {
+        dm.clear()
+        if (danmakuAreaRef.current) {
+          prepareDanmakuVodList(dm, danmakuAreaRef.current)
+          vodListPreparedRef.current = true
+        }
+      }
+      return
+    }
+    const parsed = parseJsonlDanmaku(raw.endsWith("\n") ? raw : `${raw}\n`)
+    if (parsed.bullets && parsed.bullets.length > 0) {
+      const chunk = parsed.bullets
+      bulletsRef.current.push(...chunk)
+      const dm = danmakuRef.current
+      if (dm) {
+        if (!vodListPreparedRef.current) {
+          prepareDanmakuVodList(dm, danmakuAreaRef.current)
+          vodListPreparedRef.current = true
+        }
+        dm.list.load(
+          styleDanmakuItemsForEngine(chunk, injectStyleRef.current, getEmoteRenderContext())
+        )
+      }
+    }
+    if (parsed.overlays.length > 0) {
+      setOverlays((prev) => [...prev, ...parsed.overlays])
+    }
+    if (parsed.chatItems.length > 0) {
+      setChatItems((prev) => [...prev, ...parsed.chatItems])
+    }
+    if (parsed.meta) {
+      setMeta(parsed.meta)
+    }
+    listReadyRef.current = true
+    setDanmakuStatus("ready")
+  }, preview ? onPreviewEnded : undefined)
+
+  const previewRoomId = preview?.roomId
+  const previewRecordDanmaku = !!preview?.recordDanmaku
+
   useEffect(() => {
+    if (preview) {
+      const withDanmaku = previewRecordDanmaku
+      setDanmakuStatus("ready")
+      setDanmakuSidecarPresent(withDanmaku)
+      setDanmakuHidden(!withDanmaku)
+      setDanmakuLoadTimedOut(false)
+      setLoadIndicatorDocked(false)
+      setLoadProgressPercent(null)
+      listReadyRef.current = true
+      if (withDanmaku) {
+        void loadEmoteMap().then((map) => {
+          emoteMapRef.current = map
+          setEmoteMap(map)
+        })
+      }
+      return
+    }
     const ac = new AbortController()
     const generation = ++danmakuLoadGenerationRef.current
 
@@ -696,7 +811,7 @@ export function DanmakuVideoPlayer({
       stopInjectPump()
       chunkQueue.length = 0
     }
-  }, [videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
+  }, [preview, previewRoomId, previewRecordDanmaku, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
 
   useEffect(() => {
     if (!isDanmakuPipelineBusy(danmakuStatus)) {
@@ -1024,13 +1139,14 @@ export function DanmakuVideoPlayer({
 
   const stepFrame = useCallback(
     (dir: -1 | 1) => {
+      if (preview) return
       const video = videoRef.current
       if (!video) return
       video.pause()
       const next = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + dir * frameStepSec))
       video.currentTime = next
     },
-    [frameStepSec]
+    [frameStepSec, preview]
   )
 
   useEffect(() => {
@@ -1090,30 +1206,35 @@ export function DanmakuVideoPlayer({
     const onLoadStart = () => {
       setVideoMetadataReady(false)
       setVideoDurationSec(0)
-      setAudioOnlyPlayback(audioOnlyFileByName)
+      setAudioOnlyPlayback(audioOnlyFileByName || previewAudioOnly)
     }
     const onLoadedMetadata = () => {
       setVideoMetadataReady(true)
       syncVideoDuration()
       setAudioOnlyPlayback(
-        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+        audioOnlyFileByName ||
+          previewAudioOnly ||
+          video.videoWidth === 0 ||
+          video.videoHeight === 0
       )
     }
     // Some mobile browsers fire loadedmetadata while videoWidth/Height are still 0,
     // which would wrongly latch audio-only mode for an MP4. Undo it once the real
     // picture size shows up.
     const onVideoSizeKnown = () => {
-      if (audioOnlyFileByName) return
+      if (audioOnlyFileByName || previewAudioOnly) return
       if (video.videoWidth > 0 && video.videoHeight > 0) {
         setAudioOnlyPlayback(false)
       }
     }
     const onPlay = () => {
-      const playbackBlocked = shouldBlockPlayback({
-        videoMetadataReady,
-        danmakuStatus,
-        danmakuLoadTimedOut,
-      })
+      const playbackBlocked =
+        !preview &&
+        shouldBlockPlayback({
+          videoMetadataReady,
+          danmakuStatus,
+          danmakuLoadTimedOut,
+        })
       if (playbackBlocked) {
         video.pause()
         return
@@ -1182,7 +1303,10 @@ export function DanmakuVideoPlayer({
     if (metadataReady) {
       syncVideoDuration()
       setAudioOnlyPlayback(
-        audioOnlyFileByName || video.videoWidth === 0 || video.videoHeight === 0
+        audioOnlyFileByName ||
+          previewAudioOnly ||
+          video.videoWidth === 0 ||
+          video.videoHeight === 0
       )
     }
     if (!video.paused) startDanmakuTicker()
@@ -1204,6 +1328,7 @@ export function DanmakuVideoPlayer({
     }
   }, [
     audioOnlyFileByName,
+    previewAudioOnly,
     danmakuHidden,
     danmakuLoadTimedOut,
     danmakuStatus,
@@ -1211,11 +1336,13 @@ export function DanmakuVideoPlayer({
     activeSrc,
     screenDanmakuActive,
     videoMetadataReady,
+    preview,
   ])
 
   useEffect(() => {
-    setActiveSrc(playbackUrl)
-  }, [playbackUrl])
+    if (preview) return
+    setActiveSrc(playbackUrl ?? "")
+  }, [playbackUrl, preview])
 
   // Swap the presigned URL while keeping position and play state. <video>
   // cannot change the query on an in-flight connection, so renewal reassigns
@@ -1322,6 +1449,11 @@ export function DanmakuVideoPlayer({
       }
     }
     const seekBy = (offset: number) => {
+      if (preview) {
+        previewDvrRef.current.leaveLiveSync()
+        video.currentTime = clampPreviewTime(video, video.currentTime + offset)
+        return
+      }
       const duration = video.duration
       const max = Number.isFinite(duration) && duration > 0 ? duration : video.currentTime
       video.currentTime = Math.max(0, Math.min(max, video.currentTime + offset))
@@ -1341,6 +1473,11 @@ export function DanmakuVideoPlayer({
     })
     setActionHandler("seekto", (details) => {
       if (details.seekTime == null) return
+      if (preview) {
+        previewDvrRef.current.leaveLiveSync()
+        video.currentTime = clampPreviewTime(video, details.seekTime)
+        return
+      }
       const duration = video.duration
       const max = Number.isFinite(duration) && duration > 0 ? duration : details.seekTime
       video.currentTime = Math.max(0, Math.min(max, details.seekTime))
@@ -1431,6 +1568,7 @@ export function DanmakuVideoPlayer({
     meta?.name,
     meta?.roomId,
     meta?.title,
+    preview,
     showAudioOnlyPlayback,
     t,
     videoPath,
@@ -1509,6 +1647,11 @@ export function DanmakuVideoPlayer({
     await toggleStageFullscreen()
   }
 
+  const handleApplyPreviewKeepSeconds = useCallback((seconds: number) => {
+    setPreviewKeepSeconds(seconds)
+    savePreviewKeepSeconds(seconds)
+  }, [])
+
   const handleApplySettings = useCallback((next: PlaybackSettingsValue) => {
     setRates(next.rates)
     savePlaybackRates(next.rates)
@@ -1541,13 +1684,17 @@ export function DanmakuVideoPlayer({
   const fitLabel = t(`playbackPlayer.fit.${objectFit}`)
 
   const danmakuPipelineBusy = isDanmakuPipelineBusy(danmakuStatus)
-  const playbackBlocked = shouldBlockPlayback({
-    videoMetadataReady,
-    danmakuStatus,
-    danmakuLoadTimedOut,
-  })
+  const playbackBlocked =
+    !preview &&
+    shouldBlockPlayback({
+      videoMetadataReady,
+      danmakuStatus,
+      danmakuLoadTimedOut,
+    })
   const showCentralLoadOverlay =
-    !loadIndicatorDocked && (!videoMetadataReady || danmakuPipelineBusy)
+    !preview &&
+    !loadIndicatorDocked &&
+    (!videoMetadataReady || danmakuPipelineBusy)
   const showDockedLoadIndicator =
     loadIndicatorDocked &&
     videoMetadataReady &&
@@ -1592,7 +1739,7 @@ export function DanmakuVideoPlayer({
   )
   const portraitTouchProgress = touchDevice && !viewportLandscape
   const showDanmakuHeatmap =
-    danmakuHeatmapPath != null && !portraitTouchProgress
+    !preview && danmakuHeatmapPath != null && !portraitTouchProgress
   const portraitChatChrome = Boolean(
     touchDevice && !viewportLandscape && chatLayout
   )
@@ -1721,18 +1868,21 @@ export function DanmakuVideoPlayer({
             className="bilirec-playback-player absolute inset-0 h-full w-full"
             style={MEDIA_CHROME_VARS}
             lang={mediaLang}
+            noAutoSeekToLive={preview ? true : undefined}
           >
           <video
             ref={videoRef}
             slot="media"
-            src={activeSrc}
+            {...(preview ? {} : { src: activeSrc })}
             playsInline
             preload="metadata"
             crossOrigin={renewPlaybackUrl ? "anonymous" : undefined}
             className="h-full w-full bg-black"
             style={{ objectFit, objectPosition: videoObjectPosition }}
           />
-          <MediaLoadingIndicator slot="centered-chrome" />
+          {showCentralLoadOverlay ? null : (
+            <MediaLoadingIndicator slot="centered-chrome" />
+          )}
           <MediaPlaybackRateMenu
             className="bilirec-playback-rate-menu"
             hidden
@@ -1768,6 +1918,13 @@ export function DanmakuVideoPlayer({
                       <path d={danmakuHeatmapPath} fill="white" />
                     </svg>
                   ) : null}
+                  {preview ? (
+                    <PreviewDvrRange
+                      dvr={previewDvr}
+                      keepSeconds={previewKeepSeconds}
+                      className="bilirec-playback-time-range"
+                    />
+                  ) : (
                   <MediaTimeRange className="bilirec-playback-time-range w-full min-w-0">
                     {hoverPreviewEnabled ? (
                       <>
@@ -1803,6 +1960,7 @@ export function DanmakuVideoPlayer({
                       </>
                     ) : null}
                   </MediaTimeRange>
+                  )}
                 </div>
               </MediaControlBar>
 
@@ -1830,13 +1988,17 @@ export function DanmakuVideoPlayer({
                     <MediaSeekForwardButton seekOffset={seekOffsetSec} />
                   </div>
 
-                  <MediaTimeDisplay
-                    showDuration
-                    className={cn(
-                      "shrink-0 tabular-nums text-[11px]",
-                      mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
-                    )}
-                  />
+                  {preview ? (
+                    <PreviewLiveStatus dvr={previewDvr} />
+                  ) : (
+                    <MediaTimeDisplay
+                      showDuration
+                      className={cn(
+                        "shrink-0 tabular-nums text-[11px]",
+                        mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
+                      )}
+                    />
+                  )}
                 </div>
 
                 {/* Secondary controls */}
@@ -2026,6 +2188,14 @@ export function DanmakuVideoPlayer({
                           onOpenChange={setSettingsOpen}
                           value={settingsValue}
                           onApply={handleApplySettings}
+                          previewBuffer={
+                            preview
+                              ? {
+                                  keepSeconds: previewKeepSeconds,
+                                  onApplyKeepSeconds: handleApplyPreviewKeepSeconds,
+                                }
+                              : undefined
+                          }
                         />
                       </>
                     ) : null}

@@ -294,6 +294,17 @@ body {
   color: var(--card-foreground);
 }
 
+[data-appearance="dark"] .record-card .record-card-enter-live {
+  background-color: color-mix(in srgb, var(--card) 62%, #000);
+  border-color: rgba(255, 255, 255, 0.07);
+  color: color-mix(in srgb, var(--card-foreground) 90%, transparent);
+}
+
+[data-appearance="dark"] .record-card .record-card-enter-live:hover {
+  background-color: color-mix(in srgb, var(--card) 52%, #000);
+  color: var(--card-foreground);
+}
+
 .cards-grid {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
@@ -379,6 +390,59 @@ body {
   background: #000;
   box-shadow: 0 0 4px rgb(0 0 0 / 0.2);
   border-radius: var(--media-preview-border-radius, 4px) var(--media-preview-border-radius, 4px) 0 0;
+}
+
+.bilirec-playback-player .bilirec-preview-dvr {
+  --dvr-pct: 0%;
+  appearance: none;
+  height: 12px;
+  margin: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.bilirec-playback-player .bilirec-preview-dvr::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(
+    to right,
+    rgb(255 255 255 / 0.92) 0%,
+    rgb(255 255 255 / 0.92) var(--dvr-pct),
+    rgb(255 255 255 / 0.28) var(--dvr-pct),
+    rgb(255 255 255 / 0.28) 100%
+  );
+}
+
+.bilirec-playback-player .bilirec-preview-dvr::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+
+.bilirec-playback-player .bilirec-preview-dvr::-moz-range-track {
+  height: 4px;
+  border: none;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.28);
+}
+
+.bilirec-playback-player .bilirec-preview-dvr::-moz-range-progress {
+  height: 4px;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.92);
+}
+
+.bilirec-playback-player .bilirec-preview-dvr::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
 }
 
 /* Progress track: slim padding (with or without heatmap SVG). Heatmap sits bottom-full of range. */
