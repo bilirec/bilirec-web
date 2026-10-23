@@ -412,27 +412,19 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
 
         {canControlRecording ? (
           <>
-            <div className="mt-auto hidden gap-2 sm:flex">
-              {canPreview ? (
-                <Button
-                  type="button"
-                  variant="default"
-                  className="min-w-0 flex-1 bg-emerald-600 text-white shadow-xs hover:bg-emerald-600/90 focus-visible:ring-emerald-600/20 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
-                  onClick={() => setPreviewOpen(true)}
-                >
-                  <PlayCircleIcon size={18} />
-                  {t('recordCard.previewRecording')}
-                </Button>
-              ) : null}
-              {isReadOnly ? (
-                <EnterLiveRoomButton
-                  href={liveRoomUrl}
-                  label={enterLiveRoomLabel}
-                  variant="default"
-                  size="default"
-                  className="min-w-0 flex-1 transition-all hover:shadow-lg"
-                />
-              ) : (
+            {!isReadOnly && (
+              <div className="mt-auto hidden gap-2 sm:flex">
+                {canPreview ? (
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="min-w-0 flex-1 bg-emerald-600 text-white shadow-xs hover:bg-emerald-600/90 focus-visible:ring-emerald-600/20 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
+                    onClick={() => setPreviewOpen(true)}
+                  >
+                    <PlayCircleIcon size={18} />
+                    {t('recordCard.previewRecording')}
+                  </Button>
+                ) : null}
                 <Button
                   onClick={handleStop}
                   disabled={isLoading}
@@ -445,38 +437,48 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                   <StopIcon size={20} />
                   {t('recordCard.stopRecording')}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="mt-auto flex flex-col gap-2 sm:hidden">
-              <EnterLiveRoomButton
-                href={liveRoomUrl}
-                label={enterLiveRoomLabel}
-                variant="default"
-                size="default"
-                className="w-full transition-all hover:shadow-lg"
-              />
-              {canPreview ? (
-                <Button
-                  type="button"
+              {isReadOnly ? (
+                <EnterLiveRoomButton
+                  href={liveRoomUrl}
+                  label={enterLiveRoomLabel}
                   variant="default"
-                  className="w-full min-w-0 bg-emerald-600 text-white shadow-xs hover:bg-emerald-600/90 focus-visible:ring-emerald-600/20 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
-                  onClick={() => setPreviewOpen(true)}
-                >
-                  <PlayCircleIcon size={18} />
-                  {t('recordCard.previewRecording')}
-                </Button>
-              ) : null}
-              {!isReadOnly && (
-                <Button
-                  onClick={handleStop}
-                  disabled={isLoading}
-                  variant="destructive"
-                  className="w-full min-w-0 transition-all hover:bg-destructive/90 hover:shadow-md hover:ring-1 hover:ring-destructive/30"
-                >
-                  <StopIcon size={20} />
-                  {t('recordCard.stopRecording')}
-                </Button>
+                  size="default"
+                  className="w-full transition-all hover:shadow-lg"
+                />
+              ) : (
+                <>
+                  <EnterLiveRoomButton
+                    href={liveRoomUrl}
+                    label={enterLiveRoomLabel}
+                    variant="default"
+                    size="default"
+                    className="w-full transition-all hover:shadow-lg"
+                  />
+                  {canPreview ? (
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="w-full min-w-0 bg-emerald-600 text-white shadow-xs hover:bg-emerald-600/90 focus-visible:ring-emerald-600/20 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
+                      onClick={() => setPreviewOpen(true)}
+                    >
+                      <PlayCircleIcon size={18} />
+                      {t('recordCard.previewRecording')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    onClick={handleStop}
+                    disabled={isLoading}
+                    variant="destructive"
+                    className="w-full min-w-0 transition-all hover:bg-destructive/90 hover:shadow-md hover:ring-1 hover:ring-destructive/30"
+                  >
+                    <StopIcon size={20} />
+                    {t('recordCard.stopRecording')}
+                  </Button>
+                </>
               )}
             </div>
           </>
