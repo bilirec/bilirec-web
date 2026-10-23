@@ -313,8 +313,37 @@ function firstTfdt(frag: Uint8Array): number {
   return readU32(tfdt, 4)
 }
 
+/** AV1CodecConfigurationRecord (av1C) → `av01.P.LLT.DD` for MSE. */
+function av1CodecString(av1c: Uint8Array): string | null {
+  if (av1c.byteLength < 3) return null
+  let o = 0
+  if (av1c[0] === 1 && av1c[1] === 0 && av1c[2] === 0 && av1c[3] === 0) {
+    o = 4
+  }
+  if (o >= av1c.byteLength) return null
+  if (av1c[o]! & 0x80) {
+    o += 1
+  }
+  if (o + 2 > av1c.byteLength) return null
+  const b1 = av1c[o]!
+  const b2 = av1c[o + 1]!
+  const profile = (b1 >> 5) & 0x07
+  const level = b1 & 0x1f
+  const tier = (b2 >> 7) & 1
+  const highBitdepth = (b2 >> 6) & 1
+  const twelveBit = (b2 >> 5) & 1
+  const bitDepth = highBitdepth ? (twelveBit ? 12 : 10) : 8
+  const levelStr = `${level.toString(10).padStart(2, "0")}${tier === 0 ? "M" : "H"}`
+  return `av01.${profile}.${levelStr}.${bitDepth.toString(10).padStart(2, "0")}`
+}
+
 function codecsFromInit(init: Uint8Array): string {
   const found: string[] = []
+  const av1c = findBox(init, "av1C")
+  if (av1c) {
+    const av1 = av1CodecString(av1c)
+    if (av1) found.push(av1)
+  }
   const avcC = findBox(init, "avcC")
   if (avcC && avcC.byteLength >= 4) {
     found.push(`avc1.${hex2(avcC[1])}${hex2(avcC[2])}${hex2(avcC[3])}`)
@@ -325,7 +354,8 @@ function codecsFromInit(init: Uint8Array): string {
   if (findBox(init, "mp4a") || findBox(init, "esds")) {
     found.push("mp4a.40.2")
   }
-  return found.join(", ") || "avc1.64001f,mp4a.40.2"
+  if (found.length > 0) return found.join(", ")
+  return "avc1.64001f, mp4a.40.2"
 }
 
 function findBox(data: Uint8Array, want: string): Uint8Array | null {
