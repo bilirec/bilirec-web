@@ -353,6 +353,26 @@ body {
   }
 }
 
+/* media-chrome only fades slotted chrome while playing; mirror autohide when paused too. */
+.bilirec-playback-player[userinactive] > .bilirec-playback-controls-chrome {
+  opacity: 0;
+  transition: var(--media-control-transition-out, opacity 1s);
+}
+
+/* Inner chrome uses pointer-events-auto; when hidden it must not block video / tap layers. */
+.bilirec-playback-player[userinactive] > .bilirec-playback-controls-chrome * {
+  pointer-events: none;
+}
+
+.bilirec-playback-player:not([userinactive]) > .bilirec-playback-controls-chrome {
+  opacity: 1;
+  transition: var(--media-control-transition-in, opacity 0.25s);
+}
+
+.bilirec-playback-player[userinactive] video[slot="media"] {
+  cursor: none;
+}
+
 /* Danmaku playback player: kill media-chrome default gray control chrome */
 .bilirec-playback-player media-control-bar.bilirec-playback-bar,
 .bilirec-playback-player .bilirec-playback-bar {

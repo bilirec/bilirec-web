@@ -1894,7 +1894,7 @@ export function DanmakuVideoPlayer({
               Unnamed default slot == bottom chrome in media-container. */}
           <div
             ref={controlsHostRef}
-            className="pointer-events-none relative z-20 flex w-full flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10"
+            className="bilirec-playback-controls-chrome pointer-events-none relative z-20 flex w-full flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10"
           >
             <div className="pointer-events-auto flex w-full flex-col gap-0.5 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
               {/* VLC-style: progress alone on first row.
