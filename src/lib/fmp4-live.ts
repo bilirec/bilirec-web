@@ -1,5 +1,8 @@
 import { PREVIEW_KEEP_SECONDS_DEFAULT } from "@/lib/preview-settings"
 
+/** Match mpegts/flv.js `autoCleanupMaxBackwardDuration` slack (see use-preview liveEngineConfig). */
+const PREVIEW_TRIM_MAX_BACKWARD_SLACK_SEC = 15
+
 export function attachFmp4Live(
   video: HTMLVideoElement,
   url: string,
@@ -81,7 +84,7 @@ async function play(
     while (pending.length > 0) {
       const next = pending.shift()!
       await append(sb, next)
-      trim(video, sb, keepSeconds)
+      await trimSourceBuffer(video, sb, keepSeconds)
     }
   }
 
@@ -140,19 +143,80 @@ function append(sb: SourceBuffer, data: Uint8Array): Promise<void> {
   })
 }
 
-function trim(video: HTMLVideoElement, sb: SourceBuffer, keepSeconds: number) {
-  if (video.paused) return
+/** Playhead-relative cleanup aligned with flv.js / mpegts.js MSEController (runs while paused too). */
+async function trimSourceBuffer(
+  video: HTMLVideoElement,
+  sb: SourceBuffer,
+  keepSeconds: number
+): Promise<void> {
   if (sb.updating) return
-  if (sb.buffered.length === 0) return
-  const start = sb.buffered.start(0)
-  const end = sb.buffered.end(sb.buffered.length - 1)
-  const cut = Math.min(video.currentTime - 1, end - keepSeconds)
-  if (cut - start < 2) return
-  try {
-    sb.remove(start, cut)
-  } catch {
-    /* ignore */
+  const buffered = sb.buffered
+  if (buffered.length === 0) return
+
+  const currentTime = video.currentTime
+  const maxBackward = keepSeconds + PREVIEW_TRIM_MAX_BACKWARD_SLACK_SEC
+  const minBackward = keepSeconds
+
+  if (currentTime - buffered.start(0) < maxBackward) return
+
+  const removes: { start: number; end: number }[] = []
+  for (let i = 0; i < buffered.length; i++) {
+    const start = buffered.start(i)
+    const end = buffered.end(i)
+    if (start <= currentTime && currentTime < end + 3) {
+      if (currentTime - start >= maxBackward) {
+        removes.push({ start, end: currentTime - minBackward })
+      }
+    } else if (end < currentTime) {
+      removes.push({ start, end })
+    }
   }
+
+  for (const { start, end } of removes) {
+    if (end - start < 2) continue
+    if (sb.updating) await waitSourceBufferIdle(sb)
+    try {
+      await removeSourceBufferRange(sb, start, end)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function waitSourceBufferIdle(sb: SourceBuffer): Promise<void> {
+  if (!sb.updating) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const onUpdate = () => {
+      sb.removeEventListener("updateend", onUpdate)
+      sb.removeEventListener("error", onError)
+      resolve()
+    }
+    const onError = () => {
+      sb.removeEventListener("updateend", onUpdate)
+      sb.removeEventListener("error", onError)
+      reject(new Error("SourceBuffer error"))
+    }
+    sb.addEventListener("updateend", onUpdate)
+    sb.addEventListener("error", onError)
+  })
+}
+
+function removeSourceBufferRange(sb: SourceBuffer, start: number, end: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onUpdate = () => {
+      sb.removeEventListener("updateend", onUpdate)
+      sb.removeEventListener("error", onError)
+      resolve()
+    }
+    const onError = () => {
+      sb.removeEventListener("updateend", onUpdate)
+      sb.removeEventListener("error", onError)
+      reject(new Error("SourceBuffer remove error"))
+    }
+    sb.addEventListener("updateend", onUpdate)
+    sb.addEventListener("error", onError)
+    sb.remove(start, end)
+  })
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
