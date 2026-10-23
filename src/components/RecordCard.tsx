@@ -46,7 +46,7 @@ function EnterLiveRoomButton({
         asChild
         variant="outline"
         className={cn(
-          'h-6 shrink-0 gap-1 border-[#00AEEC]/50 bg-transparent px-2 py-1 text-xs leading-none font-normal text-[#00AEEC] shadow-none hover:border-sky-300 hover:bg-transparent hover:text-sky-300 dark:border-sky-300/50 dark:text-sky-300 dark:hover:border-sky-200 dark:hover:bg-transparent dark:hover:text-sky-200',
+          'h-6 shrink-0 gap-0 border-[#00AEEC]/50 bg-transparent px-1.5 py-1 text-xs leading-none font-normal text-[#00AEEC] shadow-none min-[1800px]:gap-1 min-[1800px]:px-2 hover:border-sky-300 hover:bg-transparent hover:text-sky-300 dark:border-sky-300/50 dark:text-sky-300 dark:hover:border-sky-200 dark:hover:bg-transparent dark:hover:text-sky-200',
           className,
         )}
       >
@@ -54,9 +54,11 @@ function EnterLiveRoomButton({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
+          title={label}
+          aria-label={label}
         >
           <ArrowSquareOutIcon size={14} />
-          {label}
+          <span className="hidden min-[1800px]:inline">{label}</span>
         </a>
       </Button>
     )
