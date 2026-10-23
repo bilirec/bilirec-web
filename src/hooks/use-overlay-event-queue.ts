@@ -346,7 +346,7 @@ export function useOverlayEventQueue({
         prunedGuardsActive === prev.guards.active &&
         guards.active === prunedGuardsActive &&
         guards.parked === prev.guards.parked &&
-        gifts === prunedGifts
+        gifts === prev.gifts
       return unchanged ? prev : { guards, gifts }
     })
 
