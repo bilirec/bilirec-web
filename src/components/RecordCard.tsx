@@ -93,7 +93,8 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
   const liveRoomUrl = `https://live.bilibili.com/${roomId}`
   const enterLiveRoomLabel = t('recordCard.enterLiveRoom')
   const previewFormat = previewFormatOf(task.actualStreamFormat)
-  const canPreview = task.status === 'recording' && previewFormat != null
+  const canPreview =
+    !isReadOnly && task.status === 'recording' && previewFormat != null
 
   const closePreview = useCallback(() => setPreviewOpen(false), [])
 
@@ -412,7 +413,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
         {canControlRecording ? (
           <>
             <div className="mt-auto hidden gap-2 sm:flex">
-              {canPreview && previewFormat ? (
+              {canPreview ? (
                 <Button
                   type="button"
                   variant="default"
@@ -423,14 +424,22 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                   {t('recordCard.previewRecording')}
                 </Button>
               ) : null}
-              {!isReadOnly && (
+              {isReadOnly ? (
+                <EnterLiveRoomButton
+                  href={liveRoomUrl}
+                  label={enterLiveRoomLabel}
+                  variant="default"
+                  size="default"
+                  className="min-w-0 flex-1 transition-all hover:shadow-lg"
+                />
+              ) : (
                 <Button
                   onClick={handleStop}
                   disabled={isLoading}
                   variant="destructive"
                   className={cn(
                     'min-w-0 flex-1 transition-all hover:bg-destructive/90 hover:shadow-md hover:ring-1 hover:ring-destructive/30',
-                    !(canPreview && previewFormat) && 'w-full',
+                    !canPreview && 'w-full',
                   )}
                 >
                   <StopIcon size={20} />
@@ -447,7 +456,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
                 size="default"
                 className="w-full transition-all hover:shadow-lg"
               />
-              {canPreview && previewFormat ? (
+              {canPreview ? (
                 <Button
                   type="button"
                   variant="default"
@@ -473,7 +482,7 @@ export function RecordCard({ task, onStop }: RecordCardProps) {
           </>
         ) : null}
 
-        {canPreview && previewFormat ? (
+        {canPreview ? (
           <PlaybackPlayerDialog
             open={previewOpen}
             onOpenChange={setPreviewOpen}
