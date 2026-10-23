@@ -250,6 +250,8 @@ class ApiClient {
     limit: number = 200,
     search: string = "",
     onlyMedia: boolean = false,
+    start?: string,
+    end?: string,
   ): Promise<RecordFileListResponse> {
     const encodedPath = path
       .split("/")
@@ -257,13 +259,26 @@ class ApiClient {
       .map(encodeURIComponent)
       .join("/");
     const url = encodedPath ? `/files/browse/${encodedPath}` : "/files/browse";
-    const params: { offset: number; limit: number; search: string; only_media?: boolean } = {
+    const params: {
+      offset: number;
+      limit: number;
+      search: string;
+      only_media?: boolean;
+      start?: string;
+      end?: string;
+    } = {
       offset,
       limit,
       search,
     };
     if (onlyMedia) {
       params.only_media = true;
+    }
+    if (start) {
+      params.start = start;
+    }
+    if (end) {
+      params.end = end;
     }
     const response = await this.client.get<RecordFileListResponse>(url, { params });
     return response.data;
