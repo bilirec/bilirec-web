@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import NDanmaku from "n-danmaku"
 import {
@@ -29,6 +30,7 @@ import {
   ChatCircleTextIcon,
   ChatCenteredDotsIcon,
   CornersOutIcon,
+  PictureInPictureIcon,
   CircleNotchIcon,
   GearSixIcon,
   MusicNoteIcon,
@@ -136,7 +138,13 @@ import {
   type DanmakuPipelineStatus,
 } from "@/lib/playback-loading"
 import { useDeferredTimeRangeSeek } from "@/hooks/use-deferred-time-range-seek"
+import { useDocumentPip } from "@/hooks/use-document-pip"
 import { usePlaybackHoverPreview } from "@/hooks/use-playback-hover-preview"
+import {
+  cancelAnimationFrameInClock,
+  requestAnimationFrameInClock,
+  fitBoxToVideoAspect,
+} from "@/lib/document-pip"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { DanmakuListItem } from "n-danmaku"
@@ -239,7 +247,16 @@ export function DanmakuVideoPlayer({
   const previewAudioOnly = !!preview?.audioOnly
   // Keep media-chrome tooltips in sync with app i18n (zh-CN / zh-TW)
   const mediaLang = getCurrentLanguage()
-  const stageRef = useRef<HTMLDivElement>(null)
+  const stagePortalHostRef = useRef<HTMLDivElement | null>(null)
+  if (stagePortalHostRef.current === null) {
+    const host = document.createElement("div")
+    host.className =
+      "bilirec-playback-stage relative h-full w-full min-h-0 overflow-hidden bg-black"
+    stagePortalHostRef.current = host
+  }
+  const stagePortalHost = stagePortalHostRef.current
+  const stageRef = stagePortalHostRef
+  const stageSlotRef = useRef<HTMLDivElement>(null)
   const audioPictureRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
   const portraitPictureTapRef = useRef<HTMLDivElement>(null)
@@ -1062,6 +1079,46 @@ export function DanmakuVideoPlayer({
   ])
 
   const touchDevice = touchDeviceRef.current
+
+  const getPipPreferredSize = useCallback(() => {
+    const stage = stageRef.current
+    const video = videoRef.current
+    const maxW = stage?.clientWidth ?? 640
+    const maxH = stage?.clientHeight ?? 360
+    const { width, height } = fitBoxToVideoAspect(
+      maxW,
+      maxH,
+      video?.videoWidth ?? 0,
+      video?.videoHeight ?? 0
+    )
+    return {
+      width: Math.max(320, Math.round(width)),
+      height: Math.max(180, Math.round(height)),
+    }
+  }, [])
+
+  const {
+    supported: documentPipSupported,
+    active: documentPipActive,
+    open: openDocumentPip,
+    close: closeDocumentPip,
+  } = useDocumentPip({
+    stageRef: stagePortalHostRef,
+    stageSlotRef,
+    enabled: !touchDevice,
+    getPreferredSize: getPipPreferredSize,
+  })
+
+  useLayoutEffect(() => {
+    if (documentPipActive) return
+    const slot = stageSlotRef.current
+    const host = stagePortalHostRef.current
+    if (!slot || !host) return
+    if (host.parentElement !== slot) {
+      slot.appendChild(host)
+    }
+  }, [documentPipActive])
+
   const landscapeVideo =
     showAudioOnlyPlayback ||
     (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
@@ -1076,7 +1133,8 @@ export function DanmakuVideoPlayer({
   // Landscape desktop/mobile has no chat panel, so ignore that hide preference.
   const screenDanmakuActive = chatLayout == null || screenDanmakuVisible
   // Desktop-only chat side panel (windowed playback; hidden in fullscreen).
-  const desktopChatPanelVisible = !touchDevice && !stageFullscreen && desktopChatPanel
+  const desktopChatPanelVisible =
+    !touchDevice && !stageFullscreen && !documentPipActive && desktopChatPanel
   // "extend" widens the dialog into a left-video/right-chat column; "overlay"
   // floats the panel over the picture; "auto" extends only when the viewport is
   // wide enough to keep the video area untouched.
@@ -1156,7 +1214,7 @@ export function DanmakuVideoPlayer({
     let danmakuRaf = 0
     const stopDanmakuTicker = () => {
       if (danmakuRaf !== 0) {
-        cancelAnimationFrame(danmakuRaf)
+        cancelAnimationFrameInClock(danmakuRaf)
         danmakuRaf = 0
       }
     }
@@ -1186,14 +1244,14 @@ export function DanmakuVideoPlayer({
     const runDanmakuTicker = () => {
       tickDanmaku()
       if (!video.paused) {
-        danmakuRaf = requestAnimationFrame(runDanmakuTicker)
+        danmakuRaf = requestAnimationFrameInClock(runDanmakuTicker)
       } else {
         danmakuRaf = 0
       }
     }
     const startDanmakuTicker = () => {
       stopDanmakuTicker()
-      danmakuRaf = requestAnimationFrame(runDanmakuTicker)
+      danmakuRaf = requestAnimationFrameInClock(runDanmakuTicker)
     }
     const onTimeUpdate = () => {
       // Fallback for throttled requestAnimationFrame (background tabs / seeks).
@@ -1647,6 +1705,42 @@ export function DanmakuVideoPlayer({
     await toggleStageFullscreen()
   }
 
+  const exitImmersiveForDocumentPip = useCallback(async () => {
+    if (appFullscreen || document.fullscreenElement) {
+      unlockScreenOrientation()
+      await exitDocumentFullscreen()
+      setAppFullscreen(false)
+    }
+    if (stageFullscreenRef.current && document.fullscreenElement) {
+      try {
+        await document.exitFullscreen()
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [unlockScreenOrientation])
+
+  const handleDocumentPipToggle = useCallback(async () => {
+    if (documentPipActive) {
+      closeDocumentPip()
+      return
+    }
+    try {
+      await exitImmersiveForDocumentPip()
+      setSettingsOpen(false)
+      await openDocumentPip()
+    } catch (err) {
+      console.warn("Document PiP failed:", err)
+      toast.error(t("playbackPlayer.pipFailed"))
+    }
+  }, [
+    closeDocumentPip,
+    documentPipActive,
+    exitImmersiveForDocumentPip,
+    openDocumentPip,
+    t,
+  ])
+
   const handleApplyPreviewKeepSeconds = useCallback((seconds: number) => {
     setPreviewKeepSeconds(seconds)
     savePreviewKeepSeconds(seconds)
@@ -1769,6 +1863,20 @@ export function DanmakuVideoPlayer({
     ? "fixed inset-0 z-9999 flex-none"
     : undefined
 
+  useLayoutEffect(() => {
+    const host = stagePortalHostRef.current
+    if (!host) return
+    if (documentPipActive) {
+      host.className =
+        "bilirec-playback-stage bilirec-playback-stage--document-pip relative min-h-0 overflow-hidden bg-black"
+      return
+    }
+    host.className = cn(
+      "bilirec-playback-stage relative h-full w-full min-h-0 overflow-hidden bg-black",
+      mobileStageClass
+    )
+  }, [mobileStageClass, documentPipActive])
+
   useEffect(() => {
     if (!immersiveFullscreen) return
     setSettingsOpen(false)
@@ -1777,7 +1885,8 @@ export function DanmakuVideoPlayer({
   useEffect(() => {
     let frame = 0
     let nestedFrame = 0
-    const measureChromeInset = mobileLandscapeLayout || (!touchDevice && stageFullscreen)
+    const measureChromeInset =
+      mobileLandscapeLayout || (!touchDevice && stageFullscreen)
     if (!measureChromeInset) {
       setOverlayChromeBottomInset((prev) => (prev === 0 ? prev : 0))
       return () => undefined
@@ -1820,6 +1929,7 @@ export function DanmakuVideoPlayer({
     objectFit,
     activeSrc,
     showAudioOnlyPlayback,
+    documentPipActive,
     stageFullscreen,
     touchDevice,
   ])
@@ -1857,12 +1967,26 @@ export function DanmakuVideoPlayer({
       ) : null}
 
       <div
-        ref={stageRef}
-        className={cn(
-          "bilirec-playback-stage relative min-h-0 flex-1 w-full overflow-hidden bg-black",
-          mobileStageClass
-        )}
+        ref={stageSlotRef}
+        className="relative min-h-0 flex-1 w-full"
       >
+        {documentPipActive ? (
+          <div
+            className="bilirec-pip-placeholder flex h-full min-h-[12rem] w-full flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white/85"
+            role="status"
+          >
+            <p className="text-sm">{t("playbackPlayer.pipActiveHint")}</p>
+            <button
+              type="button"
+              className="rounded-md bg-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/25"
+              onClick={() => closeDocumentPip()}
+            >
+              {t("playbackPlayer.pipReturn")}
+            </button>
+          </div>
+        ) : null}
+        {createPortal(
+          <>
           <MediaController
             key={mediaLang}
             className="bilirec-playback-player absolute inset-0 h-full w-full"
@@ -1876,6 +2000,7 @@ export function DanmakuVideoPlayer({
             {...(preview ? {} : { src: activeSrc })}
             playsInline
             preload="metadata"
+            disablePictureInPicture
             crossOrigin={renewPlaybackUrl ? "anonymous" : undefined}
             className="h-full w-full bg-black"
             style={{ objectFit, objectPosition: videoObjectPosition }}
@@ -2010,6 +2135,21 @@ export function DanmakuVideoPlayer({
                       : "w-full gap-1 sm:ml-auto sm:w-auto sm:gap-0.5"
                   )}
                 >
+                  {documentPipSupported ? (
+                    <MediaChromeButton
+                      className="bilirec-playback-touch me-2.5 shrink-0 sm:me-3"
+                      noTooltip
+                      title={
+                        documentPipActive
+                          ? t("playbackPlayer.pipExit")
+                          : t("playbackPlayer.pipEnter")
+                      }
+                      aria-pressed={documentPipActive}
+                      onClick={() => void handleDocumentPipToggle()}
+                    >
+                      <PictureInPictureIcon className="size-5" weight="bold" />
+                    </MediaChromeButton>
+                  ) : null}
                   <div className={cn("items-center", mobileLandscapeLayout ? "flex" : "hidden sm:flex")}>
                     <MediaMuteButton />
                     <MediaVolumeRange className="max-w-[5.5rem]" />
@@ -2114,14 +2254,16 @@ export function DanmakuVideoPlayer({
                     )}
                   </TextChipButton>
 
-                  <MediaChromeButton
-                    className={cn("bilirec-playback-touch", landscapeControlClass)}
-                    noTooltip
-                    title={t("playbackPlayer.fullscreen")}
-                    onClick={() => void toggleFullscreen()}
-                  >
-                    <CornersOutIcon className="size-5" weight="bold" />
-                  </MediaChromeButton>
+                  {!documentPipActive ? (
+                    <MediaChromeButton
+                      className={cn("bilirec-playback-touch", landscapeControlClass)}
+                      noTooltip
+                      title={t("playbackPlayer.fullscreen")}
+                      onClick={() => void toggleFullscreen()}
+                    >
+                      <CornersOutIcon className="size-5" weight="bold" />
+                    </MediaChromeButton>
+                  ) : null}
                 </div>
               </MediaControlBar>
 
@@ -2355,6 +2497,9 @@ export function DanmakuVideoPlayer({
             emotes={emoteMap}
           />
         ) : null}
+          </>,
+          stagePortalHost
+        )}
       </div>
 
       {asideMounted ? (

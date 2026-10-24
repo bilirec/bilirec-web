@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from "react"
+import { setIntervalInClock, clearIntervalInClock } from "@/lib/document-pip"
 
 /**
  * Subscribe to `<video>` playback time without re-rendering the whole player shell.
@@ -21,8 +22,8 @@ export function useVideoPlaybackTime(
       setTime((prev) => (prev === video.currentTime ? prev : video.currentTime))
     }
     sync()
-    const id = window.setInterval(sync, 250)
-    return () => window.clearInterval(id)
+    const id = setIntervalInClock(sync, 250)
+    return () => clearIntervalInClock(id)
   }, [videoRef])
 
   return time
