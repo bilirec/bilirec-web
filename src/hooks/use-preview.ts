@@ -1,15 +1,16 @@
 import { useEffect, useRef, type RefObject } from "react"
 import { apiClient } from "@/lib/api"
+import { warnPreviewSessionEnd, type PreviewSessionEndReason } from "@/lib/preview-debug"
 import { attachFmp4Live } from "@/lib/fmp4-live"
-function liveEngineConfig(keepSeconds: number) {
+import { installPreviewMseCapture } from "@/lib/preview-mse-capture"
+
+function liveEngineConfig() {
   return {
     enableStashBuffer: false,
     lazyLoad: false,
     liveBufferLatencyChasing: false,
     liveSync: false,
-    autoCleanupSourceBuffer: true,
-    autoCleanupMaxBackwardDuration: keepSeconds + 15,
-    autoCleanupMinBackwardDuration: keepSeconds,
+    autoCleanupSourceBuffer: false,
   }
 }
 
@@ -70,9 +71,17 @@ async function attachEngine(
     return attachFmp4Live(video, url, onEngineGone, keepSeconds)
   }
 
-  const engineConfig = liveEngineConfig(keepSeconds)
-
+  const engineConfig = liveEngineConfig()
   const hasVideo = !source.audioOnly
+  let stopped = false
+
+  const notifyGone = (reason: PreviewSessionEndReason, extra?: Record<string, unknown>) => {
+    if (stopped) return
+    warnPreviewSessionEnd(reason, video, extra)
+    onEngineGone()
+  }
+
+  const restoreMseCapture = installPreviewMseCapture(video, keepSeconds)
 
   if (source.format === "flv") {
     const { default: flvjs } = await import("flv.js")
@@ -88,19 +97,24 @@ async function attachEngine(
       },
       engineConfig
     )
-    let stopped = false
-    const gone = () => {
-      if (!stopped) onEngineGone()
-    }
-    player.on(flvjs.Events.ERROR, gone)
-    player.on(flvjs.Events.LOADING_COMPLETE, gone)
-    video.addEventListener("ended", gone)
+    player.on(
+      flvjs.Events.ERROR,
+      (errorType: string, errorDetail: string, errorInfo: unknown) => {
+        notifyGone("flv_error", { errorType, errorDetail, errorInfo })
+      }
+    )
+    player.on(flvjs.Events.LOADING_COMPLETE, () => {
+      notifyGone("flv_loading_complete")
+    })
+    const onEnded = () => notifyGone("video_ended")
+    video.addEventListener("ended", onEnded)
     player.attachMediaElement(video)
     player.load()
     void player.play()
     return () => {
       stopped = true
-      video.removeEventListener("ended", gone)
+      restoreMseCapture()
+      video.removeEventListener("ended", onEnded)
       player.pause()
       player.unload()
       player.detachMediaElement()
@@ -121,19 +135,24 @@ async function attachEngine(
     },
     engineConfig
   )
-  let stopped = false
-  const gone = () => {
-    if (!stopped) onEngineGone()
-  }
-  player.on(mpegts.Events.ERROR, gone)
-  player.on(mpegts.Events.LOADING_COMPLETE, gone)
-  video.addEventListener("ended", gone)
+  player.on(
+    mpegts.Events.ERROR,
+    (errorType: string, errorDetail: string, errorInfo: unknown) => {
+      notifyGone("mpegts_error", { errorType, errorDetail, errorInfo })
+    }
+  )
+  player.on(mpegts.Events.LOADING_COMPLETE, () => {
+    notifyGone("mpegts_loading_complete")
+  })
+  const onEnded = () => notifyGone("video_ended")
+  video.addEventListener("ended", onEnded)
   player.attachMediaElement(video)
   player.load()
   void player.play()
   return () => {
     stopped = true
-    video.removeEventListener("ended", gone)
+    restoreMseCapture()
+    video.removeEventListener("ended", onEnded)
     player.pause()
     player.unload()
     player.detachMediaElement()
@@ -190,6 +209,7 @@ export function usePreview(
     const retryAttach = async () => {
       if (disposed || sessionEnded) return
       if (await isPreviewMediaUnavailable(roomId)) {
+        warnPreviewSessionEnd("session_409", videoRef.current)
         endPreviewSession()
         return
       }
@@ -232,6 +252,7 @@ export function usePreview(
       void (async () => {
         if (disposed || sessionEnded) return
         if (await isPreviewMediaUnavailable(roomId)) {
+          warnPreviewSessionEnd("session_409", videoRef.current)
           endPreviewSession()
         }
       })()
@@ -240,6 +261,7 @@ export function usePreview(
       const raw = msg.data as string
       const type = previewSseType(raw)
       if (type === "segment") {
+        warnPreviewSessionEnd("sse_segment", videoRef.current)
         engineCleanup?.()
         engineCleanup = undefined
         onEventRef.current(raw)
