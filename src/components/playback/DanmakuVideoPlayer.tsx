@@ -50,7 +50,11 @@ import {
   type OverlayEvent,
   type PlaybackChatItem,
 } from "@/lib/danmaku"
-import { parseJsonlDanmaku } from "@/lib/danmaku-parse"
+import {
+  mergeStreamChatItems,
+  mergeStreamOverlays,
+  parseJsonlDanmaku,
+} from "@/lib/danmaku-parse"
 import { previewSseType, usePreview, type PreviewFormat } from "@/hooks/use-preview"
 import {
   loadPreviewKeepSeconds,
@@ -275,6 +279,7 @@ export function DanmakuVideoPlayer({
   const vodListPreparedRef = useRef(false)
   const loadProgressThrottleRef = useRef(0)
   const listReadyRef = useRef(false)
+  const previewStreamEventSeqRef = useRef(0)
   const lastDanmakuTickMsRef = useRef<number | null>(null)
   const danmakuSeekingRef = useRef(false)
   const danmakuPreventOverlapRef = useRef(loadDanmakuPreventOverlap())
@@ -564,6 +569,7 @@ export function DanmakuVideoPlayer({
       bulletsRef.current = []
       vodListPreparedRef.current = false
       listReadyRef.current = false
+      previewStreamEventSeqRef.current = 0
       setOverlays([])
       setChatItems([])
       setSeekEpoch((n) => n + 1)
@@ -577,7 +583,10 @@ export function DanmakuVideoPlayer({
       }
       return
     }
-    const parsed = parseJsonlDanmaku(raw.endsWith("\n") ? raw : `${raw}\n`)
+    previewStreamEventSeqRef.current += 1
+    const parsed = parseJsonlDanmaku(raw.endsWith("\n") ? raw : `${raw}\n`, {
+      streamEventNonce: previewStreamEventSeqRef.current,
+    })
     if (parsed.bullets && parsed.bullets.length > 0) {
       const chunk = parsed.bullets
       bulletsRef.current.push(...chunk)
@@ -593,10 +602,10 @@ export function DanmakuVideoPlayer({
       }
     }
     if (parsed.overlays.length > 0) {
-      setOverlays((prev) => [...prev, ...parsed.overlays])
+      setOverlays((prev) => mergeStreamOverlays(prev, parsed.overlays))
     }
     if (parsed.chatItems.length > 0) {
-      setChatItems((prev) => [...prev, ...parsed.chatItems])
+      setChatItems((prev) => mergeStreamChatItems(prev, parsed.chatItems))
     }
     if (parsed.meta) {
       setMeta(parsed.meta)
