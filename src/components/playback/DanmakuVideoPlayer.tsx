@@ -130,6 +130,7 @@ import {
   getObjectFitContentBox,
   measureEventOverlayBottomInset,
   DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX,
+  DESKTOP_CHAT_PANEL_WIDTH_PX,
   WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX,
   type ObjectFitMode,
 } from "@/lib/playback-layout"
@@ -1169,13 +1170,18 @@ export function DanmakuVideoPlayer({
     const timer = window.setTimeout(() => setAsideMounted(false), ASIDE_TRANSITION_MS)
     return () => window.clearTimeout(timer)
   }, [chatPanelExtended])
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!asideMounted) {
       setAsideOpen(false)
       return
     }
-    // Flip the width class one frame after mount so the 0 -> 320px transition runs.
-    const raf = requestAnimationFrame(() => setAsideOpen(chatPanelExtended))
+    if (!chatPanelExtended) {
+      setAsideOpen(false)
+      return
+    }
+    // One frame at w-0 so the open width transition can run; close is synchronous.
+    setAsideOpen(false)
+    const raf = requestAnimationFrame(() => setAsideOpen(true))
     return () => cancelAnimationFrame(raf)
   }, [asideMounted, chatPanelExtended])
   const effectsReady = danmakuStatus === "ready"
@@ -2515,17 +2521,27 @@ export function DanmakuVideoPlayer({
         <aside
           className={cn(
             "relative shrink-0 overflow-hidden bg-zinc-950 transition-[width] duration-200 ease-out",
-            asideOpen ? "w-80 border-l border-white/10" : "w-0"
+            asideOpen ? "border-l border-white/10" : "w-0"
           )}
+          style={
+            asideOpen
+              ? { width: DESKTOP_CHAT_PANEL_WIDTH_PX, minWidth: DESKTOP_CHAT_PANEL_WIDTH_PX }
+              : { width: 0, minWidth: 0 }
+          }
           aria-hidden={!chatPanelExtended}
         >
-          <PlaybackChatList
-            items={chatItems}
-            videoRef={videoRef}
-            hidden={danmakuHidden || !effectsReady}
-            layout={{ mode: "column" }}
-            emotes={emoteMap}
-          />
+          <div
+            className="flex h-full min-h-0 flex-col"
+            style={{ width: DESKTOP_CHAT_PANEL_WIDTH_PX, minWidth: DESKTOP_CHAT_PANEL_WIDTH_PX }}
+          >
+            <PlaybackChatList
+              items={chatItems}
+              videoRef={videoRef}
+              hidden={danmakuHidden || !effectsReady}
+              layout={{ mode: "column" }}
+              emotes={emoteMap}
+            />
+          </div>
         </aside>
       ) : null}
 

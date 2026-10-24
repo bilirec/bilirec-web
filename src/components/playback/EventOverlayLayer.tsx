@@ -256,8 +256,8 @@ export function EventOverlayLayer({
     : undefined
   const windowedOverlay = maxZoneWidthPx != null
   const scMessageClass = windowedOverlay
-    ? "text-xs leading-snug line-clamp-4 wrap-break-word"
-    : "text-xs sm:text-sm leading-snug line-clamp-4 wrap-break-word"
+    ? "text-xs leading-snug line-clamp-4 wrap-break-word [overflow-wrap:anywhere]"
+    : "text-xs sm:text-sm leading-snug line-clamp-4 wrap-break-word [overflow-wrap:anywhere]"
   const corner = cornerAnchor(overlayCorner)
   const zoneBottom = resolveBottomCornerInset(
     overlayCorner,
@@ -299,7 +299,7 @@ export function EventOverlayLayer({
                 <div
                   key={event.id}
                   className={cn(
-                    "overflow-hidden rounded-md text-left shadow-md",
+                    "max-w-full min-w-0 overflow-hidden rounded-md text-left shadow-md",
                     overlayMotionClass(exiting, "hang"),
                     mobileEffectWidthClass
                   )}

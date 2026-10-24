@@ -40,7 +40,7 @@ export function PlaybackPlayerDialog({
 }: PlaybackPlayerDialogProps) {
   // The chat panel reports whether it took the extended side-column form so the
   // dialog can widen instead of shrinking the video area. Width classes must
-  // stay literal for Tailwind extraction (1664px = 1280px video + 320px panel).
+  // stay literal for Tailwind extraction (1620px = 1280px video + 340px panel).
   const [chatPanelExtended, setChatPanelExtended] = useState(false)
   const handleChatPanelExtended = useCallback((extended: boolean) => {
     setChatPanelExtended(extended)
@@ -87,7 +87,7 @@ export function PlaybackPlayerDialog({
         className={cn(
           "flex h-[min(100dvh,100vh)] max-h-dvh w-screen max-w-[100vw] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-none border-0 bg-black p-0 shadow-none transition-[width,max-width] duration-200 ease-out sm:h-[min(92dvh,920px)] sm:max-h-[92dvh] sm:rounded-lg sm:border",
           chatPanelExtended
-            ? "sm:w-[min(96vw,1664px)] sm:max-w-[min(96vw,1664px)]"
+            ? "sm:w-[min(96vw,1620px)] sm:max-w-[min(96vw,1620px)]"
             : "sm:w-[min(96vw,1280px)] sm:max-w-[min(96vw,1280px)]",
           "[&>button]:inline-flex [&>button]:items-center [&>button]:justify-center [&>button]:p-0 [&>button]:text-white [&>button]:hover:bg-white/10 [&>button]:top-2 [&>button]:right-2 [&>button]:z-50 max-sm:[&>button]:size-11 max-sm:[&>button>svg]:size-6! sm:[&>button]:size-8"
         )}

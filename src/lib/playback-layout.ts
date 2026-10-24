@@ -53,14 +53,18 @@ export const WINDOWED_EVENT_OVERLAY_OVER_PICTURE_PX = 176
 /** Max width for gift / event stack in desktop windowed mode. */
 export const WINDOWED_EVENT_OVERLAY_MAX_WIDTH_PX = 270
 
-/**
- * Minimum viewport width for the "extend" chat-panel layout to keep the video
- * area untouched: extended dialog = min(96vw, 1664px), minus the 320px panel;
- * no-shrink requires 96vw >= 1280 + 320, i.e. viewport >= ~1667px.
- */
-export const DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX = 1667
+/** Desktop extended chat column width. */
+export const DESKTOP_CHAT_PANEL_WIDTH_PX = 340
+/** Max video column width in the extended playback dialog. */
+export const DESKTOP_CHAT_VIDEO_MAX_PX = 1280
 /** Extended dialog width cap when the chat panel column is shown. */
-export const DESKTOP_CHAT_EXTENDED_DIALOG_MAX_PX = 1664
+export const DESKTOP_CHAT_EXTENDED_DIALOG_MAX_PX =
+  DESKTOP_CHAT_VIDEO_MAX_PX + DESKTOP_CHAT_PANEL_WIDTH_PX
+/**
+ * Minimum viewport width for "auto" to pick extend: dialog uses min(96vw, 1664px),
+ * so 96vw must fit video + panel without shrinking below 1280 + 340.
+ */
+export const DESKTOP_CHAT_EXTEND_MIN_VIEWPORT_PX = 1688
 
 export function resolveWindowedBottomCornerPx(pictureBottomBar: number): number {
   return pictureBottomBar >= PICTURE_BOTTOM_BAR_LETTERBOX_PX

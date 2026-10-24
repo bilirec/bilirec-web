@@ -13,6 +13,7 @@ import {
 } from "@/lib/danmaku"
 import type { EmoteMap } from "@/lib/danmaku-emote"
 import { GuardIcon, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
+import { DESKTOP_CHAT_PANEL_WIDTH_PX } from "@/lib/playback-layout"
 import { PlaybackChatDanmakuBody } from "@/components/playback/PlaybackChatDanmakuBody"
 
 const CONTROL_RESERVE_PX = 100
@@ -21,7 +22,9 @@ const EST_ROW_PX = 36
 /** Overlay panel: keep clear of the dialog close button floating at the stage's top-right. */
 const PANEL_TOP_INSET_PX = 44
 const PANEL_RIGHT_INSET_PX = 8
-const PANEL_WIDTH_PX = 320
+const PANEL_WIDTH_PX = DESKTOP_CHAT_PANEL_WIDTH_PX
+/** Desktop column/panel: horizontal inset; extra right so lines do not look clipped. */
+const CHAT_SCROLL_INSET_CLASS = "px-2.5 pr-3.5"
 
 type ChatListLayout =
   | Extract<OverlayLayout, { mode: "letterbox" | "docked" }>
@@ -42,7 +45,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
 
   if (item.kind === "danmaku") {
     return (
-      <div className="px-2.5 py-1 text-[13px] leading-snug text-white/90">
+      <div className="box-border w-full min-w-0 max-w-full py-1 text-[13px] leading-snug whitespace-normal wrap-break-word text-white/90">
         {item.user ? (
           <span className="mr-1.5 font-medium text-white/55">{item.user}</span>
         ) : null}
@@ -60,7 +63,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
     const theme = resolveSuperChatTheme(item)
     return (
       <div
-        className="mx-2 my-1 overflow-hidden rounded-md text-left shadow-md"
+        className="my-1 w-full min-w-0 overflow-hidden rounded-md text-left shadow-md"
         style={{
           backgroundColor: theme.body,
           border: `1px solid ${theme.body}`,
@@ -95,7 +98,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
         {item.text ? (
           <div className="px-2.5 py-1.5">
             <p
-              className="text-xs leading-snug line-clamp-4 wrap-break-word"
+              className="text-xs leading-snug whitespace-normal wrap-break-word"
               style={{ color: theme.message }}
             >
               {item.text}
@@ -108,7 +111,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
 
   if (item.kind === "gift") {
     return (
-      <div className="px-2.5 py-1 text-[12px] leading-snug text-white/85">
+      <div className="box-border w-full min-w-0 max-w-full py-1 text-[12px] leading-snug whitespace-normal wrap-break-word text-white/85">
         <span aria-hidden>🎁 </span>
         <span className="font-medium text-pink-200">{item.user}</span>
         <span className="text-white/75">
@@ -127,7 +130,7 @@ function ChatRow({ item, emotes }: { item: PlaybackChatItem; emotes?: EmoteMap |
   const months = guardDurationMonths(item)
   return (
     <div
-      className="relative mx-2 my-1 overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm"
+      className="relative my-1 w-full min-w-0 overflow-hidden rounded-md bg-black/75 text-left shadow-md backdrop-blur-sm"
       style={{
         border: `1px solid ${color}66`,
         boxShadow: `0 0 12px ${color}40, 1px 1px 5px rgb(0 0 0 / 0.75)`,
@@ -217,6 +220,7 @@ export function PlaybackChatList({
         right: PANEL_RIGHT_INSET_PX,
         bottom: CONTROL_RESERVE_PX,
         width: PANEL_WIDTH_PX,
+        maxWidth: `min(100%, ${PANEL_WIDTH_PX}px)`,
       }
     : column
       ? undefined
@@ -241,8 +245,8 @@ export function PlaybackChatList({
         panel
           ? "absolute z-19 rounded-md bg-linear-to-l from-black/75 via-black/50 to-black/10 backdrop-blur-[1px]"
           : column
-            ? "relative h-full w-full"
-            : "absolute z-19",
+            ? "relative h-full min-w-0 w-full max-w-full overflow-hidden"
+            : "absolute z-19 min-w-0 max-w-full",
         docked && "bg-linear-to-r from-black/75 via-black/50 to-black/10 backdrop-blur-[1px]",
         className
       )}
@@ -251,7 +255,10 @@ export function PlaybackChatList({
       {column ? <div aria-hidden className="h-11 shrink-0" /> : null}
       <div
         ref={parentRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]"
+        className={cn(
+          "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-width:thin]",
+          (column || panel) && CHAT_SCROLL_INSET_CLASS
+        )}
         onScroll={() => {
           const el = parentRef.current
           if (!el) return
@@ -262,7 +269,7 @@ export function PlaybackChatList({
         }}
       >
         <div
-          className="relative w-full"
+          className="relative w-full min-w-0"
           style={{ height: `${virtualizer.getTotalSize()}px` }}
         >
           {virtualizer.getVirtualItems().map((row) => {
@@ -273,7 +280,7 @@ export function PlaybackChatList({
                 key={item.id}
                 data-index={row.index}
                 ref={virtualizer.measureElement}
-                className="absolute top-0 left-0 w-full"
+                className="absolute top-0 left-0 box-border w-full max-w-full min-w-0"
                 style={{ transform: `translateY(${row.start}px)` }}
               >
                 <ChatRow item={item} emotes={emotes} />
