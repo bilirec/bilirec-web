@@ -361,12 +361,12 @@ export function FileCard({
                 {file.path ?? '—'}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="shrink-0">
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <Badge variant="outline">
                 {extension}
               </Badge>
               {isRecording && (
-                <Badge variant="destructive" className="shrink-0">
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 leading-4">
                   {t('fileCard.recordingBadge')}
                 </Badge>
               )}
