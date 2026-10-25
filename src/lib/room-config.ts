@@ -6,6 +6,7 @@ export type RecordStartConfig = Pick<
   | 'qn'
   | 'only_audio'
   | 'record_danmaku'
+  | 'record_subtitle'
   | 'stream_profiles'
   | 'delete_oldest_on_low_disk'
 >
@@ -42,6 +43,7 @@ export function defaultRecordStartConfig(): RecordStartConfig {
     qn: 0,
     only_audio: false,
     record_danmaku: false,
+    record_subtitle: false,
     stream_profiles: [],
     delete_oldest_on_low_disk: false,
   }
@@ -53,6 +55,7 @@ export function recordStartConfigFromRoomConfig(config: RoomConfig): RecordStart
     qn: config.qn ?? 0,
     only_audio: config.only_audio ?? false,
     record_danmaku: config.record_danmaku ?? false,
+    record_subtitle: config.record_subtitle ?? false,
     stream_profiles: normalizeStreamProfiles(config.stream_profiles),
     delete_oldest_on_low_disk: config.delete_oldest_on_low_disk ?? false,
   }
@@ -67,6 +70,7 @@ export function buildStartRecordParams(
         | 'qn'
         | 'only_audio'
         | 'record_danmaku'
+        | 'record_subtitle'
         | 'stream_profiles'
         | 'delete_oldest_on_low_disk'
       >
@@ -89,6 +93,9 @@ export function buildStartRecordParams(
   }
   if (config?.record_danmaku) {
     params.recordDanmaku = true
+  }
+  if (config?.record_subtitle) {
+    params.recordSubtitle = true
   }
   if (config?.delete_oldest_on_low_disk) {
     params.deleteOldestOnLowDisk = true

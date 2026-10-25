@@ -7,6 +7,7 @@ import {
   MediaControlBar,
   MediaController,
   MediaLoadingIndicator,
+  MediaCaptionsButton,
   MediaMuteButton,
   MediaPlayButton,
   MediaPreviewTimeDisplay,
@@ -345,6 +346,7 @@ export function DanmakuVideoPlayer({
   const [meta, setMeta] = useState<DanmakuMeta | undefined>()
   const [danmakuStatus, setDanmakuStatus] = useState<DanmakuPipelineStatus>("fetching")
   const [danmakuSidecarPresent, setDanmakuSidecarPresent] = useState(false)
+  const [subtitleTrackSrc, setSubtitleTrackSrc] = useState<string | null>(null)
   const [rates, setRates] = useState<number[]>(() => loadPlaybackRates())
   const [playbackRate, setPlaybackRate] = useState(1)
   const [frameStepMs, setFrameStepMs] = useState(() => loadFrameStepMs())
@@ -842,6 +844,23 @@ export function DanmakuVideoPlayer({
       chunkQueue.length = 0
     }
   }, [preview, previewRoomId, previewRecordDanmaku, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
+
+  useEffect(() => {
+    if (preview) {
+      setSubtitleTrackSrc(null)
+      return
+    }
+    let cancelled = false
+    void apiClient.findSubtitleSidecarPath(videoPath).then((sidecarPath) => {
+      if (cancelled) return
+      setSubtitleTrackSrc(
+        sidecarPath ? apiClient.getSubtitleUrl(sidecarPath) : null,
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [preview, videoPath])
 
   useEffect(() => {
     if (!isDanmakuPipelineBusy(danmakuStatus)) {
@@ -2044,7 +2063,17 @@ export function DanmakuVideoPlayer({
             crossOrigin={renewPlaybackUrl ? "anonymous" : undefined}
             className="h-full w-full bg-black"
             style={{ objectFit, objectPosition: videoObjectPosition }}
-          />
+          >
+            {subtitleTrackSrc ? (
+              <track
+                kind="subtitles"
+                src={subtitleTrackSrc}
+                srcLang="zh"
+                label={t("playbackPlayer.aiSubtitles")}
+                default
+              />
+            ) : null}
+          </video>
           {showCentralLoadOverlay ? null : (
             <MediaLoadingIndicator slot="centered-chrome" />
           )}
@@ -2207,6 +2236,9 @@ export function DanmakuVideoPlayer({
                     >
                       <PictureInPictureIcon className="size-5" weight="bold" />
                     </MediaChromeButton>
+                  ) : null}
+                  {subtitleTrackSrc ? (
+                    <MediaCaptionsButton className="bilirec-playback-touch shrink-0" />
                   ) : null}
                   <div
                     className={cn(

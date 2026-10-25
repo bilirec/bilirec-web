@@ -290,6 +290,7 @@ export const resources = {
         nativePlayer: "用原生瀏覽器播放",
         nativePlayerShort: "原生播放",
         fullscreen: "全螢幕",
+        aiSubtitles: "AI 字幕",
         pipEnter: "小窗播放",
         pipExit: "退出小窗",
         pipActiveHint: "正在小窗播放",
@@ -366,6 +367,9 @@ export const resources = {
         onlyAudioHint: "只保存音頻流，不錄製畫面。",
         recordDanmaku: "錄製彈幕",
         recordDanmakuHint: "同時保存彈幕與禮物等互動記錄。",
+        recordSubtitle: "錄製 AI 字幕",
+        recordSubtitleHint:
+          "僅部分直播間提供 AI 字幕；有辨識結果時會在同名分段旁生成 .vtt，沒有句子則不留空檔。",
         deleteOldestOnLowDisk: "自動刪舊檔",
         deleteOldestOnLowDiskHint:
           "空間不足時自動刪除本房間最舊錄製檔後再開始，仍不足則不啟動。"
@@ -852,6 +856,7 @@ export const resources = {
         nativePlayer: "用原生浏览器播放",
         nativePlayerShort: "原生播放",
         fullscreen: "全屏",
+        aiSubtitles: "AI 字幕",
         pipEnter: "小窗播放",
         pipExit: "退出小窗",
         pipActiveHint: "正在小窗播放",
@@ -928,6 +933,9 @@ export const resources = {
         onlyAudioHint: "只保存音频流，不录制画面。",
         recordDanmaku: "录制弹幕",
         recordDanmakuHint: "同时保存弹幕与礼物等互动记录。",
+        recordSubtitle: "录制 AI 字幕",
+        recordSubtitleHint:
+          "仅部分直播间提供 AI 字幕；有识别结果时会在同名分段旁生成 .vtt，没有句子则不留空文件。",
         deleteOldestOnLowDisk: "自动删旧文件",
         deleteOldestOnLowDiskHint:
           "空间不足时自动删除本房间最旧录制文件后再开始，仍不足则不启动。"

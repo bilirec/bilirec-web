@@ -87,6 +87,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
         qn: roomConfig.qn ?? 0,
         only_audio: roomConfig.only_audio ?? false,
         record_danmaku: roomConfig.record_danmaku ?? false,
+        record_subtitle: roomConfig.record_subtitle ?? false,
         stream_profiles: roomConfig.stream_profiles ?? [],
         delete_oldest_on_low_disk: roomConfig.delete_oldest_on_low_disk ?? false,
       })
@@ -157,6 +158,7 @@ export function RoomConfigDialog({ roomInfo, open, onOpenChange }: RoomConfigDia
                     qn: roomConfig.qn,
                     only_audio: roomConfig.only_audio,
                     record_danmaku: roomConfig.record_danmaku,
+                    record_subtitle: roomConfig.record_subtitle,
                     stream_profiles: roomConfig.stream_profiles,
                     delete_oldest_on_low_disk: roomConfig.delete_oldest_on_low_disk,
                   }}

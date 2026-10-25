@@ -22,6 +22,16 @@ export function isRecordingMediaFilename(filename: string): boolean {
 }
 
 /** Paired danmaku sidecar relative paths for a video path (.jsonl preferred). */
+/** Paired AI subtitle sidecar (.vtt) for a video segment path. */
+export function subtitleSidecarPathForVideo(videoPath: string): string {
+  const slash = videoPath.lastIndexOf('/')
+  const dir = slash >= 0 ? videoPath.slice(0, slash + 1) : ''
+  const base = slash >= 0 ? videoPath.slice(slash + 1) : videoPath
+  const dot = base.lastIndexOf('.')
+  const stem = dot > 0 ? base.slice(0, dot) : base
+  return `${dir}${stem}.vtt`
+}
+
 export function danmakuSidecarCandidatesForVideo(videoPath: string): string[] {
   const slash = videoPath.lastIndexOf('/')
   const dir = slash >= 0 ? videoPath.slice(0, slash + 1) : ''

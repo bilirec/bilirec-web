@@ -43,6 +43,7 @@ export interface RecordTask {
   /** Cumulative bytes downloaded from the stream in this session (backend >= with bytes_read). */
   bytesRead?: number
   recordDanmaku?: boolean
+  recordSubtitle?: boolean
   danmakuFileSize?: number
   recordedTime?: number
   startTime?: string | number
@@ -85,6 +86,7 @@ export interface RecorderStats {
   bytes_written: number
   danmaku_bytes_written?: number
   record_danmaku?: boolean
+  record_subtitle?: boolean
   elapsed_seconds: number
   start_time: number
   status: string
@@ -134,6 +136,7 @@ export interface StartRecordRequest {
   qn?: number
   onlyAudio?: boolean
   recordDanmaku?: boolean
+  recordSubtitle?: boolean
   streamProfiles?: string[]
   deleteOldestOnLowDisk?: boolean
 }
@@ -170,6 +173,7 @@ export interface RoomConfig {
   qn?: number
   only_audio?: boolean
   record_danmaku?: boolean
+  record_subtitle?: boolean
   stream_profiles?: string[]
   delete_oldest_on_low_disk?: boolean
 }
@@ -181,6 +185,7 @@ export interface UpdateRoomConfigRequest {
   qn?: number
   only_audio?: boolean
   record_danmaku?: boolean
+  record_subtitle?: boolean
   stream_profiles?: string[]
   delete_oldest_on_low_disk?: boolean
 }

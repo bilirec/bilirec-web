@@ -195,6 +195,19 @@ export function RecordStartOptions({
         />
       </div>
 
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+        <div className="space-y-1">
+          <Label htmlFor="record-subtitle">{t('recordStartOptions.recordSubtitle')}</Label>
+          <p className="text-sm text-muted-foreground">{t('recordStartOptions.recordSubtitleHint')}</p>
+        </div>
+        <Switch
+          id="record-subtitle"
+          checked={value.record_subtitle ?? false}
+          onCheckedChange={(checked) => onChange({ ...value, record_subtitle: checked })}
+          disabled={disabled}
+        />
+      </div>
+
       {showDeleteOldestOnLowDisk && (
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
           <div className="space-y-1">

@@ -32,7 +32,7 @@ import {
   isRoomIdList,
   isServerVersionResult
 } from "./backend";
-import { danmakuSidecarCandidatesForVideo } from "./utils";
+import { danmakuSidecarCandidatesForVideo, subtitleSidecarPathForVideo } from "./utils";
 
 /** Encode each path segment for /files/* routes. */
 export function encodeFilePath(path: string): string {
@@ -102,6 +102,10 @@ class ApiClient {
 
   getDanmakuUrl(path: string): string {
     return `${this.originBase()}/files/danmaku/${encodeFilePath(path)}`;
+  }
+
+  getSubtitleUrl(path: string): string {
+    return `${this.originBase()}/files/subtitle/${encodeFilePath(path)}`;
   }
 
   previewMediaUrl(roomId: number): string {
@@ -229,6 +233,9 @@ class ApiClient {
     }
     if (data.recordDanmaku) {
       params.record_danmaku = true;
+    }
+    if (data.recordSubtitle) {
+      params.record_subtitle = true;
     }
     if (data.deleteOldestOnLowDisk) {
       params.delete_oldest_on_low_disk = true;
@@ -396,6 +403,28 @@ class ApiClient {
    * Resolve paired danmaku sidecar path via HEAD /files/danmaku (session cookie).
    * Do not use /files/download — that route requires a presigned token only.
    */
+  async findSubtitleSidecarPath(videoPath: string): Promise<string | null> {
+    const encodedVideo = encodeFilePath(videoPath);
+    try {
+      const response = await this.client.head(`/files/subtitle/${encodedVideo}`);
+      const cd = response.headers["content-disposition"];
+      const disposition = typeof cd === "string" ? cd : undefined;
+      const match = disposition?.match(/filename="([^"]+)"/i);
+      const basename = match?.[1];
+      if (basename) {
+        const slash = videoPath.lastIndexOf("/");
+        const dir = slash >= 0 ? videoPath.slice(0, slash + 1) : "";
+        return `${dir}${basename}`;
+      }
+      return subtitleSidecarPathForVideo(videoPath);
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      return null;
+    }
+  }
+
   async findDanmakuSidecarPath(videoPath: string): Promise<string | null> {
     const encodedVideo = encodeFilePath(videoPath);
     try {
