@@ -213,6 +213,15 @@ function TextChipButton({
   )
 }
 
+/** One flex cell for a portrait icon — real box (not display:contents) so hover/hit match the icon. */
+function PortraitIconSlot({ children }: { children: ReactNode }) {
+  return (
+    <div className="bilirec-playback-portrait-icon-slot flex min-w-0 flex-1 items-center justify-center">
+      {children}
+    </div>
+  )
+}
+
 /** Shared muted label style for 跳幀 / 縮放 / 倍速 */
 const ADV_LABEL = "text-xs font-medium text-white/55 shrink-0"
 
@@ -389,12 +398,6 @@ export function DanmakuVideoPlayer({
     src: activeSrc,
     enabled: hoverPreviewEnabled,
     crossOrigin: renewPlaybackUrl ? "anonymous" : "use-credentials",
-  })
-
-  useDeferredTimeRangeSeek({
-    hostRef: controlsHostRef,
-    videoRef,
-    enabled: !preview && videoMetadataReady,
   })
 
   useEffect(() => {
@@ -1119,6 +1122,13 @@ export function DanmakuVideoPlayer({
     getPreferredSize: getPipPreferredSize,
   })
 
+  useDeferredTimeRangeSeek({
+    hostRef: controlsHostRef,
+    videoRef,
+    enabled: !preview && videoMetadataReady,
+    hostDocumentKey: documentPipActive,
+  })
+
   useLayoutEffect(() => {
     if (documentPipActive) return
     const slot = stageSlotRef.current
@@ -1129,11 +1139,21 @@ export function DanmakuVideoPlayer({
     }
   }, [documentPipActive])
 
+  useEffect(() => {
+    if (!documentPipActive) return
+    setAdvancedOpen(false)
+    setSettingsOpen(false)
+  }, [documentPipActive])
+
   const landscapeVideo =
     showAudioOnlyPlayback ||
     (videoRef.current?.videoWidth ?? 0) > (videoRef.current?.videoHeight ?? 0)
   const mobileLandscapeLayout =
     touchDevice && landscapeVideo && (orientationLocked || viewportLandscape)
+  /** Portrait PiP on desktop: use the same control layout as phone portrait (below sm). */
+  const pipPortraitChrome = documentPipActive && !landscapeVideo
+  const phonePortraitChrome =
+    pipPortraitChrome || (touchDevice && !viewportLandscape && !mobileLandscapeLayout)
   const chatLayout =
     !mobileLandscapeLayout &&
     (overlayLayout.mode === "letterbox" || overlayLayout.mode === "docked")
@@ -1846,7 +1866,7 @@ export function DanmakuVideoPlayer({
     () => buildDanmakuHeatmapPath(chatItems, videoDurationSec),
     [chatItems, videoDurationSec]
   )
-  const portraitTouchProgress = touchDevice && !viewportLandscape
+  const portraitTouchProgress = phonePortraitChrome
   const showDanmakuHeatmap =
     !preview && danmakuHeatmapPath != null && !portraitTouchProgress
   const portraitChatChrome = Boolean(
@@ -1873,7 +1893,9 @@ export function DanmakuVideoPlayer({
   const immersiveFullscreen = stageFullscreen || mobileAppFullscreen
   const landscapeControlClass = mobileLandscapeLayout
     ? "w-auto min-w-0 flex-none"
-    : "w-full min-w-0 flex-1 sm:w-auto sm:flex-none"
+    : phonePortraitChrome
+      ? "w-full min-w-0 flex-1"
+      : "w-full min-w-0 flex-1 sm:w-auto sm:flex-none"
   const mobileStageClass = mobileAppFullscreen
     ? "fixed inset-0 z-9999 flex-none"
     : undefined
@@ -2004,7 +2026,10 @@ export function DanmakuVideoPlayer({
           <>
           <MediaController
             key={mediaLang}
-            className="bilirec-playback-player absolute inset-0 h-full w-full"
+            className={cn(
+              "bilirec-playback-player absolute inset-0 h-full w-full",
+              pipPortraitChrome && "bilirec-playback-player--pip-phone-portrait"
+            )}
             style={MEDIA_CHROME_VARS}
             lang={mediaLang}
             noAutoSeekToLive={preview ? true : undefined}
@@ -2034,7 +2059,7 @@ export function DanmakuVideoPlayer({
               Unnamed default slot == bottom chrome in media-container. */}
           <div
             ref={controlsHostRef}
-            className="bilirec-playback-controls-chrome pointer-events-none relative z-20 flex w-full flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10"
+            className="bilirec-playback-controls-chrome pointer-events-none relative z-20 flex w-full flex-col self-end bg-linear-to-t from-black/85 via-black/45 to-transparent pt-10"
           >
             <div className="pointer-events-auto flex w-full flex-col gap-0.5 px-2 pb-2 pt-1 sm:px-3 sm:pb-3">
               {/* VLC-style: progress alone on first row.
@@ -2110,7 +2135,11 @@ export function DanmakuVideoPlayer({
               <MediaControlBar
                 className={cn(
                   "bilirec-playback-bar flex w-full gap-0.5",
-                  mobileLandscapeLayout ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center"
+                  mobileLandscapeLayout
+                    ? "flex-row items-center"
+                    : phonePortraitChrome
+                      ? "flex-col items-stretch"
+                      : "flex-col sm:flex-row sm:items-center"
                 )}
               >
                 {/* Transport and time */}
@@ -2119,10 +2148,17 @@ export function DanmakuVideoPlayer({
                     "flex items-center",
                     mobileLandscapeLayout
                       ? "w-auto justify-start gap-0"
-                      : "w-full justify-between gap-0.5 sm:w-auto sm:justify-start"
+                      : phonePortraitChrome
+                        ? "w-full justify-between gap-0.5"
+                        : "w-full justify-between gap-0.5 sm:w-auto sm:justify-start"
                   )}
                 >
-                  <div className={cn("flex items-center", mobileLandscapeLayout ? "gap-0" : "gap-1 sm:gap-0")}>
+                  <div
+                    className={cn(
+                      "flex items-center",
+                      mobileLandscapeLayout ? "gap-0" : phonePortraitChrome ? "gap-1" : "gap-1 sm:gap-0"
+                    )}
+                  >
                     <MediaPlayButton />
                     <MediaSeekBackwardButton seekOffset={seekOffsetSec} />
                     <MediaSeekForwardButton seekOffset={seekOffsetSec} />
@@ -2135,7 +2171,9 @@ export function DanmakuVideoPlayer({
                       showDuration
                       className={cn(
                         "shrink-0 tabular-nums text-[11px]",
-                        mobileLandscapeLayout ? "mx-1 text-xs" : "sm:mx-1 sm:text-xs"
+                        mobileLandscapeLayout || phonePortraitChrome
+                          ? "mx-1 text-xs"
+                          : "sm:mx-1 sm:text-xs"
                       )}
                     />
                   )}
@@ -2147,12 +2185,17 @@ export function DanmakuVideoPlayer({
                     "flex items-center",
                     mobileLandscapeLayout
                       ? "ml-auto w-auto gap-0.5"
-                      : "w-full gap-1 sm:ml-auto sm:w-auto sm:gap-0.5"
+                      : phonePortraitChrome
+                        ? "w-full gap-1"
+                        : "w-full gap-1 sm:ml-auto sm:w-auto sm:gap-0.5"
                   )}
                 >
                   {documentPipSupported ? (
                     <MediaChromeButton
-                      className="bilirec-playback-touch me-2.5 shrink-0 sm:me-3"
+                      className={cn(
+                        "bilirec-playback-touch shrink-0",
+                        phonePortraitChrome ? "me-2.5" : "me-2.5 sm:me-3"
+                      )}
                       noTooltip
                       title={
                         documentPipActive
@@ -2165,14 +2208,23 @@ export function DanmakuVideoPlayer({
                       <PictureInPictureIcon className="size-5" weight="bold" />
                     </MediaChromeButton>
                   ) : null}
-                  <div className={cn("items-center", mobileLandscapeLayout ? "flex" : "hidden sm:flex")}>
+                  <div
+                    className={cn(
+                      "items-center",
+                      mobileLandscapeLayout ? "flex" : phonePortraitChrome ? "hidden" : "hidden sm:flex"
+                    )}
+                  >
                     <MediaMuteButton />
                     <MediaVolumeRange className="max-w-[5.5rem]" />
                   </div>
                   <div
                     className={cn(
-                      "min-w-0 items-center justify-center",
-                      mobileLandscapeLayout ? "hidden" : "flex flex-1 sm:hidden"
+                      "bilirec-playback-portrait-mute-slot min-w-0 items-center justify-center",
+                      mobileLandscapeLayout
+                        ? "hidden"
+                        : phonePortraitChrome
+                          ? "flex flex-1"
+                          : "flex flex-1 sm:hidden"
                     )}
                   >
                     <MediaMuteButton />
@@ -2183,91 +2235,171 @@ export function DanmakuVideoPlayer({
                       "bilirec-playback-rate-chip flex min-w-0 items-center gap-1 rounded-md hover:bg-white/12",
                       mobileLandscapeLayout
                         ? "flex-none px-2.5"
-                        : "flex-1 px-1.5 sm:h-8 sm:flex-none sm:px-2.5"
+                        : phonePortraitChrome
+                          ? "flex-1 px-1.5"
+                          : "flex-1 px-1.5 sm:h-8 sm:flex-none sm:px-2.5"
                     )}
                   >
                     <MediaPlaybackRateMenuButton
                       className={cn(
                         "bilirec-playback-rate-btn justify-center",
-                        mobileLandscapeLayout ? "w-auto" : "w-full sm:w-auto"
+                        mobileLandscapeLayout ? "w-auto" : phonePortraitChrome ? "w-full" : "w-full sm:w-auto"
                       )}
                     />
                   </div>
 
-                  <div
-                    className={
-                      mobileLandscapeLayout ? "flex items-center gap-1" : "contents sm:flex sm:items-center sm:gap-1"
-                    }
-                  >
-                    {chatLayout ? (
+                  {mobileLandscapeLayout ? (
+                    <div className="flex items-center gap-1">
+                      {chatLayout ? (
+                        <MediaChromeButton
+                          className={cn("bilirec-playback-touch", landscapeControlClass)}
+                          noTooltip
+                          title={
+                            screenDanmakuVisible
+                              ? t("playbackPlayer.hideScreenDanmaku")
+                              : t("playbackPlayer.showScreenDanmaku")
+                          }
+                          aria-pressed={screenDanmakuVisible}
+                          onClick={() => {
+                            const next = !screenDanmakuVisible
+                            setScreenDanmakuVisible(next)
+                            saveScreenDanmakuVisible(next)
+                          }}
+                        >
+                          {screenDanmakuVisible ? (
+                            <SubtitlesIcon className="size-5" weight="bold" />
+                          ) : (
+                            <SubtitlesSlashIcon className="size-5 opacity-70" weight="bold" />
+                          )}
+                        </MediaChromeButton>
+                      ) : null}
                       <MediaChromeButton
                         className={cn("bilirec-playback-touch", landscapeControlClass)}
                         noTooltip
-                        title={
-                          screenDanmakuVisible
-                            ? t("playbackPlayer.hideScreenDanmaku")
-                            : t("playbackPlayer.showScreenDanmaku")
-                        }
-                        aria-pressed={screenDanmakuVisible}
-                        onClick={() => {
-                          const next = !screenDanmakuVisible
-                          setScreenDanmakuVisible(next)
-                          saveScreenDanmakuVisible(next)
-                        }}
+                        title={danmakuHidden ? t("playbackPlayer.showDanmaku") : t("playbackPlayer.hideDanmaku")}
+                        onClick={() => setDanmakuHidden((v) => !v)}
                       >
-                        {screenDanmakuVisible ? (
-                          <SubtitlesIcon className="size-5" weight="bold" />
+                        {danmakuHidden ? (
+                          <ChatCircleSlashIcon className="size-5 opacity-70" weight="bold" />
                         ) : (
-                          <SubtitlesSlashIcon className="size-5 opacity-70" weight="bold" />
+                          <ChatCircleTextIcon className="size-5" weight="bold" />
                         )}
                       </MediaChromeButton>
-                    ) : null}
-
-                    <MediaChromeButton
-                      className={cn("bilirec-playback-touch", landscapeControlClass)}
-                      noTooltip
-                      title={danmakuHidden ? t("playbackPlayer.showDanmaku") : t("playbackPlayer.hideDanmaku")}
-                      onClick={() => setDanmakuHidden((v) => !v)}
-                    >
-                      {danmakuHidden ? (
-                        <ChatCircleSlashIcon className="size-5 opacity-70" weight="bold" />
-                      ) : (
-                        <ChatCircleTextIcon className="size-5" weight="bold" />
-                      )}
-                    </MediaChromeButton>
-
-                    {!touchDevice && !stageFullscreen ? (
+                    </div>
+                  ) : phonePortraitChrome ? (
+                    <>
+                      {chatLayout ? (
+                        <PortraitIconSlot>
+                          <MediaChromeButton
+                            className="bilirec-playback-touch w-full min-w-0"
+                            noTooltip
+                            title={
+                              screenDanmakuVisible
+                                ? t("playbackPlayer.hideScreenDanmaku")
+                                : t("playbackPlayer.showScreenDanmaku")
+                            }
+                            aria-pressed={screenDanmakuVisible}
+                            onClick={() => {
+                              const next = !screenDanmakuVisible
+                              setScreenDanmakuVisible(next)
+                              saveScreenDanmakuVisible(next)
+                            }}
+                          >
+                            {screenDanmakuVisible ? (
+                              <SubtitlesIcon className="size-5" weight="bold" />
+                            ) : (
+                              <SubtitlesSlashIcon className="size-5 opacity-70" weight="bold" />
+                            )}
+                          </MediaChromeButton>
+                        </PortraitIconSlot>
+                      ) : null}
+                      <PortraitIconSlot>
+                        <MediaChromeButton
+                          className="bilirec-playback-touch w-full min-w-0"
+                          noTooltip
+                          title={danmakuHidden ? t("playbackPlayer.showDanmaku") : t("playbackPlayer.hideDanmaku")}
+                          onClick={() => setDanmakuHidden((v) => !v)}
+                        >
+                          {danmakuHidden ? (
+                            <ChatCircleSlashIcon className="size-5 opacity-70" weight="bold" />
+                          ) : (
+                            <ChatCircleTextIcon className="size-5" weight="bold" />
+                          )}
+                        </MediaChromeButton>
+                      </PortraitIconSlot>
+                    </>
+                  ) : (
+                    <div className="contents sm:flex sm:items-center sm:gap-1">
+                      {chatLayout ? (
+                        <MediaChromeButton
+                          className={cn("bilirec-playback-touch", landscapeControlClass)}
+                          noTooltip
+                          title={
+                            screenDanmakuVisible
+                              ? t("playbackPlayer.hideScreenDanmaku")
+                              : t("playbackPlayer.showScreenDanmaku")
+                          }
+                          aria-pressed={screenDanmakuVisible}
+                          onClick={() => {
+                            const next = !screenDanmakuVisible
+                            setScreenDanmakuVisible(next)
+                            saveScreenDanmakuVisible(next)
+                          }}
+                        >
+                          {screenDanmakuVisible ? (
+                            <SubtitlesIcon className="size-5" weight="bold" />
+                          ) : (
+                            <SubtitlesSlashIcon className="size-5 opacity-70" weight="bold" />
+                          )}
+                        </MediaChromeButton>
+                      ) : null}
                       <MediaChromeButton
                         className={cn("bilirec-playback-touch", landscapeControlClass)}
                         noTooltip
-                        title={t("playbackPlayer.desktopChatToggleLabel")}
-                        aria-label={t("playbackPlayer.desktopChatToggleLabel")}
-                        aria-pressed={desktopChatPanel}
-                        onClick={() => {
-                          setDesktopChatPanel((prev) => !prev)
-                        }}
+                        title={danmakuHidden ? t("playbackPlayer.showDanmaku") : t("playbackPlayer.hideDanmaku")}
+                        onClick={() => setDanmakuHidden((v) => !v)}
                       >
-                        <ChatCenteredDotsIcon
-                          className={cn("size-5", !desktopChatPanel && "opacity-70")}
-                          weight="bold"
-                        />
+                        {danmakuHidden ? (
+                          <ChatCircleSlashIcon className="size-5 opacity-70" weight="bold" />
+                        ) : (
+                          <ChatCircleTextIcon className="size-5" weight="bold" />
+                        )}
                       </MediaChromeButton>
-                    ) : null}
-                  </div>
+                      {!touchDevice && !stageFullscreen && !documentPipActive ? (
+                        <MediaChromeButton
+                          className={cn("bilirec-playback-touch", landscapeControlClass)}
+                          noTooltip
+                          title={t("playbackPlayer.desktopChatToggleLabel")}
+                          aria-label={t("playbackPlayer.desktopChatToggleLabel")}
+                          aria-pressed={desktopChatPanel}
+                          onClick={() => {
+                            setDesktopChatPanel((prev) => !prev)
+                          }}
+                        >
+                          <ChatCenteredDotsIcon
+                            className={cn("size-5", !desktopChatPanel && "opacity-70")}
+                            weight="bold"
+                          />
+                        </MediaChromeButton>
+                      ) : null}
+                    </div>
+                  )}
 
-                  <TextChipButton
-                    title={advancedOpen ? t("playbackPlayer.hideAdvanced") : t("playbackPlayer.showAdvanced")}
-                    active={advancedOpen}
-                    className={cn(landscapeControlClass, "justify-center")}
-                    onClick={() => setAdvancedOpen((v) => !v)}
-                  >
-                    <span>{t("playbackPlayer.advanced")}</span>
-                    {advancedOpen ? (
-                      <CaretDownIcon className="size-3.5 opacity-80" weight="bold" />
-                    ) : (
-                      <CaretUpIcon className="size-3.5 opacity-80" weight="bold" />
-                    )}
-                  </TextChipButton>
+                  {!documentPipActive ? (
+                    <TextChipButton
+                      title={advancedOpen ? t("playbackPlayer.hideAdvanced") : t("playbackPlayer.showAdvanced")}
+                      active={advancedOpen}
+                      className={cn(landscapeControlClass, "justify-center")}
+                      onClick={() => setAdvancedOpen((v) => !v)}
+                    >
+                      <span>{t("playbackPlayer.advanced")}</span>
+                      {advancedOpen ? (
+                        <CaretDownIcon className="size-3.5 opacity-80" weight="bold" />
+                      ) : (
+                        <CaretUpIcon className="size-3.5 opacity-80" weight="bold" />
+                      )}
+                    </TextChipButton>
+                  ) : null}
 
                   {!documentPipActive ? (
                     <MediaChromeButton
@@ -2283,7 +2415,7 @@ export function DanmakuVideoPlayer({
               </MediaControlBar>
 
               {/* Advanced row — text chips separated from icon-only clusters */}
-              {advancedOpen ? (
+              {advancedOpen && !documentPipActive ? (
                 <MediaControlBar className="bilirec-playback-bar flex w-full items-center gap-x-3 border-t border-white/10 pt-1.5 max-[349px]:gap-x-1.5">
                   <div className="flex min-w-0 items-center gap-1">
                     <span

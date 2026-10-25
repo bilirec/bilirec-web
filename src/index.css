@@ -381,6 +381,15 @@ body {
   width: 100%;
 }
 
+.bilirec-playback-player .bilirec-playback-touch,
+.bilirec-playback-player media-play-button,
+.bilirec-playback-player media-seek-backward-button,
+.bilirec-playback-player media-seek-forward-button,
+.bilirec-playback-player media-mute-button,
+.bilirec-playback-player media-playback-rate-menu-button {
+  cursor: pointer;
+}
+
 .bilirec-playback-player media-control-bar.bilirec-playback-bar::part(container),
 .bilirec-playback-player media-time-range,
 .bilirec-playback-player media-volume-range {
@@ -540,11 +549,18 @@ media-playback-rate-menu.bilirec-playback-rate-menu {
 
   .bilirec-playback-player media-play-button,
   .bilirec-playback-player media-seek-backward-button,
-  .bilirec-playback-player media-seek-forward-button {
+  .bilirec-playback-player media-seek-forward-button,
+  .bilirec-playback-player media-mute-button {
     min-width: 2.75rem;
   }
 
   .bilirec-playback-player .bilirec-playback-touch {
+    min-width: 2.75rem;
+  }
+
+  .bilirec-playback-player .bilirec-playback-portrait-mute-slot media-mute-button,
+  .bilirec-playback-player .bilirec-playback-portrait-icon-slot .bilirec-playback-touch {
+    width: 100%;
     min-width: 2.75rem;
   }
 
@@ -557,4 +573,46 @@ media-playback-rate-menu.bilirec-playback-rate-menu {
     height: 2.5rem;
     line-height: 2.5rem;
   }
+}
+
+/* Portrait document PiP (fine pointer): same control sizing as @media (pointer: coarse). */
+.bilirec-playback-player--pip-phone-portrait media-play-button,
+.bilirec-playback-player--pip-phone-portrait media-seek-backward-button,
+.bilirec-playback-player--pip-phone-portrait media-seek-forward-button,
+.bilirec-playback-player--pip-phone-portrait media-mute-button,
+.bilirec-playback-player--pip-phone-portrait media-playback-rate-menu-button,
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-touch,
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-rate-btn {
+  --media-control-height: 2.75rem;
+  --media-button-icon-width: 1.5rem;
+  --media-button-icon-height: 1.5rem;
+  --media-button-padding: 0 0.35rem;
+  min-height: 2.75rem;
+}
+
+.bilirec-playback-player--pip-phone-portrait media-play-button,
+.bilirec-playback-player--pip-phone-portrait media-seek-backward-button,
+.bilirec-playback-player--pip-phone-portrait media-seek-forward-button,
+.bilirec-playback-player--pip-phone-portrait media-mute-button {
+  min-width: 2.75rem;
+}
+
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-touch {
+  min-width: 2.75rem;
+}
+
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-portrait-mute-slot media-mute-button,
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-portrait-icon-slot .bilirec-playback-touch {
+  width: 100%;
+  min-width: 2.75rem;
+}
+
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-rate-chip {
+  height: 2.5rem;
+}
+
+.bilirec-playback-player--pip-phone-portrait .bilirec-playback-rate-btn {
+  min-height: 2.5rem;
+  height: 2.5rem;
+  line-height: 2.5rem;
 }

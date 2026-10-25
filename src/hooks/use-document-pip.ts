@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import {
   applyDocumentPipViewportLayout,
   copyOpenerStylesIntoPipWindow,
+  defineOpenerCustomElementsInPip,
   isDocumentPipSupported,
   markStageForDocumentPip,
   moveStageIntoPipWindow,
@@ -102,6 +103,7 @@ export function useDocumentPip({
     } catch (err) {
       console.warn("Document PiP style copy failed:", err)
     }
+    defineOpenerCustomElementsInPip(win)
     const { width: vw, height: vh } = readStageVideoIntrinsicSize(stage)
     applyDocumentPipViewportLayout(win, vw, vh)
     markStageForDocumentPip(stage)

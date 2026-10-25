@@ -12,6 +12,10 @@ function eventTouchesTimeRange(event: Event): boolean {
   )
 }
 
+function pointerWindowForHost(host: HTMLElement | null): Window {
+  return host?.ownerDocument?.defaultView ?? window
+}
+
 /**
  * While the user drags media-time-range, block mediaseekrequest until pointerup
  * so playback only jumps once on release (preview can still update while dragging).
@@ -20,16 +24,20 @@ export function useDeferredTimeRangeSeek({
   hostRef,
   videoRef,
   enabled,
+  /** Re-bind when the controls host moves to another document (document PiP). */
+  hostDocumentKey = false,
 }: {
   hostRef: RefObject<HTMLElement | null>
   videoRef: RefObject<HTMLVideoElement | null>
   enabled: boolean
+  hostDocumentKey?: boolean
 }) {
   useEffect(() => {
     if (!enabled) return
 
     let scrubbing = false
     let pendingTime: number | null = null
+    let unbindPointerEnd = () => {}
 
     const commit = () => {
       if (!scrubbing) return
@@ -64,11 +72,21 @@ export function useDeferredTimeRangeSeek({
     const attach = (host: HTMLElement) => {
       host.addEventListener("pointerdown", onPointerDown, true)
       host.addEventListener(SEEK_REQUEST, onSeekRequest, true)
+      const win = pointerWindowForHost(host)
+      unbindPointerEnd()
+      win.addEventListener("pointerup", onPointerEnd)
+      win.addEventListener("pointercancel", onPointerEnd)
+      unbindPointerEnd = () => {
+        win.removeEventListener("pointerup", onPointerEnd)
+        win.removeEventListener("pointercancel", onPointerEnd)
+      }
     }
 
     const detach = (host: HTMLElement) => {
       host.removeEventListener("pointerdown", onPointerDown, true)
       host.removeEventListener(SEEK_REQUEST, onSeekRequest, true)
+      unbindPointerEnd()
+      unbindPointerEnd = () => {}
     }
 
     let host = hostRef.current
@@ -82,16 +100,11 @@ export function useDeferredTimeRangeSeek({
       })
     }
 
-    window.addEventListener("pointerup", onPointerEnd)
-    window.addEventListener("pointercancel", onPointerEnd)
-
     return () => {
       if (raf) cancelAnimationFrame(raf)
       if (host) detach(host)
-      window.removeEventListener("pointerup", onPointerEnd)
-      window.removeEventListener("pointercancel", onPointerEnd)
       scrubbing = false
       pendingTime = null
     }
-  }, [enabled, hostRef, videoRef])
+  }, [enabled, hostRef, videoRef, hostDocumentKey])
 }

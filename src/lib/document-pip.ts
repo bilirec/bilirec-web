@@ -154,6 +154,56 @@ export function fitBoxToVideoAspect(
   return { width, height }
 }
 
+function collectCustomElementTags(root: ParentNode, out: Set<string>): void {
+  for (const el of root.querySelectorAll("*")) {
+    const tag = el.tagName.toLowerCase()
+    if (tag.includes("-")) out.add(tag)
+    if (el.shadowRoot) collectCustomElementTags(el.shadowRoot, out)
+  }
+}
+
+/**
+ * media-chrome elements created after the stage moves are created in the PiP
+ * document. That document has its own registry, so copy the opener's definitions
+ * before React renders into it. Already-created elements keep the shadow root
+ * they got in the opener.
+ */
+export function defineOpenerCustomElementsInPip(pipWindow: Window): void {
+  const tags = new Set<string>()
+  collectCustomElementTags(document, tags)
+  for (const tag of tags) {
+    if (pipWindow.customElements.get(tag)) continue
+    const Ctor = customElements.get(tag)
+    if (!Ctor) continue
+    try {
+      pipWindow.customElements.define(tag, Ctor)
+    } catch (err) {
+      console.warn(`Document PiP custom element ${tag} was not defined:`, err)
+    }
+  }
+
+  // PiP's createElement does not upgrade constructors defined from the opener
+  // realm. Build those elements with `new Ctor()` so they keep their shadow root
+  // after React renders into the PiP document.
+  const pipDoc = pipWindow.document as Document & { __bilirecCustomElements?: boolean }
+  if (pipDoc.__bilirecCustomElements) return
+  pipDoc.__bilirecCustomElements = true
+  const createElement = pipDoc.createElement.bind(pipDoc)
+  pipDoc.createElement = ((tag: string, options?: ElementCreationOptions) => {
+    if (tag.includes("-")) {
+      const Ctor = customElements.get(tag)
+      if (Ctor) {
+        try {
+          return new Ctor()
+        } catch {
+          /* fall through */
+        }
+      }
+    }
+    return createElement(tag, options)
+  }) as typeof pipDoc.createElement
+}
+
 export function applyDocumentPipViewportLayout(
   pipWindow: Window,
   videoWidth: number,
