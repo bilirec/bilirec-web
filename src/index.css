@@ -386,8 +386,30 @@ body {
 .bilirec-playback-player media-seek-backward-button,
 .bilirec-playback-player media-seek-forward-button,
 .bilirec-playback-player media-mute-button,
+.bilirec-playback-player media-captions-button,
 .bilirec-playback-player media-playback-rate-menu-button {
   cursor: pointer;
+}
+
+/* Spacer width matches PiP me-2.5 / sm:me-3 (Tailwind is unreliable on media-chrome tags). */
+.bilirec-playback-player .bilirec-playback-after-captions-spacer {
+  width: 0.625rem;
+}
+
+@media (min-width: 40rem) {
+  .bilirec-playback-player .bilirec-playback-after-captions-spacer {
+    width: 0.75rem;
+  }
+}
+
+.bilirec-playback-player media-chrome-button.bilirec-playback-pip-spacing {
+  margin-inline-end: 0.625rem;
+}
+
+@media (min-width: 40rem) {
+  .bilirec-playback-player media-chrome-button.bilirec-playback-pip-spacing {
+    margin-inline-end: 0.75rem;
+  }
 }
 
 .bilirec-playback-player media-control-bar.bilirec-playback-bar::part(container),

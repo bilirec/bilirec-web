@@ -2193,19 +2193,24 @@ export function DanmakuVideoPlayer({
                     <MediaSeekForwardButton seekOffset={seekOffsetSec} />
                   </div>
 
-                  {preview ? (
-                    <PreviewLiveStatus dvr={previewDvr} />
-                  ) : (
-                    <MediaTimeDisplay
-                      showDuration
-                      className={cn(
-                        "shrink-0 tabular-nums text-[11px]",
-                        mobileLandscapeLayout || phonePortraitChrome
-                          ? "mx-1 text-xs"
-                          : "sm:mx-1 sm:text-xs"
-                      )}
-                    />
-                  )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    {phonePortraitChrome && subtitleTrackSrc ? (
+                      <MediaCaptionsButton className="bilirec-playback-touch shrink-0" />
+                    ) : null}
+                    {preview ? (
+                      <PreviewLiveStatus dvr={previewDvr} />
+                    ) : (
+                      <MediaTimeDisplay
+                        showDuration
+                        className={cn(
+                          "shrink-0 tabular-nums text-[11px]",
+                          mobileLandscapeLayout || phonePortraitChrome
+                            ? "mx-1 text-xs"
+                            : "sm:mx-1 sm:text-xs"
+                        )}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* Secondary controls */}
@@ -2221,10 +2226,7 @@ export function DanmakuVideoPlayer({
                 >
                   {documentPipSupported ? (
                     <MediaChromeButton
-                      className={cn(
-                        "bilirec-playback-touch shrink-0",
-                        phonePortraitChrome ? "me-2.5" : "me-2.5 sm:me-3"
-                      )}
+                      className="bilirec-playback-touch bilirec-playback-pip-spacing shrink-0"
                       noTooltip
                       title={
                         documentPipActive
@@ -2237,8 +2239,17 @@ export function DanmakuVideoPlayer({
                       <PictureInPictureIcon className="size-5" weight="bold" />
                     </MediaChromeButton>
                   ) : null}
-                  {subtitleTrackSrc ? (
+                  {subtitleTrackSrc && !phonePortraitChrome ? (
                     <MediaCaptionsButton className="bilirec-playback-touch shrink-0" />
+                  ) : null}
+                  {subtitleTrackSrc && !phonePortraitChrome ? (
+                    <span
+                      className={cn(
+                        "bilirec-playback-after-captions-spacer shrink-0",
+                        mobileLandscapeLayout ? "inline-block" : "hidden sm:inline-block"
+                      )}
+                      aria-hidden
+                    />
                   ) : null}
                   <div
                     className={cn(
