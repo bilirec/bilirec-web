@@ -43,6 +43,7 @@ import { usePreviewDvr } from "@/hooks/use-preview-dvr"
 import { EventOverlayLayer, type OverlayLayout } from "@/components/playback/EventOverlayLayer"
 import { clampPreviewTime, seekPreview } from "@/lib/preview-dvr"
 import { PlaybackChatList } from "@/components/playback/PlaybackChatList"
+import { PlaybackSubtitleOverlay } from "@/components/playback/PlaybackSubtitleOverlay"
 import { PlaybackSettingsDialog } from "@/components/playback/PlaybackSettingsDialog"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -274,6 +275,7 @@ export function DanmakuVideoPlayer({
   const stageSlotRef = useRef<HTMLDivElement>(null)
   const audioPictureRef = useRef<HTMLDivElement>(null)
   const danmakuHostRef = useRef<HTMLDivElement>(null)
+  const subtitleHostRef = useRef<HTMLDivElement>(null)
   const portraitPictureTapRef = useRef<HTMLDivElement>(null)
   const danmakuHostBoxRef = useRef({ width: 0, height: 0 })
   const overlayHostRef = useRef<HTMLDivElement>(null)
@@ -914,6 +916,7 @@ export function DanmakuVideoPlayer({
   useLayoutEffect(() => {
     const stage = stageRef.current
     const host = danmakuHostRef.current
+    const subtitleHost = subtitleHostRef.current
     const overlayHost = overlayHostRef.current
     const video = videoRef.current
     if (!stage || !host || !video) return
@@ -955,6 +958,7 @@ export function DanmakuVideoPlayer({
       }
       if (audioPicture) applyBox(audioPicture)
       applyBox(host)
+      if (subtitleHost) applyBox(subtitleHost)
       if (portraitPictureTapRef.current) applyBox(portraitPictureTapRef.current)
 
       if (box.width > 0 && box.height > 0) {
@@ -2635,6 +2639,13 @@ export function DanmakuVideoPlayer({
           className="bilirec-danmaku-host pointer-events-none absolute z-18 overflow-hidden"
           aria-hidden
         />
+
+        <div
+          ref={subtitleHostRef}
+          className="bilirec-subtitle-overlay-host bilirec-subtitle-overlay-stage-layer pointer-events-none absolute overflow-visible"
+        >
+          {subtitleTrackSrc ? <PlaybackSubtitleOverlay videoRef={videoRef} /> : null}
+        </div>
 
         <div
           ref={overlayHostRef}

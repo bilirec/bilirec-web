@@ -10,6 +10,7 @@ const DANMAKU_PREVENT_OVERLAP_KEY = "bilirec.playback.danmakuPreventOverlap"
 const DANMAKU_OVERLAP_MODE_KEY = "bilirec.playback.danmakuOverlapMode"
 const SCREEN_DANMAKU_VISIBLE_KEY = "bilirec.playback.screenDanmakuVisible"
 const OVERLAY_CORNER_KEY = "bilirec.playback.overlayCorner"
+const SUBTITLE_OFFSET_KEY = "bilirec.playback.subtitleOffset"
 
 export const DEFAULT_PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 /** ~1 frame at 30fps */
@@ -54,6 +55,10 @@ export const OVERLAY_CORNERS: readonly OverlayCorner[] = [
   "hidden",
 ]
 export const DEFAULT_OVERLAY_CORNER: OverlayCorner = "bottom-left"
+
+/** Normalized center of the subtitle pill within the picture box (0–1). */
+export type SubtitleOffset = { x: number; y: number }
+export const DEFAULT_SUBTITLE_OFFSET: SubtitleOffset = { x: 0.5, y: 0.92 }
 
 /** Desktop (windowed) playback chat side panel visibility; hidden by default.
  *  Deliberately not persisted — every new playback starts with it closed. */
@@ -323,6 +328,39 @@ export function loadOverlayCorner(): OverlayCorner {
 export function saveOverlayCorner(corner: OverlayCorner) {
   try {
     localStorage.setItem(OVERLAY_CORNER_KEY, corner)
+  } catch {
+    /* ignore */
+  }
+}
+
+function clampSubtitleFraction(n: number): number {
+  if (!Number.isFinite(n)) return 0.5
+  return Math.min(1, Math.max(0, n))
+}
+
+export function loadSubtitleOffset(): SubtitleOffset {
+  try {
+    const raw = localStorage.getItem(SUBTITLE_OFFSET_KEY)
+    if (!raw) return { ...DEFAULT_SUBTITLE_OFFSET }
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown }
+    return {
+      x: clampSubtitleFraction(Number(parsed.x)),
+      y: clampSubtitleFraction(Number(parsed.y)),
+    }
+  } catch {
+    return { ...DEFAULT_SUBTITLE_OFFSET }
+  }
+}
+
+export function saveSubtitleOffset(offset: SubtitleOffset) {
+  try {
+    localStorage.setItem(
+      SUBTITLE_OFFSET_KEY,
+      JSON.stringify({
+        x: clampSubtitleFraction(offset.x),
+        y: clampSubtitleFraction(offset.y),
+      })
+    )
   } catch {
     /* ignore */
   }
