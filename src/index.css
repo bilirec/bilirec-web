@@ -662,7 +662,7 @@ media-playback-rate-menu.bilirec-playback-rate-menu {
 .bilirec-subtitle-overlay-pill {
   position: absolute;
   max-width: 90%;
-  padding: 0.35rem 0.65rem;
+  padding: 0.35rem 0.65rem 0.5rem 0.65rem;
   border-radius: 0.375rem;
   color: #fff;
   font-size: clamp(0.75rem, 2.8vw, 1.05rem);
@@ -684,4 +684,27 @@ media-playback-rate-menu.bilirec-playback-rate-menu {
 
 .bilirec-subtitle-overlay-pill:active {
   cursor: grabbing;
+}
+
+.bilirec-subtitle-overlay-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  touch-action: none;
+  cursor: nwse-resize;
+}
+
+.bilirec-subtitle-overlay-resize::after {
+  content: "";
+  position: absolute;
+  right: 0.2rem;
+  bottom: 0.2rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.85);
+  border-bottom-right-radius: 1px;
+  opacity: 0.75;
 }

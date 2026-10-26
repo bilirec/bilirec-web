@@ -10,10 +10,16 @@ import {
 import { useTranslation } from "react-i18next"
 import {
   DEFAULT_SUBTITLE_OFFSET,
+  DEFAULT_SUBTITLE_SCALE,
+  clampSubtitleScale,
   loadSubtitleOffset,
+  loadSubtitleScale,
   saveSubtitleOffset,
+  saveSubtitleScale,
   type SubtitleOffset,
 } from "@/lib/playback-settings"
+
+const RESIZE_DIAGONAL_SENSITIVITY = 0.0055
 
 function stripCueMarkup(text: string): string {
   if (!text.includes("<")) return text
@@ -60,8 +66,9 @@ function clampOffsetToHost(
   const hostH = host.clientHeight
   if (hostW <= 0 || hostH <= 0) return offset
 
-  const pillW = pill.offsetWidth
-  const pillH = pill.offsetHeight
+  const pillRect = pill.getBoundingClientRect()
+  const pillW = pillRect.width
+  const pillH = pillRect.height
   const halfW = pillW / 2 / hostW
   const fullH = pillH / hostH
 
@@ -85,11 +92,20 @@ export function PlaybackSubtitleOverlay({ videoRef }: PlaybackSubtitleOverlayPro
     startY: number
     origin: SubtitleOffset
   } | null>(null)
+  const resizeRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originScale: number
+  } | null>(null)
 
   const [cueText, setCueText] = useState("")
   const [offset, setOffset] = useState<SubtitleOffset>(() => loadSubtitleOffset())
+  const [scale, setScale] = useState(() => loadSubtitleScale())
   const offsetRef = useRef(offset)
   offsetRef.current = offset
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
 
   const syncCueText = useCallback(() => {
     const video = videoRef.current
@@ -190,19 +206,27 @@ export function PlaybackSubtitleOverlay({ videoRef }: PlaybackSubtitleOverlayPro
     const ro = new ResizeObserver(reclamp)
     ro.observe(host)
     return () => ro.disconnect()
-  }, [cueText])
+  }, [cueText, scale])
 
   const persistOffset = useCallback((next: SubtitleOffset) => {
     setOffset(next)
     saveSubtitleOffset(next)
   }, [])
 
-  const resetOffset = useCallback(() => {
+  const persistScale = useCallback((next: number) => {
+    const clamped = clampSubtitleScale(next)
+    setScale(clamped)
+    saveSubtitleScale(clamped)
+  }, [])
+
+  const resetLayout = useCallback(() => {
     persistOffset({ ...DEFAULT_SUBTITLE_OFFSET })
-  }, [persistOffset])
+    persistScale(DEFAULT_SUBTITLE_SCALE)
+  }, [persistOffset, persistScale])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
+    if ((event.target as HTMLElement).closest(".bilirec-subtitle-overlay-resize")) return
     const host = hostRef.current
     if (!host) return
     event.preventDefault()
@@ -248,8 +272,47 @@ export function PlaybackSubtitleOverlay({ videoRef }: PlaybackSubtitleOverlayPro
     persistOffset(offsetRef.current)
   }
 
-  const onDoubleClick = () => {
-    resetOffset()
+  const onResizePointerDown = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originScale: scale,
+    }
+  }
+
+  const onResizePointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current
+    if (!resize || resize.pointerId !== event.pointerId) return
+    const dx = event.clientX - resize.startX
+    const dy = event.clientY - resize.startY
+    const diagonal = (dx + dy) / 2
+    const next = clampSubtitleScale(
+      resize.originScale + diagonal * RESIZE_DIAGONAL_SENSITIVITY
+    )
+    scaleRef.current = next
+    setScale(next)
+  }
+
+  const onResizePointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current
+    if (!resize || resize.pointerId !== event.pointerId) return
+    resizeRef.current = null
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      /* ignore */
+    }
+    persistScale(scaleRef.current)
+  }
+
+  const onDoubleClick = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest(".bilirec-subtitle-overlay-resize")) return
+    resetLayout()
   }
 
   if (!cueText) return null
@@ -262,7 +325,8 @@ export function PlaybackSubtitleOverlay({ videoRef }: PlaybackSubtitleOverlayPro
         style={{
           left: `${offset.x * 100}%`,
           top: `${offset.y * 100}%`,
-          transform: "translate(-50%, -100%)",
+          transform: `translate(-50%, -100%) scale(${scale})`,
+          transformOrigin: "50% 100%",
         }}
         title={t("playbackPlayer.subtitleMove")}
         aria-label={t("playbackPlayer.subtitleMove")}
@@ -273,6 +337,14 @@ export function PlaybackSubtitleOverlay({ videoRef }: PlaybackSubtitleOverlayPro
         onDoubleClick={onDoubleClick}
       >
         {cueText}
+        <span
+          className="bilirec-subtitle-overlay-resize"
+          aria-hidden
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerUp}
+        />
       </div>
     </div>
   )
