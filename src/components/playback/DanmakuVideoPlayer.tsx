@@ -349,6 +349,7 @@ export function DanmakuVideoPlayer({
   const [danmakuStatus, setDanmakuStatus] = useState<DanmakuPipelineStatus>("fetching")
   const [danmakuSidecarPresent, setDanmakuSidecarPresent] = useState(false)
   const [subtitleTrackSrc, setSubtitleTrackSrc] = useState<string | null>(null)
+  const subtitleObjectUrlRef = useRef<string | null>(null)
   const [rates, setRates] = useState<number[]>(() => loadPlaybackRates())
   const [playbackRate, setPlaybackRate] = useState(1)
   const [frameStepMs, setFrameStepMs] = useState(() => loadFrameStepMs())
@@ -848,19 +849,35 @@ export function DanmakuVideoPlayer({
   }, [preview, previewRoomId, previewRecordDanmaku, videoPath, setLoadProgressThrottled, activateDanmakuAfterInject, getEmoteRenderContext])
 
   useEffect(() => {
+    if (subtitleObjectUrlRef.current) {
+      URL.revokeObjectURL(subtitleObjectUrlRef.current)
+      subtitleObjectUrlRef.current = null
+    }
+    setSubtitleTrackSrc(null)
+
     if (preview) {
-      setSubtitleTrackSrc(null)
       return
     }
+
+    const ac = new AbortController()
     let cancelled = false
-    void apiClient.findSubtitleSidecarPath(videoPath).then((sidecarPath) => {
-      if (cancelled) return
-      setSubtitleTrackSrc(
-        sidecarPath ? apiClient.getSubtitleUrl(sidecarPath) : null,
-      )
+    void apiClient.loadSubtitleObjectUrl(videoPath, ac.signal).then((objectUrl) => {
+      if (cancelled) {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+        return
+      }
+      if (objectUrl) {
+        subtitleObjectUrlRef.current = objectUrl
+        setSubtitleTrackSrc(objectUrl)
+      }
     })
     return () => {
       cancelled = true
+      ac.abort()
+      if (subtitleObjectUrlRef.current) {
+        URL.revokeObjectURL(subtitleObjectUrlRef.current)
+        subtitleObjectUrlRef.current = null
+      }
     }
   }, [preview, videoPath])
 

@@ -403,6 +403,32 @@ class ApiClient {
    * Resolve paired danmaku sidecar path via HEAD /files/danmaku (session cookie).
    * Do not use /files/download — that route requires a presigned token only.
    */
+  /**
+   * Load WebVTT via the API client (session cookie). Browsers do not reliably
+   * send cookies on cross-origin <track src="…"> even with video crossOrigin.
+   */
+  async loadSubtitleObjectUrl(
+    videoPath: string,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
+    return this.runWithoutUnauthorizedEvent(async () => {
+      try {
+        const response = await this.client.get(
+          `/files/subtitle/${encodeFilePath(videoPath)}`,
+          { responseType: "blob", signal },
+        );
+        return URL.createObjectURL(
+          new Blob([response.data], { type: "text/vtt" }),
+        );
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+        return null;
+      }
+    });
+  }
+
   async findSubtitleSidecarPath(videoPath: string): Promise<string | null> {
     const encodedVideo = encodeFilePath(videoPath);
     try {
