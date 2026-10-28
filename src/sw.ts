@@ -35,6 +35,7 @@ interface PushPayload {
   room_title: string;
   message: string;
   timestamp: number;
+  alert_seconds?: number;
 }
 
 function isPushPayload(value: unknown): value is PushPayload {
@@ -399,6 +400,29 @@ async function buildLiveNotification(payload: PushPayload) {
   const streamer = payload.streamer_name || (await swT('sw.defaultStreamer'));
   const roomTitle = payload.room_title || "";
 
+  if (
+    eventType === "metrics_timeline_gap" ||
+    eventType === "metrics_slow_io" ||
+    eventType === "metrics_enqueue_wait"
+  ) {
+    const titleKey =
+      eventType === "metrics_timeline_gap"
+        ? "sw.titleMetricsTimelineGap"
+        : eventType === "metrics_slow_io"
+          ? "sw.titleMetricsSlowIO"
+          : "sw.titleMetricsEnqueue";
+    const title = await swT(titleKey, { streamer });
+    const body =
+      (await buildMetricsAlertBody(eventType, payload.alert_seconds)) ||
+      truncateNotificationText(singleLine(payload.message || ""), 200) ||
+      (await swT("sw.bodyDefault"));
+    return {
+      title,
+      body,
+      tag: roomId ? `room-${roomId}-${eventType}` : `bilirec-${eventType}`
+    };
+  }
+
   const titleKey = (() => {
     switch (true) {
       case eventType === "live_auto_record_started":
@@ -434,6 +458,45 @@ async function buildLiveNotification(payload: PushPayload) {
     body,
     tag: roomId ? `room-${roomId}-${eventType}` : `bilirec-${eventType}`
   };
+}
+
+async function buildMetricsAlertBody(
+  eventType: string,
+  alertSeconds: number | undefined
+): Promise<string> {
+  if (alertSeconds == null || !Number.isFinite(alertSeconds) || alertSeconds <= 0) {
+    return "";
+  }
+  if (eventType === "metrics_timeline_gap") {
+    return swT("sw.bodyMetricsTimelineGap", {
+      amount: await formatTimelineGapAmount(alertSeconds)
+    });
+  }
+  if (eventType === "metrics_slow_io") {
+    return swT("sw.bodyMetricsSlowIO", {
+      count: Math.round(alertSeconds)
+    });
+  }
+  if (eventType === "metrics_enqueue_wait") {
+    return swT("sw.bodyMetricsEnqueue", {
+      seconds: alertSeconds.toFixed(1)
+    });
+  }
+  return "";
+}
+
+function formatTimelineGapAmount(seconds: number): Promise<string> {
+  return getSwLanguage().then((language) => {
+    const minuteUnit = language === "zh-CN" ? "分钟" : "分鐘";
+    if (seconds < 90) {
+      return `${Math.round(seconds)} 秒`;
+    }
+    const minutes = seconds / 60;
+    if (minutes < 10) {
+      return `${minutes.toFixed(1)} ${minuteUnit}`;
+    }
+    return `${Math.round(minutes)} ${minuteUnit}`;
+  });
 }
 
 function singleLine(value: string): string {
