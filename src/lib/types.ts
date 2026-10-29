@@ -51,6 +51,14 @@ export interface RecordTask {
   actualStreamFormat?: string
   isAudioOnly?: boolean
   sessionTitle?: string
+  flushCount?: number
+  flushMs?: number
+  syncCount?: number
+  syncMs?: number
+  enqueueWaits?: number
+  enqueueWaitMs?: number
+  timelineGaps?: number
+  timelineGapMs?: number
   /** Recent download/write rates sampled between polls; absent until the second sample. */
   ioRate?: StreamIoRate
   error?: string
@@ -78,6 +86,13 @@ export interface StreamIoRate {
   health: StreamIoHealth
   /** Recent write/read rate ratio (0–100), aligned with the 75% lag threshold. */
   healthScorePercent: number
+  /** Consecutive poll windows with write lag (for hint copy). */
+  lagStreak?: number
+  /** Poll-window pipeline deltas (ms); present when backend exposes session totals. */
+  flushMs?: number
+  syncMs?: number
+  enqueueWaitMs?: number
+  timelineGapMs?: number
 }
 
 export interface RecorderStats {
@@ -95,6 +110,14 @@ export interface RecorderStats {
   actual_stream_format?: string
   is_audio_only?: boolean
   room_title?: string
+  flush_count?: number
+  flush_ms?: number
+  sync_count?: number
+  sync_ms?: number
+  enqueue_waits?: number
+  enqueue_wait_ms?: number
+  timeline_gaps?: number
+  timeline_gap_ms?: number
 }
 
 export type RecordStatus = 'recording' | 'recovering' | 'idle'
