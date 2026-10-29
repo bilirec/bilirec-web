@@ -1,84 +1,76 @@
-import { computeStreamIoHealth } from './stream-io-health'
+import {
+  computeHealthScorePercent,
+  computeStreamIoHealth,
+  isPipelineStalled,
+  isRateLagging,
+  LAG_BYTES_FLOOR,
+  LAG_STREAK_THRESHOLD,
+} from './stream-io-health'
 import type { RecordTask, StreamIoRate } from './types'
 
 /**
  * Samples per-room stream byte counters across stats polls and derives recent
  * download/write rates as delta bytes / delta wall-clock time.
- *
- * Why deltas instead of `bytes / elapsed_seconds`:
- * - `bytes_read` / `bytes_written` are session-cumulative counters that keep
- *   growing across segment rotations, so deltas stay correct during rotate.
- * - Dividing by elapsed_seconds yields a lifetime average that hides current
- *   slowdowns (e.g. disk backpressure) and drifts after every rotate pause.
  */
 
 interface IoSample {
-  /** Wall-clock time of the sample (ms). */
   ts: number
   read: number
   written: number
-  /** Session identity from the backend; a change means a new recording session. */
   startTime?: string | number
-  /** Consecutive windows where write clearly lagged read or the pipeline stalled. */
   lagStreak: number
-  /** Last window's download rate (bytes/sec), for stall detection. */
   readBps?: number
-  /** Last window's unflushed buffer (bytes_read - bytes_written). */
   lagBytes?: number
+  flushCount?: number
+  flushMs?: number
+  syncCount?: number
+  syncMs?: number
+  enqueueWaits?: number
+  enqueueWaitMs?: number
+  timelineGaps?: number
+  timelineGapMs?: number
 }
 
-/** Below this download rate the stream is too quiet for ratio checks to mean anything. */
-const MIN_MEANINGFUL_READ_BPS = 32 * 1024
-/** Write rate below this fraction of the read rate counts as a lagging window. */
-const LAG_RATIO_THRESHOLD = 0.75
-/** Consecutive lagging windows required before reporting backpressure (rides out rotate pauses). */
-const LAG_STREAK_THRESHOLD = 2
-/** Unflushed buffer must exceed this before a lagging window counts (noise gate). */
-const LAG_BYTES_FLOOR = 512 * 1024
 /** Ignore poll windows shorter than this (seconds) to avoid noisy double-fetches. */
 const MIN_WINDOW_SECONDS = 1
 
 const samples = new Map<number, IoSample>()
 
-function isRateLagging(readBps: number, writeBps: number): boolean {
-  return readBps >= MIN_MEANINGFUL_READ_BPS && writeBps < readBps * LAG_RATIO_THRESHOLD
-}
-
-/** Same basis as the 75% lag threshold — not cumulative bytes_written / bytes_read. */
-function computeHealthScorePercent(
-  read: number,
-  written: number,
-  readBps: number,
-  writeBps: number,
-): number {
-  if (readBps >= MIN_MEANINGFUL_READ_BPS) {
-    return Math.min(100, (writeBps / readBps) * 100)
-  }
-  const lagBytes = Math.max(0, read - written)
+function pipelineTotals(task: RecordTask) {
   if (
-    readBps < MIN_MEANINGFUL_READ_BPS &&
-    writeBps < MIN_MEANINGFUL_READ_BPS &&
-    lagBytes > LAG_BYTES_FLOOR
+    task.flushCount === undefined ||
+    task.syncCount === undefined ||
+    task.enqueueWaits === undefined ||
+    task.timelineGaps === undefined
   ) {
-    return 0
+    return undefined
   }
-  if (read > 0) {
-    return Math.min(100, (written / read) * 100)
+  return {
+    flushCount: task.flushCount,
+    flushMs: task.flushMs ?? 0,
+    syncCount: task.syncCount,
+    syncMs: task.syncMs ?? 0,
+    enqueueWaits: task.enqueueWaits,
+    enqueueWaitMs: task.enqueueWaitMs ?? 0,
+    timelineGaps: task.timelineGaps,
+    timelineGapMs: task.timelineGapMs ?? 0,
   }
-  return 100
 }
 
-function isPipelineStalled(
-  readBps: number,
-  writeBps: number,
-  lagBytes: number,
+function counterSessionChanged(
   prev: IoSample,
+  totals: NonNullable<ReturnType<typeof pipelineTotals>>,
 ): boolean {
-  const hadMeaningfulRead = (prev.readBps ?? 0) >= MIN_MEANINGFUL_READ_BPS
-  const bothQuiet =
-    readBps < MIN_MEANINGFUL_READ_BPS && writeBps < MIN_MEANINGFUL_READ_BPS
-  const lagNotDraining = lagBytes >= (prev.lagBytes ?? 0)
-  return hadMeaningfulRead && bothQuiet && lagNotDraining
+  if (totals.flushCount < (prev.flushCount ?? 0)) return true
+  if (totals.syncCount < (prev.syncCount ?? 0)) return true
+  if (totals.enqueueWaits < (prev.enqueueWaits ?? 0)) return true
+  if (totals.timelineGaps < (prev.timelineGaps ?? 0)) return true
+  return false
+}
+
+function deltaCounter(current: number, prev: number | undefined): number {
+  if (prev === undefined) return 0
+  return Math.max(0, current - prev)
 }
 
 function computeStreamIoWindow(
@@ -88,12 +80,22 @@ function computeStreamIoWindow(
 ): { rate?: StreamIoRate; sample: IoSample } {
   const read = task.bytesRead ?? 0
   const written = task.fileSize ?? 0
+  const totals = pipelineTotals(task)
+
   const sample: IoSample = {
     ts: now,
     read,
     written,
     startTime: task.startTime,
     lagStreak: 0,
+    flushCount: totals?.flushCount,
+    flushMs: totals?.flushMs,
+    syncCount: totals?.syncCount,
+    syncMs: totals?.syncMs,
+    enqueueWaits: totals?.enqueueWaits,
+    enqueueWaitMs: totals?.enqueueWaitMs,
+    timelineGaps: totals?.timelineGaps,
+    timelineGapMs: totals?.timelineGapMs,
   }
 
   if (!prev) {
@@ -101,7 +103,11 @@ function computeStreamIoWindow(
   }
 
   const sessionChanged =
-    prev.startTime !== task.startTime || read < prev.read || written < prev.written
+    prev.startTime !== task.startTime ||
+    read < prev.read ||
+    written < prev.written ||
+    (totals !== undefined && counterSessionChanged(prev, totals))
+
   const dt = (now - prev.ts) / 1000
   if (sessionChanged || dt < MIN_WINDOW_SECONDS) {
     sample.lagStreak = sessionChanged ? 0 : prev.lagStreak
@@ -124,23 +130,40 @@ function computeStreamIoWindow(
   sample.lagBytes = lagBytes
 
   const backpressure = sample.lagStreak >= LAG_STREAK_THRESHOLD
+
+  const windowFlushMs =
+    totals !== undefined ? deltaCounter(totals.flushMs, prev.flushMs) : undefined
+  const windowSyncMs =
+    totals !== undefined ? deltaCounter(totals.syncMs, prev.syncMs) : undefined
+  const windowEnqueueWaitMs =
+    totals !== undefined ? deltaCounter(totals.enqueueWaitMs, prev.enqueueWaitMs) : undefined
+  const windowTimelineGapMs =
+    totals !== undefined ? deltaCounter(totals.timelineGapMs, prev.timelineGapMs) : undefined
+
   const rate: StreamIoRate = {
     readBps,
     writeBps,
     lagBytes,
     backpressure,
-    health: computeStreamIoHealth(backpressure, sample.lagStreak),
+    health: computeStreamIoHealth({
+      backpressure,
+      lagStreak: sample.lagStreak,
+      flushMs: windowFlushMs,
+      syncMs: windowSyncMs,
+      enqueueWaitMs: windowEnqueueWaitMs,
+      timelineGapMs: windowTimelineGapMs,
+    }),
     healthScorePercent: computeHealthScorePercent(read, written, readBps, writeBps),
+    lagStreak: sample.lagStreak,
+    flushMs: windowFlushMs,
+    syncMs: windowSyncMs,
+    enqueueWaitMs: windowEnqueueWaitMs,
+    timelineGapMs: windowTimelineGapMs,
   }
 
   return { rate, sample }
 }
 
-/**
- * Attaches recent I/O rates to recording tasks. Call once per stats poll with the
- * freshly fetched tasks; returns new task objects. Rooms that disappeared from the
- * list (stopped/removed) are dropped from the sampler so a later session starts clean.
- */
 export function applyStreamIoRates(tasks: RecordTask[], now: number = Date.now()): RecordTask[] {
   const seen = new Set<number>()
 
@@ -164,7 +187,6 @@ export function applyStreamIoRates(tasks: RecordTask[], now: number = Date.now()
   return result
 }
 
-/** Whether a task can eventually receive sampled I/O rates (second poll onward). */
 export function canComputeStreamIoRate(task: RecordTask): boolean {
   return (
     task.status === 'recording' &&
