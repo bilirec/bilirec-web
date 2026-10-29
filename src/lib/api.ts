@@ -213,6 +213,14 @@ class ApiClient {
         actualStreamFormat: roomStats?.actual_stream_format,
         isAudioOnly: roomStats?.is_audio_only,
         sessionTitle: roomStats?.room_title,
+        flushCount: roomStats?.flush_count,
+        flushMs: roomStats?.flush_ms,
+        syncCount: roomStats?.sync_count,
+        syncMs: roomStats?.sync_ms,
+        enqueueWaits: roomStats?.enqueue_waits,
+        enqueueWaitMs: roomStats?.enqueue_wait_ms,
+        timelineGaps: roomStats?.timeline_gaps,
+        timelineGapMs: roomStats?.timeline_gap_ms,
       } as RecordTask;
     });
 
