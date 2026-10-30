@@ -557,15 +557,15 @@ export const resources = {
         titleLiveEnded: "{{streamer}} 直播已結束",
         titleRecordStopped: "{{streamer}} 錄製已停止",
         titleLive: "{{streamer}} 已開播",
-        titleMetricsTimelineGap: "{{streamer}} 錄製畫面跳過",
-        titleMetricsSlowIO: "{{streamer}} 寫入過慢",
-        titleMetricsEnqueue: "{{streamer}} 寫入隊列堵塞",
+        titleMetricsTimelineGap: "檢測到 {{streamer}} 的直播流不連續，請檢查網絡",
+        titleMetricsSlowIO: "檢測到 {{streamer}} 的儲存裝置回應過慢，請檢查磁碟",
+        titleMetricsEnqueue: "檢測到 {{streamer}} 的寫入速度不足，請檢查磁碟",
         bodyMetricsTimelineGap:
-          "本場約 {{amount}} 被跳過。下載沒跟上直播，跳過的片段無法補回；錄製時少做占流量的事，或下一場調低畫質。",
+          "由於網絡不穩定的緣故，從上游源接收到的直播流不連續，導致本次錄製內容已缺失 {{amount}}，錄播極大概率已出現跳幀現象。",
         bodyMetricsSlowIO:
-          "本場慢速 flush / fsync 共 {{count}} 次，可能是磁碟或手機存儲繁忙。",
+          "由於儲存裝置回應過慢的緣故，本次錄製的資料寫入曾受阻 {{count}} 次，錄播可能出現卡頓，嚴重時會影響分段完整性。",
         bodyMetricsEnqueue:
-          "本場寫入隊列累計等待 {{seconds}} 秒，磁碟可能跟不上碼率，錄製可能卡頓。",
+          "由於寫入速度低於直播碼率的緣故，本次錄製的資料寫入已累計等待 {{seconds}} 秒，錄播可能出現卡頓或分段延遲。",
         unknownEvent: "{{streamer}} 直播狀態更新",
         bodyDefault: "您有新的直播通知",
         actionOpenLive: "進入直播間",
@@ -1141,15 +1141,15 @@ export const resources = {
         titleLiveEnded: "{{streamer}} 直播已结束",
         titleRecordStopped: "{{streamer}} 录制已停止",
         titleLive: "{{streamer}} 已开播",
-        titleMetricsTimelineGap: "{{streamer}} 录制画面跳过",
-        titleMetricsSlowIO: "{{streamer}} 写入过慢",
-        titleMetricsEnqueue: "{{streamer}} 写入队列堵塞",
+        titleMetricsTimelineGap: "检测到 {{streamer}} 的直播流不连续，请检查网络",
+        titleMetricsSlowIO: "检测到 {{streamer}} 的存储设备响应过慢，请检查磁盘",
+        titleMetricsEnqueue: "检测到 {{streamer}} 的写入速度不足，请检查磁盘",
         bodyMetricsTimelineGap:
-          "本场约 {{amount}} 被跳过。下载没跟上直播，跳过的片段无法补回；录制时少做占带宽的事，或下一场调低画质。",
+          "由于网络不稳定的缘故，从上游源接收到的直播流不连续，导致本次录制内容已缺失 {{amount}}，录播极大概率已出现跳帧现象。",
         bodyMetricsSlowIO:
-          "本场慢速 flush / fsync 共 {{count}} 次，可能是磁盘或手机存储繁忙。",
+          "由于存储设备响应过慢的缘故，本次录制的数据写入曾受阻 {{count}} 次，录播可能出现卡顿，严重时会影响分段完整性。",
         bodyMetricsEnqueue:
-          "本场写入队列累计等待 {{seconds}} 秒，磁盘可能跟不上码率，录制可能卡顿。",
+          "由于写入速度低于直播码率的缘故，本次录制的数据写入已累计等待 {{seconds}} 秒，录播可能出现卡顿或分段延迟。",
         unknownEvent: "{{streamer}} 直播状态更新",
         bodyDefault: "你有新的直播通知",
         actionOpenLive: "进入直播间",
