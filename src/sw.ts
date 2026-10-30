@@ -35,7 +35,9 @@ interface PushPayload {
   room_title: string;
   message: string;
   timestamp: number;
-  alert_seconds?: number;
+  // Seconds for metrics_timeline_gap / metrics_enqueue_wait, event count for
+  // metrics_slow_io. The unit follows the event type.
+  alert_value?: number;
 }
 
 function isPushPayload(value: unknown): value is PushPayload {
@@ -413,7 +415,7 @@ async function buildLiveNotification(payload: PushPayload) {
           : "sw.titleMetricsEnqueue";
     const title = await swT(titleKey, { streamer });
     const body =
-      (await buildMetricsAlertBody(eventType, payload.alert_seconds)) ||
+      (await buildMetricsAlertBody(eventType, payload.alert_value)) ||
       truncateNotificationText(singleLine(payload.message || ""), 200) ||
       (await swT("sw.bodyDefault"));
     return {
@@ -462,24 +464,22 @@ async function buildLiveNotification(payload: PushPayload) {
 
 async function buildMetricsAlertBody(
   eventType: string,
-  alertSeconds: number | undefined
+  alertValue: number | undefined
 ): Promise<string> {
-  if (alertSeconds == null || !Number.isFinite(alertSeconds) || alertSeconds <= 0) {
+  if (alertValue == null || !Number.isFinite(alertValue) || alertValue <= 0) {
     return "";
   }
   if (eventType === "metrics_timeline_gap") {
     return swT("sw.bodyMetricsTimelineGap", {
-      amount: await formatTimelineGapAmount(alertSeconds)
+      amount: await formatTimelineGapAmount(alertValue)
     });
   }
   if (eventType === "metrics_slow_io") {
-    return swT("sw.bodyMetricsSlowIO", {
-      count: Math.round(alertSeconds)
-    });
+    return swT("sw.bodyMetricsSlowIO", { count: Math.round(alertValue) });
   }
   if (eventType === "metrics_enqueue_wait") {
     return swT("sw.bodyMetricsEnqueue", {
-      seconds: alertSeconds.toFixed(1)
+      seconds: alertValue.toFixed(1)
     });
   }
   return "";
