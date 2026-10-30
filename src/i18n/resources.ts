@@ -561,11 +561,11 @@ export const resources = {
         titleMetricsSlowIO: "{{streamer}} 寫入過慢",
         titleMetricsEnqueue: "{{streamer}} 寫入隊列堵塞",
         bodyMetricsTimelineGap:
-          "近 15 分鐘約 {{amount}} 被跳過。下載沒跟上直播，跳過的片段無法補回；錄製時少做占流量的事，或下一場調低畫質。",
+          "本場約 {{amount}} 被跳過。下載沒跟上直播，跳過的片段無法補回；錄製時少做占流量的事，或下一場調低畫質。",
         bodyMetricsSlowIO:
-          "近 15 分鐘慢速 flush / fsync 共 {{count}} 次，可能是磁碟或手機存儲繁忙。",
+          "本場慢速 flush / fsync 共 {{count}} 次，可能是磁碟或手機存儲繁忙。",
         bodyMetricsEnqueue:
-          "近 5 分鐘寫入隊列累計等待 {{seconds}} 秒，磁碟可能跟不上碼率，錄製可能卡頓。",
+          "本場寫入隊列累計等待 {{seconds}} 秒，磁碟可能跟不上碼率，錄製可能卡頓。",
         unknownEvent: "{{streamer}} 直播狀態更新",
         bodyDefault: "您有新的直播通知",
         actionOpenLive: "進入直播間",
@@ -1145,11 +1145,11 @@ export const resources = {
         titleMetricsSlowIO: "{{streamer}} 写入过慢",
         titleMetricsEnqueue: "{{streamer}} 写入队列堵塞",
         bodyMetricsTimelineGap:
-          "近 15 分钟约 {{amount}} 被跳过。下载没跟上直播，跳过的片段无法补回；录制时少做占带宽的事，或下一场调低画质。",
+          "本场约 {{amount}} 被跳过。下载没跟上直播，跳过的片段无法补回；录制时少做占带宽的事，或下一场调低画质。",
         bodyMetricsSlowIO:
-          "近 15 分钟慢速 flush / fsync 共 {{count}} 次，可能是磁盘或手机存储繁忙。",
+          "本场慢速 flush / fsync 共 {{count}} 次，可能是磁盘或手机存储繁忙。",
         bodyMetricsEnqueue:
-          "近 5 分钟写入队列累计等待 {{seconds}} 秒，磁盘可能跟不上码率，录制可能卡顿。",
+          "本场写入队列累计等待 {{seconds}} 秒，磁盘可能跟不上码率，录制可能卡顿。",
         unknownEvent: "{{streamer}} 直播状态更新",
         bodyDefault: "你有新的直播通知",
         actionOpenLive: "进入直播间",
