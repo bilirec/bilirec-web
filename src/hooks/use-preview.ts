@@ -42,20 +42,24 @@ export function previewSseType(raw: string): string | undefined {
   }
 }
 
-/** Backend returns 409 when the room has no active previewable recording segment. */
-async function isPreviewMediaUnavailable(roomId: number): Promise<boolean> {
+/**
+ * Returns the status proving the room is not previewable, or null.
+ * 409: room has no active previewable recording segment.
+ * 404: backend predates the /preview routes (e.g. bilirec v0.3.2); treat as
+ * unavailable so the preview session ends instead of retrying forever.
+ */
+async function previewUnavailableStatus(roomId: number): Promise<number | null> {
   try {
     const res = await fetch(`${apiClient.previewMediaUrl(roomId)}?t=${Date.now()}`, {
       credentials: "include",
     })
-    if (res.status === 409) {
-      await res.body?.cancel()
-      return true
-    }
     await res.body?.cancel()
-    return false
+    if (res.status === 409 || res.status === 404) {
+      return res.status
+    }
+    return null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -208,8 +212,12 @@ export function usePreview(
 
     const retryAttach = async () => {
       if (disposed || sessionEnded) return
-      if (await isPreviewMediaUnavailable(roomId)) {
-        warnPreviewSessionEnd("session_409", videoRef.current)
+      const status = await previewUnavailableStatus(roomId)
+      if (status != null) {
+        warnPreviewSessionEnd(
+          status === 404 ? "session_404" : "session_409",
+          videoRef.current
+        )
         endPreviewSession()
         return
       }
@@ -251,8 +259,12 @@ export function usePreview(
     es.onerror = () => {
       void (async () => {
         if (disposed || sessionEnded) return
-        if (await isPreviewMediaUnavailable(roomId)) {
-          warnPreviewSessionEnd("session_409", videoRef.current)
+        const status = await previewUnavailableStatus(roomId)
+        if (status != null) {
+          warnPreviewSessionEnd(
+            status === 404 ? "session_404" : "session_409",
+            videoRef.current
+          )
           endPreviewSession()
         }
       })()

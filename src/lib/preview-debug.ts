@@ -10,6 +10,7 @@ export type PreviewSessionEndReason =
   | "video_ended"
   | "sse_segment"
   | "session_409"
+  | "session_404"
   | "reconnect_cleanup"
 
 export function snapshotPreviewVideo(video: HTMLVideoElement | null | undefined) {
