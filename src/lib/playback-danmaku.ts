@@ -691,6 +691,16 @@ export function reapplyDanmakuRanges(dm: NDanmaku, danmakuArea: DanmakuArea): vo
   dm.ranges(danmakuRangesForArea(danmakuArea))
 }
 
+/**
+ * n-danmaku tick() dereferences `usingList` (null until list.new()/use() runs),
+ * throwing "Cannot read properties of null (reading 'timeLine')". The RAF ticker
+ * can race list preparation (e.g. live preview before the first segment event),
+ * so tick() call sites must check this first.
+ */
+export function isDanmakuListReady(dm: NDanmaku): boolean {
+  return (dm.list as unknown as { usingList?: unknown }).usingList != null
+}
+
 export function prepareDanmakuVodList(dm: NDanmaku, danmakuArea: DanmakuArea): void {
   try {
     dm.list.del("vod")

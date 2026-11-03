@@ -101,6 +101,7 @@ import {
   DANMAKU_TICK_INTERVAL_MS,
   DANMAKU_TICK_UNCERTAINTY_MS,
   injectDanmakuBullets,
+  isDanmakuListReady,
   prepareDanmakuVodList,
   reapplyDanmakuRanges,
   styleDanmakuItemsForEngine,
@@ -561,7 +562,7 @@ export function DanmakuVideoPlayer({
     list.lastTickRange = [0, 0]
     lastDanmakuTickMsRef.current = null
     const video = videoRef.current
-    if (video && !video.paused) {
+    if (video && !video.paused && isDanmakuListReady(dm)) {
       const videoMs = Math.round(video.currentTime * 1000)
       dm.list.tick(videoMs)
       lastDanmakuTickMsRef.current = videoMs
@@ -1257,7 +1258,7 @@ export function DanmakuVideoPlayer({
       return
     }
     const dm = danmakuRef.current
-    if (!dm || !listReadyRef.current) return
+    if (!dm || !listReadyRef.current || !isDanmakuListReady(dm)) return
     const list = dm.list as unknown as { lastTickRange: [number, number] }
     list.lastTickRange = [0, 0]
     lastDanmakuTickMsRef.current = null
@@ -1295,12 +1296,14 @@ export function DanmakuVideoPlayer({
     }
     const tickDanmaku = (force = false) => {
       if (!force && danmakuSeekingRef.current) return
+      const dm = danmakuRef.current
       if (
         effectsReady &&
         !danmakuHidden &&
         screenDanmakuActive &&
         listReadyRef.current &&
-        danmakuRef.current
+        dm &&
+        isDanmakuListReady(dm)
       ) {
         const videoMs = Math.round(video.currentTime * 1000)
         const lastTickMs = lastDanmakuTickMsRef.current
@@ -1312,7 +1315,7 @@ export function DanmakuVideoPlayer({
         ) {
           return
         }
-        danmakuRef.current.list.tick(videoMs)
+        dm.list.tick(videoMs)
         lastDanmakuTickMsRef.current = videoMs
       }
     }
