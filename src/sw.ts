@@ -318,9 +318,24 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
 // ── Helpers ───────────────────────────────────────────────
 
-/** Danmaku emote / face images are all served from hdslb.com CDNs. */
+/**
+ * Danmaku emote / face images that benefit from the cache-first handler:
+ * official emoticon packages (/bfs/emote/), user avatars in chat (/bfs/face/),
+ * and live-room stickers (/bfs/live/<hash>.*).
+ * Room covers (/bfs/live/user_cover/…) must NOT be intercepted: they are one-off
+ * `<img>` loads fetched with no-referrer by the page itself, and routing them
+ * through the emote cache pollutes it (400-entry cap) and turns any SW-side
+ * fetch hiccup into a hard image failure.
+ */
 function isEmoteImageRequest(url: URL): boolean {
-  return url.hostname === "hdslb.com" || url.hostname.endsWith(".hdslb.com");
+  if (url.hostname !== "hdslb.com" && !url.hostname.endsWith(".hdslb.com")) {
+    return false;
+  }
+  const path = url.pathname;
+  if (path.startsWith("/bfs/emote/") || path.startsWith("/bfs/face/")) {
+    return true;
+  }
+  return path.startsWith("/bfs/live/") && !path.startsWith("/bfs/live/user_cover/");
 }
 
 async function serveEmoteImage(request: Request): Promise<Response> {
