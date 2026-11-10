@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import {
   normalizeStreamProfiles,
@@ -35,6 +37,102 @@ const STREAM_PROFILE_OPTIONS: StreamProfileOption[] = [
   { value: 'hls-ts', labelKey: 'streamProfileHlsTs' },
 ]
 
+const DURATION_MIN_HOURS = 1
+const DURATION_MAX_HOURS = 24
+const DURATION_FALLBACK_HOURS = 3
+
+interface RecordDurationSelectorProps {
+  /** 0 = system default, -1 = unlimited, > 0 = custom minutes. */
+  value: number
+  onChange: (minutes: number) => void
+  disabled?: boolean
+}
+
+export function RecordDurationSelector({ value, onChange, disabled = false }: RecordDurationSelectorProps) {
+  const { t } = useTranslation()
+  const isCustom = value > 0
+  const isUnlimited = value === -1
+  const clampedHours = (hours: number) =>
+    Math.min(DURATION_MAX_HOURS, Math.max(DURATION_MIN_HOURS, Math.round(hours)))
+  /** Remembered slider position so re-entering "custom" restores the last chosen hours. */
+  const [customHours, setCustomHours] = useState(() =>
+    isCustom ? clampedHours(value / 60) : DURATION_FALLBACK_HOURS
+  )
+
+  useEffect(() => {
+    if (isCustom) {
+      setCustomHours(clampedHours(value / 60))
+    }
+  }, [isCustom, value])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={!isCustom && !isUnlimited ? 'default' : 'outline'}
+          size="sm"
+          className="flex-1 sm:flex-none border"
+          disabled={disabled}
+          onClick={() => onChange(0)}
+        >
+          {t('roomConfig.recordDurationDefault')}
+        </Button>
+        <Button
+          type="button"
+          variant={isUnlimited ? 'default' : 'outline'}
+          size="sm"
+          className="flex-1 sm:flex-none border"
+          disabled={disabled}
+          onClick={() => onChange(-1)}
+        >
+          {t('roomConfig.recordDurationUnlimited')}
+        </Button>
+        <Button
+          type="button"
+          variant={isCustom ? 'default' : 'outline'}
+          size="sm"
+          className="flex-1 sm:flex-none border"
+          disabled={disabled}
+          onClick={() => onChange(customHours * 60)}
+        >
+          {t('roomConfig.recordDurationCustom')}
+        </Button>
+      </div>
+
+      {isCustom && (
+        <div className="space-y-2 rounded-md border border-border/60 p-3">
+          <div className="flex items-center justify-between text-sm font-medium tabular-nums">
+            <span>{t('roomConfig.recordDuration')}</span>
+            <span>
+              {value % 60 === 0
+                ? t('roomConfig.recordDurationHours', { n: value / 60 })
+                : t('roomConfig.recordDurationMinutes', { n: value })}
+            </span>
+          </div>
+          <Slider
+            min={DURATION_MIN_HOURS}
+            max={DURATION_MAX_HOURS}
+            step={1}
+            value={[customHours]}
+            disabled={disabled}
+            onValueChange={(next) => {
+              setCustomHours(next[0])
+              onChange(next[0] * 60)
+            }}
+            aria-label={t('roomConfig.recordDuration')}
+          />
+          <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+            <span>{t('roomConfig.recordDurationHours', { n: DURATION_MIN_HOURS })}</span>
+            <span>{t('roomConfig.recordDurationHours', { n: DURATION_MAX_HOURS })}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{t('roomConfig.recordDurationCustomHint')}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface RecordStartOptionsProps {
   value: RecordStartConfig
   onChange: (value: RecordStartConfig) => void
@@ -53,7 +151,6 @@ export function RecordStartOptions({
   const { t } = useTranslation()
   const showDeleteOldestOnLowDisk = view !== 'records'
 
-  const recordDuration = value.record_duration_minutes ?? 0
   const selectedQn = value.qn === 0 ? undefined : value.qn
   const selectedStreamProfiles = normalizeStreamProfiles(value.stream_profiles)
 
@@ -71,41 +168,11 @@ export function RecordStartOptions({
           <Label>{t('roomConfig.recordDuration')}</Label>
           <p className="text-sm text-muted-foreground">{t(durationHintKey)}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant={recordDuration === 0 ? 'default' : 'outline'}
-            size="sm"
-            className="flex-1 sm:flex-none border"
-            disabled={disabled}
-            onClick={() => onChange({ ...value, record_duration_minutes: 0 })}
-          >
-            {t('roomConfig.recordDurationDefault')}
-          </Button>
-          <Button
-            type="button"
-            variant={recordDuration === -1 ? 'default' : 'outline'}
-            size="sm"
-            className="flex-1 sm:flex-none border"
-            disabled={disabled}
-            onClick={() => onChange({ ...value, record_duration_minutes: -1 })}
-          >
-            {t('roomConfig.recordDurationUnlimited')}
-          </Button>
-          {[60, 180, 300, 600].map((n) => (
-            <Button
-              key={n}
-              type="button"
-              variant={recordDuration === n ? 'default' : 'outline'}
-              size="sm"
-              className="flex-1 sm:flex-none border"
-              disabled={disabled}
-              onClick={() => onChange({ ...value, record_duration_minutes: n })}
-            >
-              {t('roomConfig.recordDurationHours', { n: n / 60 })}
-            </Button>
-          ))}
-        </div>
+        <RecordDurationSelector
+          value={value.record_duration_minutes ?? 0}
+          onChange={(minutes) => onChange({ ...value, record_duration_minutes: minutes })}
+          disabled={disabled}
+        />
       </div>
 
       <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">

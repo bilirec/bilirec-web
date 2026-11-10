@@ -485,7 +485,9 @@ export const resources = {
         copyRoomIdAria: "複製 直播間 ID {{roomId}}",
         autoRecordStandby: "自動錄製待機",
         autoRecordActive: "自動錄製中",
-        autoRecordLiveNotRecording: "跳過本場自動錄製"
+        autoRecordLiveNotRecording: "跳過本場自動錄製",
+        startDurationOverrideTitle: "自訂錄製時長（可選）",
+        startDurationOverrideHint: "預設與房間配置相同，僅本次錄製生效。"
       },
       roomConfig: {
         title: "房間配置",
@@ -502,7 +504,10 @@ export const resources = {
         recordDurationHint: "手動或自動啓動錄製時使用的時長。",
         recordDurationDefault: "默認",
         recordDurationUnlimited: "不限",
+        recordDurationCustom: "自定義",
         recordDurationHours: "{{n}} 小時",
+        recordDurationMinutes: "{{n}} 分鐘",
+        recordDurationCustomHint: "拖動滑動條選擇自訂時長（1–24 小時）。",
         cancel: "取消",
         saving: "儲存中…",
         save: "儲存配置"
@@ -1051,7 +1056,9 @@ export const resources = {
         copyRoomIdAria: "复制 直播间 ID {{roomId}}",
         autoRecordStandby: "自动录制待机",
         autoRecordActive: "自动录制中",
-        autoRecordLiveNotRecording: "跳过本场自动录制"
+        autoRecordLiveNotRecording: "跳过本场自动录制",
+        startDurationOverrideTitle: "自定义录制时长（可选）",
+        startDurationOverrideHint: "默认与房间配置相同，仅本次录制生效。"
       },
       roomConfig: {
         title: "房间配置",
@@ -1068,7 +1075,10 @@ export const resources = {
         recordDurationHint: "手动或自动启动录制时使用的时长。",
         recordDurationDefault: "默认",
         recordDurationUnlimited: "不限",
-        recordDurationHours: "{{n}} 小时",        
+        recordDurationCustom: "自定义",
+        recordDurationHours: "{{n}} 小时",
+        recordDurationMinutes: "{{n}} 分钟",
+        recordDurationCustomHint: "拖动滑动条选择自定义时长（1–24 小时）。",
         cancel: "取消",
         saving: "保存中…",
         save: "保存配置"

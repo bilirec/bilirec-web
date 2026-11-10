@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { RoomCover } from '@/components/RoomCover'
-import { PlayIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, ClockCounterClockwiseIcon, CopySimpleIcon, GearSixIcon, EyeIcon, EyeClosedIcon, type IconWeight } from '@phosphor-icons/react'
+import { RecordDurationSelector } from '@/components/RecordStartOptions'
+import { PlayIcon, CaretDownIcon, UserIcon, TrashIcon, ArrowSquareOutIcon, ClockIcon, ClockCounterClockwiseIcon, CopySimpleIcon, GearSixIcon, EyeIcon, EyeClosedIcon, type IconWeight } from '@phosphor-icons/react'
 import { useTheme } from 'next-themes'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { RoomInfo } from '@/lib/types'
+import type { RoomConfig, RoomInfo } from '@/lib/types'
+import { apiClient } from '@/lib/api'
 import { useRole } from '@/lib/role-context'
 import { getLastLiveStart } from '@/lib/last-live-start'
 import { getLiveTimeMeta, normalizeText } from '@/lib/utils'
@@ -20,7 +23,7 @@ interface SubscribeCardProps {
   isRecording?: boolean
   autoRecord?: boolean
   onUnsubscribe: (roomId: number) => Promise<void>
-  onStartRecord: (roomId: number) => Promise<void>
+  onStartRecord: (roomId: number, durationOverrideMinutes?: number | null) => Promise<void>
 }
 
 export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = false, onUnsubscribe, onStartRecord }: SubscribeCardProps) {
@@ -32,10 +35,40 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
   const [isUnsubDialogOpen, setIsUnsubDialogOpen] = useState(false)
   const [isStartRecordDialogOpen, setIsStartRecordDialogOpen] = useState(false)
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
+  const [isDurationOpen, setIsDurationOpen] = useState(false)
+  /** Temporary duration for this start only; seeded from the room config when the dialog opens. */
+  const [durationOverride, setDurationOverride] = useState<number | null>(null)
 
   const cleanTitle = normalizeText(roomInfo.title) || t('subscribeCard.loadingTitle')
   const cleanDescription = normalizeText(roomInfo.description)
   const isLive = roomInfo.live_status === 1
+
+  useEffect(() => {
+    if (!isStartRecordDialogOpen) {
+      setIsDurationOpen(false)
+      setDurationOverride(null)
+      return
+    }
+
+    let isMounted = true
+    apiClient
+      .getRoomConfig(roomInfo.room_id)
+      .then((config: RoomConfig) => {
+        if (isMounted) {
+          setDurationOverride(config.record_duration_minutes ?? 0)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setDurationOverride(null)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isStartRecordDialogOpen, roomInfo.room_id])
+
   const TimeIcon = isLive ? ClockIcon : ClockCounterClockwiseIcon
   const liveTimeMeta = getLiveTimeMeta(isLive ? roomInfo.live_time : getLastLiveStart(roomInfo.room_id))
   const liveTimeTitle = liveTimeMeta
@@ -67,7 +100,7 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
     setIsStartRecordDialogOpen(false)
     setIsLoading(true)
     try {
-      await onStartRecord(roomInfo.room_id)
+      await onStartRecord(roomInfo.room_id, durationOverride)
     } finally {
       setIsLoading(false)
     }
@@ -344,6 +377,32 @@ export function SubscribeCard({ roomInfo, isRecording = false, autoRecord = fals
                 })}
               </DialogDescription>
             </DialogHeader>
+
+            <Collapsible open={isDurationOpen} onOpenChange={setIsDurationOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto w-full justify-between px-3 py-2 text-sm font-medium"
+                  disabled={isLoading}
+                >
+                  <span>{t('subscribeCard.startDurationOverrideTitle')}</span>
+                  <CaretDownIcon
+                    size={16}
+                    className={`transition-transform ${isDurationOpen ? 'rotate-180' : ''}`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pt-1 pb-2 space-y-2">
+                <p className="text-xs text-muted-foreground">{t('subscribeCard.startDurationOverrideHint')}</p>
+                <RecordDurationSelector
+                  value={durationOverride ?? 0}
+                  onChange={(minutes) => setDurationOverride(minutes)}
+                  disabled={isLoading}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsStartRecordDialogOpen(false)} disabled={isLoading}>
                 {t('fileCard.cancel')}

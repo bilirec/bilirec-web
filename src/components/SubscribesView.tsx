@@ -333,7 +333,7 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
     }
   }
 
-  const handleStartRecord = async (roomId: number) => {
+  const handleStartRecord = async (roomId: number, durationOverrideMinutes?: number | null) => {
     try {
       let config: RoomConfig | null = null
       try {
@@ -341,7 +341,13 @@ export function SubscribesView({ onRefresh, pinnedRoomId }: SubscribesViewProps)
       } catch {
         // If config fetch fails, fall back to backend default (no param)
       }
-      await apiClient.startRecord(buildStartRecordParams(roomId, config))
+      const mergedConfig =
+        durationOverrideMinutes === null || durationOverrideMinutes === undefined
+          ? config
+          : config
+            ? { ...config, record_duration_minutes: durationOverrideMinutes }
+            : { record_duration_minutes: durationOverrideMinutes }
+      await apiClient.startRecord(buildStartRecordParams(roomId, mergedConfig))
       await mutateDetails()
       toast.success(t('subscribesView.startSuccess'))
       onRefresh?.()
